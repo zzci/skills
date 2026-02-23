@@ -16,6 +16,21 @@ Use this skill to maintain one compact task list in `task.md`.
 5. For every user message or modification request, add or update one task in the list.
 6. Sync changes between `task.md` and `TaskCreate`/`TaskUpdate` tools.
 
+## Claim-Before-Work (Multi-Agent Safety)
+
+**CRITICAL: Before starting ANY task, you MUST claim it first.**
+
+1. **Read `task.md`** and check the task's current status marker and `owner` field.
+2. **Skip if already claimed**: If the task marker is `[-]` (in progress) and `owner` is set to another agent, do NOT work on it — pick the next available task.
+3. **Claim the task atomically**: Update BOTH of the following before writing any implementation code:
+   - Change marker from `[ ]` to `[-]` in `task.md`.
+   - Set the `owner` field to your agent name (e.g. `owner: agent-1`).
+   - Call `TaskUpdate` with `status: "in_progress"` and `owner: "<your-name>"`.
+4. **Only then** begin implementation work on the task.
+5. **On completion**: Change marker to `[x]`, call `TaskUpdate` with `status: "completed"`.
+
+This prevents multiple agents from working on the same task simultaneously. If you find a task already marked `[-]` with an owner, treat it as taken and move on.
+
 ## Auto-update `CLAUDE.md`
 
 On first invocation in a project, check `CLAUDE.md` in the project root. If it does not contain a `## Project Task` section, append the following block:
@@ -27,6 +42,7 @@ Use the /ptask skill to manage all tasks.
 - Read `task.md` before starting work; create one if it does not exist.
 - Every change, new feature, or bug fix must have a corresponding entry in `task.md`.
 - Task IDs use `PREFIX-NNN` format (e.g. `AUTH-001`); never skip or reuse IDs.
+- **BEFORE starting any task**: immediately mark it `[-]` in `task.md` and set `owner` to your agent name. This is mandatory for multi-agent coordination.
 - Update status markers in place after completing a task.
 ```
 
@@ -197,13 +213,18 @@ Chinese template:
 
 ## Sync Rules
 
-Keep `task.md` and Claude's task tools in sync:
+Keep `task.md` and Claude's task tools in sync. **Write status to `task.md` IMMEDIATELY — never defer updates.**
 
-- **Session start**: Read `task.md` → `TaskCreate` for active tasks (subject + description + activeForm required)
-- **Work begins**: `TaskUpdate` set `in_progress` + change marker to `[-]` in file
-- **Task done**: `TaskUpdate` set `completed` + change marker to `[x]` in place
-- **Task closed**: `TaskUpdate` set `deleted` + change marker to `[~]` in place
-- **Session end**: Write all status changes back to file, update the date at top
+- **Session start**: Read `task.md` → `TaskCreate` for active tasks (subject + description + activeForm required). Respect existing `[-]` tasks owned by other agents.
+- **Before work begins (MUST do first)**:
+  1. Update `task.md`: change marker `[ ]` → `[-]`, set `owner` field to your agent name.
+  2. Call `TaskUpdate` with `status: "in_progress"` and `owner: "<your-name>"`.
+  3. Only after BOTH writes succeed, start implementation.
+- **Task done**: Immediately change marker to `[x]` in `task.md` + `TaskUpdate` set `completed`.
+- **Task closed**: Immediately change marker to `[~]` in `task.md` + `TaskUpdate` set `deleted`.
+- **Session end**: Verify all status changes are already written to file, update the date at top.
+
+**Why immediate writes matter**: In multi-agent setups, other agents read `task.md` to decide which tasks are available. Deferred writes cause race conditions where two agents start the same task.
 
 ## Update Rules
 
