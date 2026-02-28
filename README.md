@@ -19,4 +19,5 @@ npx skills add zzci/skills --list
 
 | Skill | Description |
 |-------|-------------|
-| [ptask](skills/ptask/) | Manage project tasks through a compact `task.md` file with multi-agent coordination support |
+| [pma](skills/pma/) | Project development lifecycle — three-phase workflow + task tracking + docs + multi-agent / 项目开发全流程管理 |
+| [ptask](skills/ptask/) | Manage project tasks through `docs/task/index.md` + `docs/task/PREFIX-NNN.md` with claim-before-work multi-agent coordination |
