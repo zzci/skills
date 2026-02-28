@@ -1,35 +1,35 @@
 ---
 name: ptask
-description: Manage project execution through a compact `task.md` file in each project root. Use when users ask to plan work, track progress, update project status, or coordinate implementation tasks. Uses checkbox status markers with in-place updates and TaskCreate/TaskUpdate sync. Supports English and Chinese.
+description: Manage project execution through `docs/task/index.md` (status index) and `docs/task/PREFIX-NNN.md` (task detail files). Use when users ask to plan work, track progress, update project status, or coordinate implementation tasks. Uses checkbox status markers with in-place updates and TaskCreate/TaskUpdate sync. Supports English and Chinese.
 ---
 
 # Project Task
 
-Use this skill to maintain one compact task list in `task.md`.
+Use this skill to maintain one compact task list in `docs/task/index.md`.
 
 ## Core Workflow
 
 1. Identify project root.
-2. Ensure `CLAUDE.md` contains the Project Task section; if missing, append it (see below).
-3. Ensure `task.md` exists; if not, create from template below.
+2. Ensure `CLAUDE.md` and `AGENTS.md` contain the Project Task section; if missing, append it (see below).
+3. Ensure `docs/task/index.md` exists; if not, create from template below.
 4. Confirm task list language with user preference: Chinese or English.
 5. For every user message or modification request, add or update one task in the list.
-6. Sync changes between `task.md` and `TaskCreate`/`TaskUpdate` tools.
+6. Sync changes between `docs/task/index.md` and `TaskCreate`/`TaskUpdate` tools.
 
 ## Claim-Before-Work (Multi-Agent Safety)
 
 **CRITICAL: Before starting ANY task, you MUST claim it first.**
 
-1. **Read `task.md`** and check the task's current status marker and `owner` field.
-2. **Skip if already claimed**: If the task marker is `[-]` (in progress) and `owner` is set to another agent, do NOT work on it — pick the next available task.
-3. **Claim the task atomically**: Update BOTH of the following before writing any implementation code:
-   - Change marker from `[ ]` to `[-]` in `task.md`.
-   - Set the `owner` field to your agent name (e.g. `owner: agent-1`).
+1. **Read `docs/task/index.md`** and check the task's current status marker. For `[-]` tasks, read the detail file `docs/task/PREFIX-NNN.md` to check the `owner` field.
+2. **Skip if already claimed**: If the task marker is `[-]` (in progress) and `owner` in the detail file is set to another agent, do NOT work on it — pick the next available task.
+3. **Claim the task atomically**: Update ALL of the following before writing any implementation code:
+   - Change marker from `[ ]` to `[-]` in `docs/task/index.md`.
+   - In the detail file `docs/task/PREFIX-NNN.md`, set `status` → `in progress` and `owner` to your agent name.
    - Call `TaskUpdate` with `status: "in_progress"` and `owner: "<your-name>"`.
 4. **Only then** begin implementation work on the task.
 5. **On completion**: Change marker to `[x]`, call `TaskUpdate` with `status: "completed"`.
 
-This prevents multiple agents from working on the same task simultaneously. If you find a task already marked `[-]` with an owner, treat it as taken and move on.
+This prevents multiple agents from working on the same task simultaneously. If you find a task already marked `[-]` with an owner in `docs/task/index.md`, treat it as taken and move on.
 
 ## Auto-update `CLAUDE.md`
 
@@ -39,18 +39,37 @@ On first invocation in a project, check `CLAUDE.md` in the project root. If it d
 ## Project Task
 
 Use the /ptask skill to manage all tasks.
-- Read `task.md` before starting work; create one if it does not exist.
-- Every change, new feature, or bug fix must have a corresponding entry in `task.md`.
+- Read `docs/task/index.md` before starting work; create one if it does not exist.
+- Every change, new feature, or bug fix must have a corresponding entry in `docs/task/index.md`.
 - Task IDs use `PREFIX-NNN` format (e.g. `AUTH-001`); never skip or reuse IDs.
-- **BEFORE starting any task**: immediately mark it `[-]` in `task.md` and set `owner` to your agent name. This is mandatory for multi-agent coordination.
+- Each task has a detail file at `docs/task/PREFIX-NNN.md` with full description, owner, dependencies, and notes.
+- **BEFORE starting any task**: immediately mark it `[-]` in `docs/task/index.md`, update the detail file status and owner. This is mandatory for multi-agent coordination.
 - Update status markers in place after completing a task.
 ```
 
 If `CLAUDE.md` does not exist, create it with this section.
 
+## Auto-update `AGENTS.md`
+
+On first invocation in a project, check `AGENTS.md` in the project root (or the agents configuration file used by the project). If it does not contain a `## Project Task` section, append the following block:
+
+```markdown
+## Project Task
+
+Use the /ptask skill to manage all tasks.
+- Read `docs/task/index.md` before starting work; create one if it does not exist.
+- Every change, new feature, or bug fix must have a corresponding entry in `docs/task/index.md`.
+- Task IDs use `PREFIX-NNN` format (e.g. `AUTH-001`); never skip or reuse IDs.
+- Each task has a detail file at `docs/task/PREFIX-NNN.md` with full description, owner, dependencies, and notes.
+- **BEFORE starting any task**: immediately mark it `[-]` in `docs/task/index.md`, update the detail file status and owner. This is mandatory for multi-agent coordination.
+- Update status markers in place after completing a task.
+```
+
+If `AGENTS.md` does not exist, create it with this section.
+
 ## Language Mode
 
-- Use one language per `task.md` file: Chinese or English.
+- Use one language per `docs/task/index.md` file: Chinese or English.
 - If user specifies language, follow it.
 - If not specified, keep existing language in the file.
 
@@ -74,16 +93,44 @@ If `CLAUDE.md` does not exist, create it with this section.
 
 ## Task Template
 
-Each task is a flat list item with sub-fields (maps to `TaskCreate` params):
+### Index Entry (`docs/task/index.md`)
+
+Each task in `index.md` is a **single line** — title, priority, and status only. Link to the detail file:
 
 ```
-- [ ] **PREFIX-001 Short imperative title** `P1`
-  - description: What needs to be done, with context and acceptance criteria
-  - activeForm: Present-continuous description for spinner display
-  - createdAt: YYYY-MM-DD HH:mm
-  - blocked by: Prerequisite tasks (optional)
-  - blocks: Tasks blocked by this one (optional)
-  - owner: Responsible person/agent (optional)
+- [ ] [**PREFIX-001 Short imperative title**](PREFIX-001.md) `P1`
+```
+
+No sub-fields in `index.md`. All details go in the separate task file.
+
+### Detail File (`docs/task/PREFIX-NNN.md`)
+
+When creating a task, also create `docs/task/PREFIX-NNN.md` with the full detail (maps to `TaskCreate` params):
+
+```markdown
+# PREFIX-001 Short imperative title
+
+- **status**: pending
+- **priority**: P1
+- **owner**: (unassigned)
+- **createdAt**: YYYY-MM-DD HH:mm
+
+## Description
+
+What needs to be done, with context and acceptance criteria.
+
+## ActiveForm
+
+Present-continuous description for spinner display.
+
+## Dependencies
+
+- **blocked by**: (none)
+- **blocks**: (none)
+
+## Notes
+
+(Implementation notes, progress logs, or related links.)
 ```
 
 ### Task ID Rules
@@ -92,10 +139,11 @@ Each task is a flat list item with sub-fields (maps to `TaskCreate` params):
 - Prefix should be a short abbreviation of the task category (e.g. `AUTH`, `UI`, `API`, `BUG`, `PERF`).
 - Sequence numbers are per-prefix, starting from `001`.
 - Keep IDs stable once assigned; never reuse or renumber.
+- Each ID corresponds to exactly one file: `docs/task/PREFIX-NNN.md`.
 
-## Initialize `task.md`
+## Initialize `docs/task/index.md`
 
-If `task.md` does not exist, create it in the project root using one of the templates below.
+If `docs/task/index.md` does not exist, create it (including the `docs/task/` directory) using one of the templates below.
 
 English template:
 
@@ -106,21 +154,11 @@ English template:
 
 ## Usage
 
-### Task Format
+Each task is a single line linking to its detail file. All detailed information lives in `docs/task/PREFIX-NNN.md`.
 
-- [ ] **PREFIX-001 Short imperative title** `P1`
-  - description: What to do, context, and acceptance criteria
-  - activeForm: Present-continuous spinner text
-  - createdAt: YYYY-MM-DD HH:mm
-  - blocked by: Prerequisite tasks (optional)
-  - blocks: Downstream tasks (optional)
-  - owner: Assignee (optional)
+### Format
 
-### Task ID
-
-- Format: `PREFIX-NNN` — uppercase category prefix + sequential number.
-- Examples: `AUTH-001`, `UI-002`, `API-003`, `BUG-001`, `PERF-001`.
-- IDs are stable once assigned; never reuse or renumber.
+- [ ] [**PREFIX-001 Short imperative title**](PREFIX-001.md) `P1`
 
 ### Status Markers
 
@@ -131,22 +169,13 @@ English template:
 | `[x]`  | Completed |
 | `[~]`  | Closed / Won't do |
 
-### Priority Levels
+### Priority: P0 (blocking) > P1 (high) > P2 (medium) > P3 (low)
 
-| Tag  | Meaning |
-|------|---------|
-| `P0` | Blocking issue, handle immediately |
-| `P1` | High priority, current iteration |
-| `P2` | Medium priority, next iteration |
-| `P3` | Low priority, to be planned |
+### Rules
 
-### Update Rules
-
-- **Only update the checkbox marker** (e.g. `[ ]` → `[x]`); **never delete description, sub-fields, or any other information**.
-- Update status markers in place; do not move tasks between sections.
-- Completed tasks: change marker to `[x]`, keep all sub-fields intact.
-- Closed tasks: change marker to `[~]`, add a one-line reason in description if needed, keep all existing sub-fields.
-- New tasks append to the end of the list.
+- Only update the checkbox marker; never delete the line.
+- New tasks append to the end.
+- See each `PREFIX-NNN.md` for full details.
 
 ---
 
@@ -163,21 +192,11 @@ Chinese template:
 
 ## 使用规范
 
-### 任务格式
+每个任务为单行链接，指向对应的详情文件 `docs/task/PREFIX-NNN.md`。
 
-- [ ] **PREFIX-001 简短祈使句标题** `P1`
-  - description: 需要做什么，包含上下文和验收标准
-  - activeForm: 进行中时的现在进行时描述（用于 spinner 显示）
-  - createdAt: YYYY-MM-DD HH:mm
-  - blocked by: 依赖的前置任务（可选）
-  - blocks: 被本任务阻塞的后续任务（可选）
-  - owner: 负责人/agent 名称（可选）
+### 格式
 
-### 任务编号
-
-- 格式：`前缀-序号`，前缀为大写类别缩写，序号三位补零。
-- 示例：`AUTH-001`、`UI-002`、`API-003`、`BUG-001`、`PERF-001`。
-- 编号一旦分配不可复用或重编。
+- [ ] [**PREFIX-001 简短祈使句标题**](PREFIX-001.md) `P1`
 
 ### 状态标记
 
@@ -188,22 +207,13 @@ Chinese template:
 | `[x]` | 已完成 |
 | `[~]` | 关闭/不做 |
 
-### 优先级
+### 优先级: P0 (阻塞) > P1 (高) > P2 (中) > P3 (低)
 
-| 标签 | 含义 |
-|------|------|
-| `P0` | 阻塞性问题，立即处理 |
-| `P1` | 高优先级，当前迭代 |
-| `P2` | 中优先级，下次迭代 |
-| `P3` | 低优先级，待规划 |
+### 规则
 
-### 更新规则
-
-- **仅更新复选框标记**（如 `[ ]` → `[x]`）；**禁止删除描述、子字段或任何其他信息**。
-- 原地更新状态标记，不在分区之间移动任务。
-- 已完成任务：标记改为 `[x]`，保留所有子字段不变。
-- 关闭任务：标记改为 `[~]`，如需要可在 description 中添加一行关闭原因，保留所有现有子字段。
+- 仅更新复选框标记，禁止删除任务行。
 - 新任务追加到列表末尾。
+- 详细信息见各 `PREFIX-NNN.md` 文件。
 
 ---
 
@@ -211,36 +221,68 @@ Chinese template:
 
 ```
 
+## Task Detail File Rules
+
+Each task has a dedicated detail file at `docs/task/PREFIX-NNN.md`.
+
+### When to create
+
+- **Always** create the detail file when adding a new task line to `index.md`.
+- Both writes (index line + detail file) must happen atomically in the same step.
+
+### What goes in the detail file
+
+All information that does NOT belong in `index.md`:
+- Description and acceptance criteria
+- ActiveForm (spinner text)
+- Owner, creation date
+- Dependencies (blocked by / blocks)
+- Implementation notes and progress logs
+
+### What stays in `index.md`
+
+Only the checkbox line: `- [ ] [**PREFIX-001 Title**](PREFIX-001.md) \`P1\``
+
+### Updating the detail file
+
+- When claiming a task: update `status` → `in progress` and `owner` field in the detail file.
+- When completing: update `status` → `completed`, add completion notes if needed.
+- When closing: update `status` → `closed`, add reason.
+- Append progress notes to the `## Notes` section as work progresses.
+
 ## Sync Rules
 
-Keep `task.md` and Claude's task tools in sync. **Write status to `task.md` IMMEDIATELY — never defer updates.**
+Keep `docs/task/index.md`, detail files, and Claude's task tools in sync. **Write status IMMEDIATELY — never defer updates.**
 
-- **Session start**: Read `task.md` → `TaskCreate` for active tasks (subject + description + activeForm required). Respect existing `[-]` tasks owned by other agents.
+- **Session start**: Read `docs/task/index.md` → for each active task, read its detail file → `TaskCreate` (subject + description + activeForm required). Respect existing `[-]` tasks owned by other agents.
+- **New task**:
+  1. Create `docs/task/PREFIX-NNN.md` with full detail.
+  2. Append one-line entry to `docs/task/index.md`.
+  3. Call `TaskCreate`.
 - **Before work begins (MUST do first)**:
-  1. Update `task.md`: change marker `[ ]` → `[-]`, set `owner` field to your agent name.
-  2. Call `TaskUpdate` with `status: "in_progress"` and `owner: "<your-name>"`.
-  3. Only after BOTH writes succeed, start implementation.
-- **Task done**: Immediately change marker to `[x]` in `task.md` + `TaskUpdate` set `completed`.
-- **Task closed**: Immediately change marker to `[~]` in `task.md` + `TaskUpdate` set `deleted`.
-- **Session end**: Verify all status changes are already written to file, update the date at top.
+  1. Update `docs/task/index.md`: change marker `[ ]` → `[-]`.
+  2. Update detail file: set `status` → `in progress`, set `owner` to your agent name.
+  3. Call `TaskUpdate` with `status: "in_progress"` and `owner: "<your-name>"`.
+  4. Only after ALL writes succeed, start implementation.
+- **Task done**: Immediately change marker to `[x]` in `docs/task/index.md` + update detail file `status` → `completed` + `TaskUpdate` set `completed`.
+- **Task closed**: Immediately change marker to `[~]` in `docs/task/index.md` + update detail file `status` → `closed` + `TaskUpdate` set `deleted`.
+- **Session end**: Verify all status changes are already written to both files, update the date at top of `index.md`.
 
-**Why immediate writes matter**: In multi-agent setups, other agents read `task.md` to decide which tasks are available. Deferred writes cause race conditions where two agents start the same task.
+**Why immediate writes matter**: In multi-agent setups, other agents read `docs/task/index.md` to decide which tasks are available. Deferred writes cause race conditions where two agents start the same task.
 
 ## Update Rules
 
-- **Only update the checkbox marker** (e.g. `[ ]` → `[x]`); **never delete description, sub-fields, or any other information** (minimize git diff).
-- Update status marker in place; do not move tasks between sections.
-- Completed tasks: change marker to `[x]`, keep all sub-fields intact.
-- Closed tasks: change marker to `[~]`, add a one-line reason in description if needed, keep all existing sub-fields.
-- New tasks append to the end of the list.
-- Keep task IDs stable if used (e.g. `TASK-001`, `CRASH-001`).
+- **`index.md`**: Only update the checkbox marker (e.g. `[ ]` → `[x]`); never delete task lines (minimize git diff).
+- **Detail files**: Update status, owner, and notes in place; never delete existing fields.
+- New tasks append to the end of `index.md`.
+- Keep task IDs stable; never reuse or renumber.
 - Auto-log each user conversation turn as a task item when relevant.
 
 ## Output Behavior
 
 When reporting progress to the user:
 
-1. Summarize `task.md` updates.
+1. Summarize `docs/task/index.md` updates.
 2. List in-progress (`[-]`) and pending (`[ ]`) tasks.
 3. List newly completed (`[x]`) task titles.
 
