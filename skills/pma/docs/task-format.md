@@ -1,43 +1,39 @@
-# Task Format Reference / 任务格式参考
+# Task Format Reference
 
-> This document defines the task management format for the `docs/task/` directory, including ID rules and initialization templates in both English and Chinese.
-> 本文档定义 `docs/task/` 目录的任务管理格式、编号规则和初始化模板（中英文）。
+This document defines the task management format for the `docs/task/` directory, including ID rules and initialization templates.
 
-## Table of Contents / 目录
+## Table of Contents
 
-- [Directory Structure / 目录结构](#directory-structure--目录结构)
-- [Index Entry Format / 索引条目格式](#index-entry-format--索引条目格式)
-- [Detail File Format / 详情文件格式](#detail-file-format--详情文件格式)
-- [Task ID Rules / 任务编号规则](#task-id-rules--任务编号规则)
-- [Status Markers / 状态标记](#status-markers--状态标记)
-- [Priority Levels / 优先级](#priority-levels--优先级)
-- [Update Rules / 更新规则](#update-rules--更新规则)
-- [Index Templates / 索引模板](#index-templates--索引模板)
+- [Directory Structure](#directory-structure)
+- [Index Entry Format](#index-entry-format)
+- [Detail File Format](#detail-file-format)
+- [Task ID Rules](#task-id-rules)
+- [Status Markers](#status-markers)
+- [Priority Levels](#priority-levels)
+- [Update Rules](#update-rules)
+- [Index Templates](#index-templates)
 
-## Directory Structure / 目录结构
+## Directory Structure
 
-```
+```text
 docs/task/
-├── index.md          # Task index (one line per task) / 任务索引（每任务一行）
-└── PREFIX-NNN.md     # Task detail files (one per task) / 任务详情文件（每任务一个）
+├── index.md          # Task index (one line per task)
+└── PREFIX-NNN.md     # Task detail files (one per task)
 ```
 
-## Index Entry Format / 索引条目格式
+## Index Entry Format
 
-Each task in `index.md` is a **single-line link** — no sub-fields.
-每个任务在 `index.md` 中为**单行链接**，不含子字段。
+Each task in `index.md` is a single-line link with no sub-fields.
 
-```
+```markdown
 - [ ] [**PREFIX-001 Short imperative title**](PREFIX-001.md) `P1`
 ```
 
-All detailed information goes in the corresponding detail file. `index.md` must NOT contain description, owner, or other sub-fields.
-所有详细信息写入对应的详情文件。`index.md` 中禁止放置 description、owner 等子字段。
+All detailed information goes in the corresponding detail file. `index.md` must not contain description, owner, or other sub-fields.
 
-## Detail File Format / 详情文件格式
+## Detail File Format
 
-Create the detail file atomically when adding a new task line to `index.md`. Maps to `TaskCreate` parameters.
-创建任务时同时创建详情文件（原子操作），映射到 `TaskCreate` 参数。
+Create the detail file atomically when adding a new task line to `index.md`. This maps cleanly to `TaskCreate` parameters.
 
 ### English Template
 
@@ -67,7 +63,7 @@ Present-continuous description for spinner display.
 (Implementation notes, progress logs, or related links.)
 ```
 
-### 中文模板
+### Chinese Template
 
 ```markdown
 # PREFIX-001 简短祈使句标题
@@ -95,57 +91,53 @@ Present-continuous description for spinner display.
 （实现笔记、进度日志或相关链接。）
 ```
 
-### Detail File Update Rules / 详情文件更新规则
+### Detail File Update Rules
 
-- Allowed detail status values / 详情文件允许状态值: `pending`, `in_progress`, `completed`, `closed`
-- Claiming / 认领: `status` → `in_progress`, set `owner`
-- Completing / 完成: `status` → `completed`, add completion notes if needed
-- Closing / 关闭: `status` → `closed`, add reason
-- In progress / 工作中: append progress notes to `## Notes` / `## 笔记`
+- Allowed detail `status` values: `pending`, `in_progress`, `completed`, `closed`
+- Claiming: set `status` to `in_progress` and set `owner`
+- Completing: set `status` to `completed`, add completion notes if needed
+- Closing: set `status` to `closed`, add reason
+- In progress: append progress notes to the notes section
 
-## Task ID Rules / 任务编号规则
+## Task ID Rules
 
-- Format: `PREFIX-NNN` — uppercase category prefix + hyphen + zero-padded 3-digit sequence.
-  格式：大写类别前缀 + 连字符 + 三位补零序号。
-- Prefix is a short category abbreviation. / 前缀为任务类别的短缩写。
-  Examples: `AUTH`, `UI`, `API`, `BUG`, `PERF`, `FEAT`, `REFACTOR`.
-- Sequence numbers are per-prefix, starting from `001`. / 序号按前缀独立递增，从 `001` 开始。
-- Once assigned, never reuse or renumber. / 编号一旦分配不可复用或重编。
-- Each ID maps to exactly one file: `docs/task/PREFIX-NNN.md`.
+- Format: `PREFIX-NNN` (uppercase category prefix + hyphen + zero-padded 3-digit sequence)
+- Prefix is a short category abbreviation, for example: `AUTH`, `UI`, `API`, `BUG`, `PERF`, `FEAT`, `REFACTOR`
+- Sequence numbers are per-prefix, starting from `001`
+- Once assigned, never reuse or renumber
+- Each ID maps to exactly one file: `docs/task/PREFIX-NNN.md`
 
-## Status Markers / 状态标记
+## Status Markers
 
-| Marker / 标记 | EN | 中文 | TaskUpdate status |
-|------|------|------|-------------------|
-| `[ ]` | Pending | 待办 | `pending` |
-| `[-]` | In progress | 进行中 | `in_progress` |
-| `[x]` | Completed | 已完成 | `completed` |
-| `[~]` | Closed / Won't do | 关闭/不做 | `deleted` |
+| Marker | Meaning | TaskUpdate status |
+|------|------|-------------------|
+| `[ ]` | Pending | `pending` |
+| `[-]` | In progress | `in_progress` |
+| `[x]` | Completed | `completed` |
+| `[~]` | Closed / Won't do | `deleted` |
 
-## Priority Levels / 优先级
+## Priority Levels
 
-| Tag | EN | 中文 |
-|-----|------|------|
-| `P0` | Blocking issue, handle immediately | 阻塞性问题，立即处理 |
-| `P1` | High priority, current iteration | 高优先级，当前迭代 |
-| `P2` | Medium priority, next iteration | 中优先级，下次迭代 |
-| `P3` | Low priority, to be planned | 低优先级，待规划 |
+| Tag | Meaning |
+|-----|------|
+| `P0` | Blocking issue, handle immediately |
+| `P1` | High priority, current iteration |
+| `P2` | Medium priority, next iteration |
+| `P3` | Low priority, to be planned |
 
-## Update Rules / 更新规则
+## Update Rules
 
-- **`index.md`**: Only update checkbox markers (e.g. `[ ]` → `[x]`). Never delete task lines (minimize git diff).
-  仅更新复选框标记，禁止删除任务行（最小化 git diff）。
+- **`index.md`**: Update only checkbox markers (for example, `[ ]` -> `[x]`). Never delete task lines.
 - **Detail files**: Update status, owner, and notes in place. Never delete existing fields.
-  原地更新 status、owner 和 notes，禁止删除已有字段。
-- New tasks append to the end of `index.md`. / 新任务追加到末尾。
-- Task IDs are permanent. / 编号保持稳定，不可复用或重编。
+- New tasks append to the end of `index.md`.
+- Task IDs are permanent.
 
-## Index Templates / 索引模板
+## Index Templates
 
 ### English Template
 
 ```markdown
-# Project Name — Task List
+# Project Name - Task List
 
 > Updated: YYYY-MM-DD
 
@@ -180,7 +172,7 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ```
 
-### 中文模板
+### Chinese Template
 
 ```markdown
 # 项目名 — 任务清单
