@@ -15,6 +15,21 @@ npx skills add zzci/skills --skill ptask
 npx skills add zzci/skills --list
 ```
 
+## Add PMA / 添加 PMA 说明
+
+```bash
+# Install PMA only
+npx skills add zzci/skills --skill pma
+```
+
+First-time PMA setup in a project:
+
+1. Ensure `CLAUDE.md` has a `## Project Development` / `## 项目开发管理` section that references `/pma` and the three-phase workflow.
+2. Ensure `AGENTS.md` has the same section.
+3. Ensure `docs/task/index.md` exists.
+4. Ensure `docs/plan/index.md` exists.
+5. Ensure core docs exist: `docs/architecture.md` and `docs/changelog.md`.
+
 ## Available Skills
 
 | Skill | Description |
