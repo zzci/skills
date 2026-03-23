@@ -87,6 +87,7 @@ Every PMA-Go project should define these checks before merge:
 | Coverage | `go test -cover ./...` meets project threshold (target 80%+) |
 | Build | `go build ./...` succeeds |
 | Mod tidy | `go mod tidy` produces no diff |
+| Security scan | `gosec ./...` passes with no high-severity findings |
 | Security review | auth, secrets, outbound HTTP, and config changes reviewed |
 
 If a project is missing one of these commands, add it instead of leaving the expectation undocumented.
@@ -457,11 +458,20 @@ func NewPool(ctx context.Context, databaseURL string, maxConns int) (*pgxpool.Po
 
 ### Migration with goose
 
+**NEVER write migration files by hand.** Always use the CLI to generate them:
+
 ```bash
 go install github.com/pressly/goose/v3/cmd/goose@latest
 goose -dir db/migrations postgres "$DATABASE_URL" up
 goose -dir db/migrations postgres "$DATABASE_URL" create create_users sql
 ```
+
+Migration rules:
+
+- Use `goose create <name> sql` to generate timestamped migration files — never create them manually
+- Each migration must include both `up` and `down` (rollback) statements
+- Test migrations against a clean database before committing
+- Never modify a migration that has already been applied in any shared environment
 
 Embed migrations for single-binary deployment:
 
@@ -479,6 +489,66 @@ func RunMigrations(db *sql.DB) error {
     goose.SetBaseFS(migrations)
     return goose.Up(db, "migrations")
 }
+```
+
+## API Documentation
+
+### OpenAPI Specification
+
+**Every API project must have an OpenAPI 3.1 specification.** Generate it from code — never maintain a separate YAML/JSON file by hand.
+
+Use **swag** (Swaggo) for annotation-based OpenAPI generation:
+
+```bash
+go install github.com/swaggo/swag/cmd/swag@latest
+swag init -g cmd/server/main.go -o docs/swagger
+```
+
+#### Handler Annotations
+
+```go
+// @Summary      Get user by ID
+// @Description  Returns a single user
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "User ID"
+// @Success      200  {object}  APIResponse{data=model.User}
+// @Failure      404  {object}  APIResponse
+// @Router       /api/v1/users/{id} [get]
+func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
+```
+
+#### Serving the Docs
+
+```go
+import httpSwagger "github.com/swaggo/http-swagger"
+
+r.Get("/docs/*", httpSwagger.WrapHandler)
+```
+
+### API Documentation Rules
+
+| Rule | Requirement |
+|---|---|
+| Source of truth | OpenAPI spec generated from code annotations — never hand-written |
+| Generation | `swag init` runs in CI and produces no diff |
+| Viewer | Swagger UI or Scalar served at `/docs` in development |
+| Coverage | every public endpoint must have annotations (summary, params, responses) |
+| Versioning | spec version matches API version (`/api/v1` → `info.version: 1.x`) |
+
+Add to Quality Gates:
+
+```
+API docs | `swag init` produces no diff against checked-in spec
+```
+
+Add to Taskfile:
+
+```yaml
+  docs:
+    desc: Generate OpenAPI spec
+    cmd: swag init -g cmd/server/main.go -o docs/swagger
 ```
 
 ## HTTP Server
@@ -541,6 +611,44 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(user)
+}
+```
+
+### API Response Envelope
+
+Use a consistent response format for all API endpoints:
+
+```go
+type APIResponse struct {
+    Success bool        `json:"success"`
+    Data    interface{} `json:"data,omitempty"`
+    Error   *APIError   `json:"error,omitempty"`
+    Meta    *Meta       `json:"meta,omitempty"`
+}
+
+type APIError struct {
+    Code    string `json:"code"`
+    Message string `json:"message"`
+}
+
+type Meta struct {
+    Total  int `json:"total"`
+    Page   int `json:"page"`
+    Limit  int `json:"limit"`
+}
+
+func respondJSON(w http.ResponseWriter, status int, resp APIResponse) {
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(status)
+    json.NewEncoder(w).Encode(resp)
+}
+
+func respondOK(w http.ResponseWriter, data interface{}) {
+    respondJSON(w, http.StatusOK, APIResponse{Success: true, Data: data})
+}
+
+func respondError(w http.ResponseWriter, status int, code, message string) {
+    respondJSON(w, status, APIResponse{Success: false, Error: &APIError{Code: code, Message: message}})
 }
 ```
 
@@ -940,6 +1048,7 @@ linters:
     - nolintlint
     - prealloc
     - unconvert
+    - gosec
 
 linters-settings:
   revive:
@@ -1108,7 +1217,12 @@ jobs:
       - uses: actions/setup-go@<sha>
         with:
           go-version-file: go.mod
-      - run: go test -race -coverprofile=coverage.out ./...
+      - run: |
+          go test -race -coverprofile=coverage.out ./...
+          # Enforce 80% coverage threshold
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          echo "Total coverage: ${COVERAGE}%"
+          awk "BEGIN {exit ($COVERAGE < 80.0) ? 1 : 0}" || (echo "Coverage ${COVERAGE}% is below 80% threshold" && exit 1)
 
   build:
     needs: [fmt]
@@ -1129,6 +1243,17 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go mod tidy && git diff --exit-code go.mod go.sum
+
+  security:
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@<sha>
+      - uses: actions/setup-go@<sha>
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - run: gosec ./...
 ```
 
 ## Security Patterns
@@ -1195,15 +1320,125 @@ func verifyToken(provided, expected string) bool {
 }
 ```
 
-## Accessibility and API Review
+## Pre-Commit Security Checklist
 
-For every API-affecting change, review:
+Before every commit, verify:
 
-- request validation covers all input fields
-- error responses do not leak internal details
-- auth and permission checks guard protected endpoints
-- rate limiting is applied to public-facing endpoints
-- SQL queries use parameterized arguments (never string concatenation)
-- secrets are not logged, serialized, or included in error messages
+- [ ] No hardcoded secrets (API keys, passwords, tokens)
+- [ ] All user inputs validated (`go-playground/validator` at API boundaries)
+- [ ] SQL injection prevention (parameterized queries via sqlc/pgx)
+- [ ] XSS prevention (sanitized output for any HTML-rendering endpoints)
+- [ ] CSRF protection enabled (for browser-facing APIs)
+- [ ] Authentication/authorization verified on all protected endpoints
+- [ ] Rate limiting applied to public-facing endpoints
+- [ ] Error messages do not leak internal details (stack traces, SQL errors)
+- [ ] Secrets not logged, serialized, or included in error messages
+- [ ] Outbound HTTP calls use `context.WithTimeout`
 
-These checks are part of delivery quality, not optional polish.
+### Security Response Protocol
+
+If a security issue is found during development:
+
+1. **STOP** — do not continue feature work
+2. Use **security-reviewer** agent for comprehensive analysis
+3. Fix CRITICAL issues before any other work
+4. Rotate any secrets that may have been exposed
+5. Review codebase for similar patterns
+
+## Code Quality Standards
+
+### Immutability
+
+Prefer value semantics and immutable data. Create new structs rather than mutating existing ones:
+
+```go
+// WRONG: mutation
+func updateUser(u *User, name string) {
+    u.Name = name
+}
+
+// CORRECT: return new value
+func updateUser(u User, name string) User {
+    u.Name = name
+    return u
+}
+```
+
+When mutation is necessary (e.g., database connection pools), document why and contain it behind an interface.
+
+### File and Function Size Limits
+
+| Metric | Target | Maximum |
+|---|---|---|
+| File length | 200-400 lines | 800 lines |
+| Function length | < 30 lines | 50 lines |
+| Nesting depth | 2 levels | 4 levels |
+
+Extract utilities from large files. Organize by feature/domain, not by type.
+
+### Code Quality Checklist
+
+Before marking work complete:
+
+- [ ] Code is readable and well-named
+- [ ] Functions are small (< 50 lines)
+- [ ] Files are focused (< 800 lines)
+- [ ] No deep nesting (> 4 levels)
+- [ ] Proper error handling with context wrapping
+- [ ] No hardcoded values (use constants or config)
+- [ ] Immutable patterns used where possible
+- [ ] Import grouping correct (stdlib / external / internal)
+
+## Development Workflow
+
+This skill defines implementation standards. The `/pma` skill controls the overall workflow. Within implementation, follow these phases:
+
+### Phase 0: Research & Reuse
+
+Before writing new code:
+
+1. **GitHub search first**: `gh search repos` and `gh search code` for existing implementations
+2. **Library docs**: Use Context7 or pkg.go.dev to confirm API behavior
+3. **Package registries**: Search pkg.go.dev before writing utility code
+4. **Adaptable implementations**: Look for open-source projects solving 80%+ of the problem
+
+Prefer adopting a proven approach over writing net-new code.
+
+### Phase 1: Plan
+
+- Use **planner** agent to create implementation plan
+- Generate architecture docs before coding
+- Identify dependencies and risks
+
+### Phase 2: TDD
+
+- Use **tdd-guide** agent proactively for new features
+- Write test first (RED) — run and confirm it fails
+- Write minimal implementation (GREEN) — run and confirm it passes
+- Refactor (IMPROVE)
+- Verify 80%+ coverage with `go test -cover`
+
+### Phase 3: Code Review
+
+- Use **code-reviewer** agent immediately after writing code
+- Address CRITICAL and HIGH issues before committing
+- Fix MEDIUM issues when possible
+
+## Git Conventions
+
+### Commit Message Format
+
+```
+<type>: <description>
+
+<optional body>
+```
+
+Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`
+
+### PR Workflow
+
+1. Analyze full commit history with `git diff [base-branch]...HEAD`
+2. Draft comprehensive PR summary covering all changes
+3. Include test plan with TODOs
+4. Push with `-u` flag for new branches

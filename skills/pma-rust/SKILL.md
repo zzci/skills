@@ -83,6 +83,7 @@ Every PMA-Rust project should define these checks before merge:
 | Test | `cargo test --all-features` passes |
 | Build | `cargo build --all-features --release` succeeds |
 | Security review | auth, secrets, outbound HTTP, and config changes reviewed |
+| Vulnerability scan | `cargo audit` passes |
 
 If a project is missing one of these commands, add it instead of leaving the expectation undocumented.
 
@@ -148,6 +149,73 @@ tests/                              # integration tests if the project needs the
 | TLS | rustls only; OpenSSL is banned |
 | Auth | constant-time token comparison for secrets |
 | Shutdown | handle SIGINT / SIGTERM and drain in-flight work |
+
+## Code Quality Standards
+
+### Immutability
+
+Prefer immutable data by default. Use owned values and return new structs rather than mutating in place:
+
+```rust
+// WRONG: mutation via &mut
+fn update_name(user: &mut User, name: String) {
+    user.name = name;
+}
+
+// CORRECT: return new value
+fn with_name(user: User, name: String) -> User {
+    User { name, ..user }
+}
+```
+
+When mutation is necessary (e.g., connection pools, caches behind `Arc<Mutex<_>>`), document why and contain it behind an interface.
+
+### File and Function Size Limits
+
+| Metric | Target | Maximum |
+|---|---|---|
+| File length | 200-400 lines | 800 lines |
+| Function length | < 30 lines | 50 lines |
+| Nesting depth | 2 levels | 4 levels |
+
+Extract utilities from large modules. Organize by feature/domain, not by type.
+
+### Code Quality Checklist
+
+Before marking work complete:
+
+- [ ] Code is readable and well-named
+- [ ] Functions are small (< 50 lines)
+- [ ] Files are focused (< 800 lines)
+- [ ] No deep nesting (> 4 levels)
+- [ ] Proper error handling (thiserror/anyhow, no unwrap/expect)
+- [ ] No hardcoded values (use constants or config)
+- [ ] Immutable patterns used where possible
+- [ ] Imports grouped: std / external / local
+
+## Naming Conventions
+
+| Element | Convention | Example |
+|---|---|---|
+| Types / Traits | `PascalCase` | `UserService`, `Repository` |
+| Functions / Methods | `snake_case` | `find_by_id`, `create_user` |
+| Constants | `SCREAMING_SNAKE_CASE` | `MAX_RETRIES`, `DEFAULT_PORT` |
+| Modules | `snake_case` | `user_service`, `db` |
+| Lifetimes | Short lowercase | `'a`, `'de`, `'ctx` |
+| Crate names | `kebab-case` | `my-app-core` |
+
+## Rust Idioms
+
+- Prefer `impl Trait` over explicit generics when possible
+- Use `Default` trait for struct initialization
+- Prefer iterators over manual loops
+- Use `Option` and `Result` — never panic in library code
+- Prefer `into()` / `from()` conversions via `From`/`Into` traits
+- Prefer borrowing (`&T`, `&mut T`) over cloning
+- Use `Clone` only when ownership transfer is truly needed
+- Prefer `&str` over `String` in function parameters
+- Use `Cow<'_, str>` when you need both owned and borrowed
+- Enable `#![forbid(unsafe_code)]` at the crate root for compile-time enforcement
 
 ## Workspace Cargo.toml
 
@@ -365,6 +433,16 @@ Choose one data access strategy per project:
 |---|---|
 | **Diesel + diesel-async** | need ORM, migrations, schema DSL; team prefers compile-time schema safety |
 | **SQLx** | prefer raw SQL with compile-time query checking; lighter dependency tree |
+
+### Migration Rules
+
+**NEVER write migration files by hand.** Always use the CLI to generate them:
+
+- Diesel: `diesel migration generate <name>` — generates timestamped `up.sql` / `down.sql`
+- SQLx: `sqlx migrate add <name>` — generates timestamped migration file
+- Each migration must include both `up` and `down` (rollback) statements
+- Test migrations against a clean database before committing
+- Never modify a migration that has already been applied in any shared environment
 
 ### Crate Structure (shared by both options)
 
@@ -733,6 +811,66 @@ Shutdown checklist:
 - flush logs
 - close pools and background tasks cleanly
 
+## API Documentation
+
+### OpenAPI Specification
+
+**Every API project must have an OpenAPI 3.1 specification.** Generate it from code — never maintain a separate YAML/JSON file by hand.
+
+Use **utoipa** for derive-macro-based OpenAPI generation:
+
+```toml
+# Cargo.toml
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-scalar = { version = "0.3", features = ["axum"] }
+```
+
+#### Handler Annotations
+
+```rust
+use utoipa::OpenApi;
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(get_user, list_users, create_user),
+    components(schemas(User, ApiResponse<User>, ApiError)),
+    tags((name = "users", description = "User management"))
+)]
+struct ApiDoc;
+
+/// Get user by ID
+#[utoipa::path(
+    get,
+    path = "/api/v1/users/{id}",
+    params(("id" = i32, Path, description = "User ID")),
+    responses(
+        (status = 200, description = "User found", body = ApiResponse<User>),
+        (status = 404, description = "User not found", body = ApiResponse<()>),
+    ),
+    tag = "users"
+)]
+async fn get_user(/* ... */) -> impl IntoResponse { /* ... */ }
+```
+
+#### Serving the Docs
+
+```rust
+use utoipa_scalar::{Scalar, Servable};
+
+let app = Router::new()
+    .merge(Scalar::with_url("/docs", ApiDoc::openapi()))
+    .nest("/api/v1", api_routes());
+```
+
+### API Documentation Rules
+
+| Rule | Requirement |
+|---|---|
+| Source of truth | OpenAPI spec generated from `#[derive(OpenApi)]` — never hand-written |
+| Viewer | Scalar served at `/docs` in development |
+| Coverage | every public endpoint must have `#[utoipa::path]` annotations |
+| Versioning | spec version matches API version (`/api/v1` → `info.version: 1.x`) |
+
 ## HTTP Server with Axum
 
 ### Router Structure
@@ -767,6 +905,38 @@ async fn get_item(
     let conn = &mut state.services.db.get().map_err(anyhow::Error::from)?;
     let item = items::table.find(id).first(conn)?;
     Ok(Json(item))
+}
+```
+
+### API Response Envelope
+
+Use a consistent response format:
+
+```rust
+#[derive(Serialize)]
+struct ApiResponse<T: Serialize> {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<ApiError>,
+}
+
+#[derive(Serialize)]
+struct ApiError {
+    code: String,
+    message: String,
+}
+
+fn ok<T: Serialize>(data: T) -> Json<ApiResponse<T>> {
+    Json(ApiResponse { success: true, data: Some(data), error: None })
+}
+
+fn err<T: Serialize>(code: &str, message: &str) -> (StatusCode, Json<ApiResponse<T>>) {
+    (StatusCode::BAD_REQUEST, Json(ApiResponse {
+        success: false, data: None,
+        error: Some(ApiError { code: code.into(), message: message.into() }),
+    }))
 }
 ```
 
@@ -807,7 +977,7 @@ axum::serve(listener, router)
     .await?;
 ```
 
-## Security Patterns
+## Security
 
 ### Constant-Time Secret Comparison
 
@@ -842,6 +1012,30 @@ pub struct Cache {
     inner: DashMap<String, CachedItem>,
 }
 ```
+
+### Pre-Commit Security Checklist
+
+Before every commit, verify:
+
+- [ ] No hardcoded secrets (API keys, passwords, tokens)
+- [ ] All user inputs validated (Zod-equivalent: serde + custom validation)
+- [ ] SQL injection prevention (parameterized queries via Diesel/SQLx)
+- [ ] Authentication/authorization verified on all protected endpoints
+- [ ] Rate limiting applied to public-facing endpoints
+- [ ] Error messages do not leak internal details
+- [ ] Secrets not logged or serialized (use `Secret<T>` wrapper)
+- [ ] `#![forbid(unsafe_code)]` enabled at crate root
+- [ ] `cargo audit` passes with no known vulnerabilities
+
+### Security Response Protocol
+
+If a security issue is found during development:
+
+1. **STOP** — do not continue feature work
+2. Use **security-reviewer** agent for comprehensive analysis
+3. Fix CRITICAL issues before any other work
+4. Rotate any secrets that may have been exposed
+5. Review codebase for similar patterns
 
 ## Logging and Observability
 
@@ -1151,6 +1345,134 @@ fn main() -> anyhow::Result<()> {
 - use `#[instrument(skip(secret_field))]` to exclude sensitive arguments from spans
 - health and readiness endpoints must remain outside auth middleware
 
+## Development Workflow
+
+This skill defines implementation standards. The `/pma` skill controls the overall workflow. Within implementation, follow these phases:
+
+### Phase 0: Research & Reuse
+
+Before writing new code:
+
+1. **GitHub search first**: `gh search repos` and `gh search code` for existing implementations
+2. **Library docs**: Use Context7 or docs.rs/crates.io to confirm API behavior
+3. **Package registries**: Search crates.io before writing utility code
+4. **Adaptable implementations**: Look for open-source crates solving 80%+ of the problem
+
+Prefer adopting a proven approach over writing net-new code.
+
+### Phase 1: Plan
+
+- Use **planner** agent to create implementation plan
+- Generate architecture docs before coding
+- Identify dependencies and risks
+
+### Phase 2: TDD
+
+- Use **tdd-guide** agent proactively for new features
+- Write test first (RED) — run and confirm it fails
+- Write minimal implementation (GREEN) — run and confirm it passes
+- Refactor (IMPROVE)
+- Verify 80%+ coverage with `cargo-tarpaulin` or `cargo-llvm-cov`
+
+### Phase 3: Code Review
+
+- Use **code-reviewer** agent immediately after writing code
+- Address CRITICAL and HIGH issues before committing
+- Fix MEDIUM issues when possible
+
+## Testing
+
+### Test Organization
+
+| Type | Location | How to run |
+|---|---|---|
+| Unit tests | `#[cfg(test)] mod tests` in same file | `cargo test` |
+| Integration tests | `tests/` directory at crate root | `cargo test --test '*'` |
+| Doc tests | `///` examples in public APIs | `cargo test --doc` |
+
+### Async Tests
+
+Use `#[tokio::test]` for async test functions:
+
+```rust
+#[tokio::test]
+async fn test_fetch_user() {
+    let pool = setup_test_pool().await;
+    let user = find_user_by_id(&pool, 1).await.unwrap();
+    assert_eq!(user.name, "Alice");
+}
+```
+
+### Property-Based Testing
+
+Use `proptest` for invariant verification:
+
+```rust
+use proptest::prelude::*;
+
+proptest! {
+    #[test]
+    fn test_roundtrip(s in "\\PC*") {
+        let encoded = encode(&s);
+        let decoded = decode(&encoded).unwrap();
+        prop_assert_eq!(s, decoded);
+    }
+}
+```
+
+### Coverage
+
+Use `cargo-tarpaulin` or `cargo-llvm-cov`:
+
+```bash
+cargo install cargo-tarpaulin
+cargo tarpaulin --out Html --engine llvm
+# Target: 80%+ line coverage
+```
+
+### Error Enum Per Module
+
+Define a focused error enum per module/crate, not one giant error type:
+
+```rust
+// crates/db/src/error.rs — database-specific errors
+#[derive(thiserror::Error, Debug)]
+pub enum DbError {
+    #[error("not found")]
+    NotFound,
+    #[error("connection failed: {0}")]
+    Connection(#[from] diesel::ConnectionError),
+}
+
+// crates/core/src/error.rs — service-level errors
+#[derive(thiserror::Error, Debug)]
+pub enum ServiceError {
+    #[error(transparent)]
+    Db(#[from] DbError),
+    #[error("validation failed: {0}")]
+    Validation(String),
+}
+```
+
+## Git Conventions
+
+### Commit Message Format
+
+```
+<type>: <description>
+
+<optional body>
+```
+
+Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`
+
+### PR Workflow
+
+1. Analyze full commit history with `git diff [base-branch]...HEAD`
+2. Draft comprehensive PR summary covering all changes
+3. Include test plan with TODOs
+4. Push with `-u` flag for new branches
+
 ## CI Pipeline
 
 Use a two-stage model: formatting gate first, then parallel checks.
@@ -1186,6 +1508,15 @@ jobs:
     steps:
       - uses: actions/checkout@<sha>
       - uses: EmbarkStudios/cargo-deny-action@<sha>
+
+  audit:
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@<sha>
+      - uses: dtolnay/rust-toolchain@<sha>
+      - run: cargo install cargo-audit
+      - run: cargo audit
 
   build:
     needs: [fmt]
