@@ -1,6 +1,6 @@
 ---
 name: pma
-description: Project development lifecycle management with a strict three-phase workflow (investigate -> proposal -> implement), file-based plan tracking in docs/plan/, task tracking in docs/task/, and claim-before-work multi-agent coordination. Use when handling feature development, bug fixes, refactors, planning, progress tracking, or multi-agent execution in an existing codebase. Supports English and Chinese project templates.
+description: Project development lifecycle management with a strict three-phase workflow (investigate -> proposal -> implement), file-based plan tracking in docs/plan/, task tracking in docs/task/, and claim-before-work multi-agent coordination. Use when handling feature development, bug fixes, refactors, planning, progress tracking, or multi-agent execution in an existing codebase. English-first for repository docs and remote-visible metadata; use Chinese docs only when the user explicitly requests a specific document in Chinese.
 ---
 
 # PMA - Project Management Assistant
@@ -9,7 +9,7 @@ Run delivery work with clear gates, minimal diffs, and explicit task/plan tracki
 
 ## Hard Rules
 
-1. Use one project content language for docs, task files, and commit messages (follow user preference, otherwise follow existing project language).
+1. Communication with the user may follow the user's preferred language. Repository docs, task files, plan files, code comments/docs, commit messages, PR text, and other remote-visible metadata must be in English by default. Use Chinese only when the user explicitly requests a specific document in Chinese.
 2. Read before write: inspect call chains, related config/tests, and recent changelog context before editing logic.
 3. Make only the minimal requested changes; do not add unrequested refactors or features.
 4. Never use plan mode (`EnterPlanMode`, `mode: "plan"`). Manage plans in `docs/plan/` files only.
@@ -119,8 +119,8 @@ docs/
 └── changelog.md
 ```
 
-- Use English sections for English-language projects.
-- Use Chinese template sections for Chinese-language projects while keeping filenames in English.
+- Use English for repository docs and section headings by default.
+- Use Chinese templates only when the user explicitly requests a specific document in Chinese, while keeping filenames in English.
 - Write investigation findings into the plan context section.
 - Do not create extra report files; temporary files go to `./tmp/`.
 
@@ -145,7 +145,7 @@ On first use in a project:
 2. Ensure `AGENTS.md` contains the same section.
 3. Ensure `docs/task/index.md` exists (initialize from [docs/task-format.md](docs/task-format.md)).
 4. Ensure `docs/plan/index.md` exists (initialize from [docs/plan-format.md](docs/plan-format.md)).
-5. Ensure core docs exist (`architecture.md` + `changelog.md`), and keep content language aligned with the project.
+5. Ensure core docs exist (`architecture.md` + `changelog.md`) and initialize them in English unless the user explicitly requests a specific document in Chinese.
 
 ## Shell and Process Management
 
@@ -186,8 +186,8 @@ On first use in a project:
 
 Run these checks automatically before creating or updating a PR:
 
-1. **Code review** — use **code-reviewer** agent on all changed files.
-2. **Security scan** — use **security-reviewer** agent:
+1. **Code review** — run a review pass on all changed files. If a dedicated review agent/tool is available, use it; otherwise perform a manual review focused on correctness, regressions, and missing tests.
+2. **Security scan** — run a security review pass. If a dedicated security-review agent/tool is available, use it; otherwise review manually for:
    - No hardcoded secrets (API keys, passwords, tokens)
    - All user inputs validated
    - No SQL injection, XSS, or CSRF vulnerabilities
@@ -213,29 +213,28 @@ Before marking a PR ready for review:
 
 ### Standard Stages
 
-```
-lint → typecheck → build → test → security-scan
+```text
+format/lint → static checks → build → test → security review
 ```
 
-All stages must pass before a PR can be merged. Stages run in parallel where possible.
+All stages must pass before a PR can be merged. Stages run in parallel where possible. The exact commands come from the active stack skill (for example `/pma-web`, `/pma-go`, `/pma-rust`, `/pma-bun`) or the existing project scripts if the repository already defines them.
 
 ### GitHub Actions Conventions
 
 - Workflow files in `.github/workflows/`.
-- Use `bun` for install and script execution.
-- Pin action versions to full SHA, not tags (e.g., `actions/checkout@<sha>`).
-- Cache `bun` dependencies with `actions/cache` keyed on `bun.lock`.
+- Use the package manager, toolchain, and cache strategy that match the active project stack.
+- Pin action versions to full SHA, not tags (for example, `actions/checkout@<sha>`).
 - Run on: `pull_request` (target: main) and `push` (branch: main).
 
 ### CI Jobs
 
 | Job | Command | Gate |
 |---|---|---|
-| Lint | `bun run lint` | Must pass, zero warnings |
-| Typecheck | `bun run typecheck` | Must pass |
-| Build | `bun run build` | Must succeed |
-| Test | `bun run test` | Must pass, 80%+ coverage |
-| Security | `bun run audit` or dedicated scan | No critical/high vulnerabilities |
+| Format / Lint | project-specific formatting and lint commands | Must pass, zero warnings where enforced |
+| Static checks | project-specific static analysis (`typecheck`, `vet`, `clippy`, etc.) | Must pass |
+| Build | project-specific build command | Must succeed |
+| Test | project-specific test command | Must pass and meet the project's coverage policy |
+| Security | project-specific audit command or dedicated review | No unresolved critical/high issues |
 
 ### CI Rules
 

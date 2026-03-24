@@ -34,6 +34,8 @@ All detailed information goes in the corresponding detail file.
 
 Create the detail file atomically when adding a new plan line to `index.md`.
 
+English is the default for plan files. Use the Chinese template only when the user explicitly requests a specific plan document in Chinese.
+
 ### English Template
 
 ```markdown
@@ -69,7 +71,7 @@ Estimated scope of changes.
 (User annotations and responses. Keep all history.)
 ```
 
-### Chinese Template
+### Chinese Template (Explicit Request Only)
 
 ```markdown
 # PLAN-001 简短方案标题
@@ -137,6 +139,8 @@ Estimated scope of changes.
 
 ## Index Templates
 
+English is the default for plan indexes. Use the Chinese template only when the user explicitly requests that specific document in Chinese.
+
 ### English Template
 
 ```markdown
@@ -173,7 +177,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 
 ```
 
-### Chinese Template
+### Chinese Template (Explicit Request Only)
 
 ```markdown
 # 项目名 — 方案索引

@@ -64,12 +64,12 @@ Constraint levels:
 
 | Replaces | Technology | Notes |
 |---|---|---|
-| bun workspaces | pnpm workspaces | more mature for large monorepos; use if bun compatibility is a blocker |
+| bun workspaces | pnpm workspaces | more mature for large monorepos; if selected, update install/run examples and CI commands consistently |
 | react-i18next | LinguiJS | compile-time approach, ~50% smaller bundle; prefer for bundle-sensitive projects |
 
 ## Required Quality Gates
 
-Every PMA-Web project should define these checks before merge:
+Every PMA-Web project should define these checks before merge. Commands below assume the default Bun workspace setup; when using the documented pnpm alternative, use the equivalent `pnpm` commands for the same gates.
 
 | Gate | Requirement |
 |---|---|
@@ -153,12 +153,21 @@ packages/
 | Aliases | `@/` maps to `src/`; shared aliases must match the actual folder layout |
 | Generated code | shadcn/ui output is owned code; update via CLI and local edits, not copied snippets from docs |
 
-## bun Workspaces
+## Workspace Management
+
+### Default: bun workspaces
 
 - Root `package.json` declares `"workspaces": ["apps/*", "packages/*"]`
-- Use `bun install`, not `pnpm install`
+- Use `bun install`
 - Cross-package references use `workspace:*`
 - Common app commands should be runnable via `bun run --filter apps/web <script>`
+
+### Alternative: pnpm workspaces
+
+- Root `package.json` still declares `"workspaces": ["apps/*", "packages/*"]`; add `pnpm-workspace.yaml` if the repository uses pnpm-specific tooling
+- Use `pnpm install`
+- Cross-package references use `workspace:*`
+- Common app commands should be runnable via `pnpm --filter apps/web <script>`
 
 ## packages/config
 

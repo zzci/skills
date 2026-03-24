@@ -15,6 +15,7 @@ npx skills add zzci/skills --skill pma --global
 npx skills add zzci/skills --skill pma-web --global
 npx skills add zzci/skills --skill pma-rust --global
 npx skills add zzci/skills --skill pma-go --global
+npx skills add zzci/skills --skill pma-bun --global
 ```
 
 ### Project (current project only)
@@ -28,6 +29,7 @@ npx skills add zzci/skills --skill pma
 npx skills add zzci/skills --skill pma-web
 npx skills add zzci/skills --skill pma-rust
 npx skills add zzci/skills --skill pma-go
+npx skills add zzci/skills --skill pma-bun
 
 # List available skills
 npx skills add zzci/skills --list
@@ -37,7 +39,7 @@ npx skills add zzci/skills --list
 
 First-time PMA setup in a project:
 
-1. Ensure `CLAUDE.md` has a `## Project Development` / `## 项目开发管理` section that references `/pma` and the three-phase workflow.
+1. Ensure `CLAUDE.md` has a `## Project Development` section that references `/pma` and the three-phase workflow. Use a Chinese heading only if the user explicitly requests it.
 2. Ensure `AGENTS.md` has the same section.
 3. Ensure `docs/task/index.md` exists.
 4. Ensure `docs/plan/index.md` exists.
@@ -77,6 +79,18 @@ For Go service and CLI projects:
 6. Standardize on stdlib net/http + Chi (Default) or Gin (Alternative).
 7. Set up OpenTelemetry observability when deploying production services.
 
+## Add PMA-Bun
+
+For Bun backend and full-stack projects:
+
+1. Use `/pma` for investigate -> proposal -> implement workflow.
+2. Standardize the project around `src/features` and `src/shared`.
+3. Configure strict quality gates: lint, typecheck, build, test, and security review.
+4. Choose data access strategy: Drizzle ORM + PostgreSQL (Default) or `bun:sqlite` (Alternative).
+5. Validate environment configuration with Zod at startup.
+6. Standardize on Hono on top of `Bun.serve()`.
+7. Add observability only when the deployment context needs it.
+
 ## Available Skills
 
 | Skill | Description |
@@ -85,3 +99,4 @@ For Go service and CLI projects:
 | [pma-web](skills/pma-web/) | Frontend implementation guide — PMA-managed React/Vite monorepo conventions, quality gates, and shadcn/Tailwind patterns |
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, async Diesel/SQLx, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
+| [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend/full-stack conventions, strict quality gates, Drizzle or `bun:sqlite`, Hono/Bun.serve patterns, validated env config, and pino logging |

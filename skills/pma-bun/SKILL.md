@@ -231,21 +231,21 @@ Prefer adopting a proven approach over writing net-new code.
 
 ### Phase 1: Plan
 
-- Use **planner** agent to create implementation plan
-- Generate architecture docs before coding
+- Reconfirm the approved `/pma` proposal against the current code before editing
+- Generate or update architecture notes when the change alters feature boundaries, runtime integration, or deployment shape
 - Identify dependencies and risks
 
 ### Phase 2: TDD
 
-- Use **tdd-guide** agent proactively for new features
+- Prefer test-first delivery for new behavior and bug fixes with a clear reproduction
 - Write test first (RED) — run and confirm it fails
 - Write minimal implementation (GREEN) — run and confirm it passes
 - Refactor (IMPROVE)
-- Verify 80%+ coverage with `bun test --coverage`
+- Verify coverage with `bun test --coverage` when the project tracks coverage
 
 ### Phase 3: Code Review
 
-- Use **code-reviewer** agent immediately after writing code
+- Run a review pass immediately after writing code; use a review agent/tool only when available
 - Address CRITICAL and HIGH issues before committing
 - Fix MEDIUM issues when possible
 
@@ -1253,7 +1253,7 @@ Include `bun pm audit` in CI pipeline.
 If a security issue is found during development:
 
 1. **STOP** — do not continue feature work
-2. Use **security-reviewer** agent for comprehensive analysis
+2. Run a focused security review. If a dedicated security-review tool is available, use it; otherwise inspect the affected paths manually and expand the review to similar code paths.
 3. Fix CRITICAL issues before any other work
 4. Rotate any secrets that may have been exposed
 5. Review codebase for similar patterns

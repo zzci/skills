@@ -35,6 +35,8 @@ All detailed information goes in the corresponding detail file. `index.md` must 
 
 Create the detail file atomically when adding a new task line to `index.md`. This maps cleanly to `TaskCreate` parameters.
 
+English is the default for task files. Use the Chinese template only when the user explicitly requests a specific task document in Chinese.
+
 ### English Template
 
 ```markdown
@@ -63,7 +65,7 @@ Present-continuous description for spinner display.
 (Implementation notes, progress logs, or related links.)
 ```
 
-### Chinese Template
+### Chinese Template (Explicit Request Only)
 
 ```markdown
 # PREFIX-001 简短祈使句标题
@@ -134,6 +136,8 @@ Present-continuous description for spinner display.
 
 ## Index Templates
 
+English is the default for task indexes. Use the Chinese template only when the user explicitly requests that specific document in Chinese.
+
 ### English Template
 
 ```markdown
@@ -172,7 +176,7 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ```
 
-### Chinese Template
+### Chinese Template (Explicit Request Only)
 
 ```markdown
 # 项目名 — 任务清单
