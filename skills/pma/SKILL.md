@@ -15,6 +15,10 @@ Run delivery work with clear gates, minimal diffs, and explicit task/plan tracki
 4. Never use plan mode (`EnterPlanMode`, `mode: "plan"`). Manage plans in `docs/plan/` files only.
 5. Do not implement before explicit confirmation (`proceed`).
 6. Use English filenames only, even when project content is Chinese (for example: `architecture.md`, `changelog.md`).
+7. Do not assume the user knows what they want. When motivation or goal is unclear, stop and ask — do not speculate or discuss possibilities.
+8. When the goal is clear but the path is not the shortest, say so directly and suggest the better approach.
+9. Trace root causes; do not patch symptoms. Every decision must be able to answer "why".
+10. Output only what changes a decision. Cut all filler, context recaps, and information that does not affect the next action.
 
 ## Three-Phase Workflow
 
