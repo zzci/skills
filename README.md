@@ -2,6 +2,8 @@
 
 A collection of Claude Code skills.
 
+Most large skills use a thin `SKILL.md` entrypoint plus topic packs under `references/`. Load the entry file first, then only the relevant reference files for the current task.
+
 ## Install
 
 ### Global (all projects)
