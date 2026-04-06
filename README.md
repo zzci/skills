@@ -14,7 +14,7 @@ npx skills add zzci/skills --global
 
 # Install a specific skill globally
 npx skills add zzci/skills --skill pma --global
-npx skills add zzci/skills --skill pma-code-review --global
+npx skills add zzci/skills --skill pma-cr --global
 npx skills add zzci/skills --skill pma-web --global
 npx skills add zzci/skills --skill pma-rust --global
 npx skills add zzci/skills --skill pma-go --global
@@ -29,7 +29,7 @@ npx skills add zzci/skills
 
 # Install a specific skill to current project
 npx skills add zzci/skills --skill pma
-npx skills add zzci/skills --skill pma-code-review
+npx skills add zzci/skills --skill pma-cr
 npx skills add zzci/skills --skill pma-web
 npx skills add zzci/skills --skill pma-rust
 npx skills add zzci/skills --skill pma-go
@@ -49,13 +49,13 @@ First-time PMA setup in a project:
 4. Ensure `docs/plan/index.md` exists.
 5. Ensure core docs exist: `docs/architecture.md` and `docs/changelog.md`.
 
-## Add PMA Code Review
+## Add PMA CR
 
 For stack-aware review after implementation and before merge:
 
-1. Use `/pma-code-review` for local diff review.
-2. Use `/pma-code-review <PR-number-or-URL>` for pull request review.
-3. Use `/pma-code-review audit`, `/pma-code-review repo`, or `/pma-code-review --repo` for repository-wide audit.
+1. Use `/pma-cr` for local diff review.
+2. Use `/pma-cr <PR-number-or-URL>` for pull request review.
+3. Use `/pma-cr audit`, `/pma-cr repo`, or `/pma-cr --repo` for repository-wide audit.
 4. The skill applies shared review policy plus only the relevant stack packs:
    - TypeScript frontend
    - TypeScript backend / Bun
@@ -118,7 +118,7 @@ For Bun backend and full-stack projects:
 | Skill | Description |
 |-------|-------------|
 | [pma](skills/pma/) | Project development lifecycle — three-phase workflow + task tracking + docs + multi-agent |
-| [pma-code-review](skills/pma-code-review/) | Stack-aware code review — shared policy plus TypeScript frontend, TypeScript backend/Bun, Go, and Rust review packs for local diffs and PRs |
+| [pma-cr](skills/pma-cr/) | Stack-aware code review — shared policy plus TypeScript frontend, TypeScript backend/Bun, Go, and Rust review packs for local diffs and PRs |
 | [pma-web](skills/pma-web/) | Frontend implementation guide — PMA-managed React/Vite monorepo conventions, quality gates, and shadcn/Tailwind patterns |
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, async Diesel/SQLx, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |

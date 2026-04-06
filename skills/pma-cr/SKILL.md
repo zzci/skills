@@ -1,5 +1,5 @@
 ---
-name: pma-code-review
+name: pma-cr
 description: Stack-aware review for local diffs, pull requests, and repository-wide audits. Routes review across shared policy plus language packs for TypeScript frontend, TypeScript backend/Bun, Go, Rust, and Python. Use after implementation, before merge, or when auditing an existing codebase.
 ---
 
@@ -32,21 +32,21 @@ Keep the entry skill lean. Load only the reference files needed for the detected
 Local review:
 
 ```text
-/pma-code-review
+/pma-cr
 ```
 
 PR review:
 
 ```text
-/pma-code-review <PR-number-or-URL>
+/pma-cr <PR-number-or-URL>
 ```
 
 Repository audit:
 
 ```text
-/pma-code-review audit
-/pma-code-review repo
-/pma-code-review --repo
+/pma-cr audit
+/pma-cr repo
+/pma-cr --repo
 ```
 
 ## Workflow

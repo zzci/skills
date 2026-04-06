@@ -23,8 +23,14 @@ Use `/pma` for workflow control. Use this pack for implementation defaults.
 | Build tool | Vite | 8 | `host: "0.0.0.0"`, `allowedHosts: true` |
 | Styling | Tailwind CSS | 4 | `@theme` plus CSS variables in oklch |
 | Server state | TanStack Query | 5 | owns request lifecycle |
-| Lint / format | ESLint + @antfu/eslint-config | latest | no Prettier |
+| Lint / format | ESLint + @antfu/eslint-config | 8+ | no Prettier; see notes below |
 | Test | Vitest | 4 | unit and integration tests |
+
+#### @antfu/eslint-config notes
+
+- **v8+** requires `@eslint-react/eslint-plugin` v3. Ensure the project does not pin v2.
+- **v7+** enables `react/prefer-namespace-import` by default — use `import * as React from 'react'` instead of `import React from 'react'`, or explicitly disable the rule in eslint config.
+- The config is flat-config native. Do not use legacy `.eslintrc` format.
 
 ### Default
 
