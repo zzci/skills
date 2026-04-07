@@ -1,5 +1,15 @@
 # PMA-Bun Delivery
 
+## Compile Pipeline
+
+When the repository ships a standalone binary:
+
+- build the frontend first when static assets are embedded
+- generate asset maps and embedded migration modules as explicit steps
+- restore stub files after compilation, including interrupted runs
+- keep compile-time file rewriting confined to dedicated scripts
+- write checksums or release metadata as part of the build output when distribution needs it
+
 ## Hooks And Tooling
 
 - keep lint and typecheck fast enough for frequent local runs
@@ -16,6 +26,7 @@ Review these areas before merge:
 - CSRF protection when serving browser-facing state-changing routes
 - XSS avoidance by rejecting raw HTML injection paths
 - secret redaction in logs
+- safe handling of local encryption keys, bootstrap tokens, or lock files when the project uses them
 
 Pre-commit checklist:
 
@@ -35,6 +46,7 @@ Recommended shape:
 - OpenTelemetry for traces and metrics
 - pino logs with request correlation
 - health endpoint for liveness
+- human-readable local logs for developer workflows when the service is frequently run interactively
 
 ## CI Pipeline
 
@@ -42,7 +54,9 @@ Typical jobs:
 
 - lint
 - test
+- coverage
 - build
+- compile when the repository distributes binaries
 
 If the project needs security audit or DB bootstrap jobs, keep them explicit and reproducible.
 
@@ -54,6 +68,7 @@ When containerizing:
 - copy only necessary build inputs
 - set non-root execution where possible
 - keep env injection external to the image
+- document whether the container runs source mode or precompiled binary mode
 
 ## Workspaces
 
@@ -62,6 +77,7 @@ For monorepos:
 - keep workspace boundaries explicit
 - centralize shared configs
 - avoid hidden cross-package imports
+- make package exports intentional, especially when the frontend mounts the API in dev mode
 
 ## Git Conventions
 
@@ -78,3 +94,4 @@ Before merge, verify:
 - error mapping is consistent
 - auth boundaries are explicit
 - migration impact is understood
+- compile-time embedded assets and migrations stay in sync with source behavior

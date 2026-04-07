@@ -1,6 +1,6 @@
 ---
 name: pma-bun
-description: Bun implementation guide for PMA-managed backend and full-stack projects. Covers project layout (src/modules), strict linting with ESLint + @antfu/eslint-config, database access (Drizzle ORM + bun:sqlite or PostgreSQL), HTTP patterns (OpenAPIHono + Bun.serve), layered config with environment variables, dual logging (consola + pino), single-binary compilation with embedded assets, and CI quality gates.
+description: Bun implementation guide for PMA-managed backend and full-stack monorepos. Covers Bun workspaces with `apps/*` and `packages/*`, API modules under `src/modules`, strict linting with ESLint + @antfu/eslint-config, Drizzle over SQLite-first storage, OpenAPIHono on top of `Bun.serve()`, validated env config, Vite dev integration, standalone binary compilation with embedded assets and migrations, and CI quality gates.
 ---
 
 # Bun Project Implementation Guide
@@ -11,33 +11,33 @@ Keep this entry file small. Load only the relevant reference packs.
 
 ## Scope
 
-For PMA-managed Bun backends, API services, CLIs, and Bun-based full-stack projects.
+For PMA-managed Bun backends, API services, internal tools, and Bun-based full-stack monorepos.
 
 Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 
 ## Loading Order
 
 1. Always load `references/baseline.md` first.
-2. Load `references/runtime.md` for app bootstrap, config, HTTP server, docs, logging, and compiled-binary concerns.
-3. Load `references/data-and-testing.md` for Drizzle, bun:sqlite, PostgreSQL, repository patterns, and testing.
-4. Load `references/delivery.md` for lint, TypeScript, hooks, observability, CI, Docker, security, and Git workflow.
+2. Load `references/runtime.md` for bootstrap flow, config, root resolution, HTTP server, docs, logging, PID lock, and dev/prod split.
+3. Load `references/data-and-testing.md` for Drizzle, SQLite-first storage, libSQL driver setup, migration fallback, repository patterns, and testing.
+4. Load `references/delivery.md` for compile flow, embedded assets, CI gates, observability, Docker, security, and Git workflow.
 
 ## Quick Routing
 
-- New service setup or repo restructuring: `references/baseline.md`
-- OpenAPIHono, config, startup, graceful shutdown, logging, compiled binaries: `references/runtime.md`
-- Schema design, migrations, drivers, repositories, test setup: `references/data-and-testing.md`
-- Quality gates, lint, TypeScript, security, observability, CI, Docker, PR readiness: `references/delivery.md`
+- New Bun workspace setup or repo restructuring: `references/baseline.md`
+- `app.ts` / `index.ts` / `dev.ts`, OpenAPIHono, config, startup, graceful shutdown, logging, PID lock: `references/runtime.md`
+- Schema design, SQLite setup, migration embedding, repositories, test setup: `references/data-and-testing.md`
+- Compile pipeline, binary delivery, static assets, CI, Docker, PR readiness: `references/delivery.md`
 
 ## Reference Packs
 
 - `references/baseline.md`
-  Scope, stack defaults, required quality gates, project layout, conventions, code quality, and implementation workflow.
+  Scope, workspace defaults, required quality gates, project layout, scripts, conventions, and implementation workflow.
 - `references/runtime.md`
-  Formatting and TypeScript defaults, config loading, error handling, OpenAPIHono setup, logging, API docs, and single-binary delivery.
+  Formatting and TypeScript defaults, config loading, bootstrap structure, OpenAPIHono setup, middleware, logging, docs routes, and runtime lifecycle.
 - `references/data-and-testing.md`
-  Drizzle with bun:sqlite, PostgreSQL alternative, repository boundaries, and testing rules.
+  Drizzle with SQLite-first storage, migration strategy, repository boundaries, and testing rules.
 - `references/delivery.md`
-  Hooks, security patterns, observability, CI pipeline, Docker, workspace rules, and Git conventions.
+  Compile pipeline, security patterns, observability, CI pipeline, Docker, workspace rules, and Git conventions.
 
 If the repository intentionally diverges, keep the deviation explicit in the proposal and consistent across scripts, docs, and CI.

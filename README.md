@@ -106,12 +106,12 @@ For Go service and CLI projects:
 For Bun backend and full-stack projects:
 
 1. Use `/pma` for investigate -> proposal -> implement workflow.
-2. Standardize the project around `src/features` and `src/shared`.
-3. Configure strict quality gates: lint, typecheck, build, test, and security review.
-4. Choose data access strategy: Drizzle ORM + PostgreSQL (Default) or `bun:sqlite` (Alternative).
-5. Validate environment configuration with Zod at startup.
-6. Standardize on Hono on top of `Bun.serve()`.
-7. Add observability only when the deployment context needs it.
+2. Standardize the monorepo around `apps/*` and `packages/*`, with backend modules under `src/modules` and shared code under `src/shared`.
+3. Configure strict quality gates: lint, typecheck, build, test, coverage, and security review.
+4. Choose data access strategy: Drizzle + SQLite-first storage (Default) or PostgreSQL/libSQL for multi-instance requirements.
+5. Validate environment configuration with Zod at startup and centralize runtime path resolution.
+6. Standardize on OpenAPIHono on top of `Bun.serve()`, with `app.ts` / `index.ts` / `dev.ts` split by runtime role.
+7. Use a dedicated compile pipeline when shipping standalone binaries with embedded assets or migrations.
 
 ## Available Skills
 
@@ -122,4 +122,4 @@ For Bun backend and full-stack projects:
 | [pma-web](skills/pma-web/) | Frontend implementation guide — PMA-managed React/Vite monorepo conventions, quality gates, and shadcn/Tailwind patterns |
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, async Diesel/SQLx, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
-| [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend/full-stack conventions, strict quality gates, Drizzle or `bun:sqlite`, Hono/Bun.serve patterns, validated env config, and pino logging |
+| [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend/full-stack monorepo conventions, `src/modules` API layout, SQLite-first Drizzle patterns, OpenAPIHono/Bun.serve runtime split, compile-time embedded assets, and validated env config |
