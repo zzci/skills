@@ -2,7 +2,8 @@
 
 ## Shell And Process Management
 
-- Prefer `bash` for command execution.
+- Prefer `bash` for all command execution. Do not use `zsh` unless explicitly requested.
+- When a tool supports explicit shell selection, set it to `bash`.
 - Never use `kill $(lsof -ti:PORT)` without `-sTCP:LISTEN`.
 
 ### Tmux Persistent Sessions
@@ -72,8 +73,9 @@ tmux kill-session -t $SESSION
 ## Git Conventions
 
 - Use English for commits, PR titles, PR descriptions, and all remote-visible metadata.
-- Do not mention assistants or model names in remote-visible content.
+- Do not mention AI assistants, agents, or model names (Claude, Codex, ChatGPT, OpenAI, Anthropic, etc.) in commits, PR text, comments, or any remote-visible content.
 - Use conventional commits: `<type>: <description>`.
+- Chinese must not appear in code or documentation unless the user explicitly requests it.
 
 ## Pull Request Workflow
 
