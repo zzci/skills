@@ -3,16 +3,71 @@
 ## Shell And Process Management
 
 - Prefer `bash` for command execution.
-- Always use tmux for dev servers, test servers, and long-running processes.
-- Tmux session name:
+- Never use `kill $(lsof -ti:PORT)` without `-sTCP:LISTEN`.
+
+### Tmux Persistent Sessions
+
+Always use tmux for dev servers, test servers, and long-running processes.
+
+**Session naming:**
 
 ```bash
-echo $(basename "$PWD" | tr '.' '-')-$(echo -n "$PWD" | md5sum | cut -c1-6)
+SESSION=$(basename "$PWD" | tr '.' '-')-$(echo -n "$PWD" | md5sum | cut -c1-6)
 ```
 
-- Before starting a server, check `tmux has-session -t NAME` first.
-- Do not kill ports as the first approach.
-- Never use `kill $(lsof -ti:PORT)` without `-sTCP:LISTEN`.
+`tr '.' '-'` is required because tmux session names cannot contain dots.
+Worktrees of the same project get distinct names automatically.
+
+**Creating sessions — always use a persistent shell:**
+
+```bash
+# WRONG: process exit kills the session
+tmux new-session -d -s $SESSION 'bun run dev'
+
+# CORRECT: persistent shell survives process restarts
+tmux new-session -d -s $SESSION /bin/bash
+tmux send-keys -t $SESSION 'bun run dev' Enter
+```
+
+**Before starting:** check for existing sessions first, reuse or restart.
+
+```bash
+tmux has-session -t $SESSION 2>/dev/null && echo "exists" || echo "not found"
+```
+
+**If session exists:** send keys to restart the process.
+
+```bash
+tmux send-keys -t $SESSION C-c
+tmux send-keys -t $SESSION 'bun run dev' Enter
+```
+
+**If session does not exist:** create with persistent shell.
+
+```bash
+tmux new-session -d -s $SESSION /bin/bash
+tmux send-keys -t $SESSION 'bun run dev' Enter
+```
+
+**Checking output:**
+
+```bash
+tmux capture-pane -t $SESSION -p
+```
+
+**Stopping:**
+
+```bash
+tmux send-keys -t $SESSION C-c
+# Or kill the entire session:
+tmux kill-session -t $SESSION
+```
+
+**Rules:**
+
+- Never kill ports as the first approach — manage process lifecycle through tmux.
+- Always check for an existing session before creating a new one.
+- One tmux session per service — do not multiplex unrelated services.
 
 ## Git Conventions
 
