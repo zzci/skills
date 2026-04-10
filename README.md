@@ -113,6 +113,18 @@ For Bun backend and full-stack projects:
 6. Standardize on OpenAPIHono on top of `Bun.serve()`, with `app.ts` / `index.ts` / `dev.ts` split by runtime role.
 7. Use a dedicated compile pipeline when shipping standalone binaries with embedded assets or migrations.
 
+## Add BKD
+
+For operating BKD kanban boards via REST API:
+
+1. Use `/bkd` for single issue CRUD, cron jobs, and basic operations.
+2. For multi-subtask orchestration, the skill supports two modes:
+   - **Worktree mode**: subtasks work in isolated branches (`bkd/{issueId}`), suitable for multi-file changes or overlapping subtasks.
+   - **Simple mode**: subtasks work directly on the main branch, suitable for small independent changes.
+3. Pipeline-style quality assessment: each subtask is evaluated immediately on completion via logs filter, then pma-cr code review.
+4. Worktree mode includes branch merge strategies with post-merge build/test verification.
+5. Reference packs are loaded on demand: `rest-api.md`, `orchestration.md`, `quality-review.md`, `merge-strategy.md`.
+
 ## Available Skills
 
 | Skill | Description |
@@ -123,3 +135,4 @@ For Bun backend and full-stack projects:
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, async Diesel/SQLx, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
 | [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend/full-stack monorepo conventions, `src/modules` API layout, SQLite-first Drizzle patterns, OpenAPIHono/Bun.serve runtime split, compile-time embedded assets, and validated env config |
+| [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
