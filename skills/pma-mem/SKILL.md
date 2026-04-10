@@ -1,78 +1,139 @@
 ---
 name: pma-mem
-description: Operate a Memos instance over its REST API. Use when the user wants to create, search, update, or delete memos, manage tags, attachments, or user settings through a reachable Memos server.
+description: Knowledge management skill for capturing, classifying, searching, and syncing project knowledge. Use when storing learnings, syncing BKD issue outcomes, or retrieving past decisions and patterns. Memos is the storage backend.
 ---
 
-# Memos
+# Knowledge Palace
 
-Operate Memos by sending HTTP requests to `$MEMOS_URL` (default `http://memos:5230`).
-Authenticate with a Personal Access Token stored in `$MEMOS_TOKEN`.
-
-Keep this entry file small. Load only the references needed for the current turn.
+Capture and retrieve project knowledge. Storage backend: Memos (`$MEMOS_URL`, `$MEMOS_TOKEN`).
 
 ## Always-On Rules
 
-1. Confirm `$MEMOS_URL` and `$MEMOS_TOKEN` before making any request. If missing, ask the user for them.
-2. Prefer `curl -s` piped to `jq` so results are easy to inspect.
-3. All authenticated requests must include `-H "Authorization: Bearer $MEMOS_TOKEN"`.
-4. API base path is `/api/v1/`. There is no v2 API.
-5. PATCH requests use `updateMask` as a **query parameter**, not in the body.
-6. Resource names follow `{collection}/{id}` format (e.g. `memos/abc123`, `users/roy`).
-7. Pagination uses `pageSize` + `pageToken` / `nextPageToken`.
-8. Error responses are gRPC-style: `{"code": N, "message": "...", "details": []}`.
-9. Memo visibility values: `PRIVATE`, `PROTECTED` (logged-in users), `PUBLIC`.
-10. Memo state values: `NORMAL`, `ARCHIVED`.
+1. Confirm `$MEMOS_URL` and `$MEMOS_TOKEN` before any operation. If missing, ask the user.
+2. Every knowledge entry must have a **type tag**.
+3. Before writing, **always check for duplicates** by topicHash.
+4. One memo = one knowledge point. Never bundle multiple topics into a single memo.
+5. Related knowledge points must be linked via memo relations (`REFERENCE`).
+6. **Before implementing**: query relevant knowledge first. Check for existing decisions, discoveries, and patterns that may apply to the current task.
 
-## Quick Start
+## When to Query
+
+Agents should query the knowledge base in these situations:
+
+- **Starting work on a project**: `query tag:#projectname` — load context
+- **Hitting an error or unexpected behavior**: `query tag:#discovery` + keyword — someone may have seen this before
+- **Making a technical choice**: `query tag:#decision` + topic — check if a decision was already made and why
+- **Implementing a pattern**: `query tag:#pattern` + topic — reuse proven approaches
+- **Before proposing architecture**: `query tag:#fact` + relevant tech — verify assumptions
+
+## Knowledge Taxonomy
+
+### Types
+
+| Tag | When to use |
+|-----|-------------|
+| `#fact` | Confirmed technical truth |
+| `#event` | Something that happened |
+| `#discovery` | Unexpected finding, gotcha |
+| `#decision` | Why A over B, with rationale |
+| `#pattern` | Reusable approach or template |
+
+### Other Tags
+
+- **Project**: `#access`, `#bkd`, `#gino`, etc.
+- **Topic**: `#auth`, `#i18n`, `#deploy`, `#database`, etc.
+- **Source**: `#bkd-sync`, `#session`, `#manual` (optional, for filtering origin)
+
+## Memo Format
+
+```markdown
+## {title}
+
+{content — preserve key context, not just a summary}
+
+---
+source: {topicHash}
+
+#fact #access #auth
+```
+
+`source:` line is the **dedup key**. `topicHash` = first 8 chars of md5(title).
+
+## Operations
+
+### Write
 
 ```bash
-# Health check (no auth needed)
-curl -s "$MEMOS_URL/api/v1/instance/profile" | jq
+AUTH="Authorization: Bearer $MEMOS_TOKEN"
+API="$MEMOS_URL/api/v1"
 
-# List memos
-curl -s -H "Authorization: Bearer $MEMOS_TOKEN" \
-  "$MEMOS_URL/api/v1/memos?pageSize=10" | jq
+# 1. Check duplicate by topicHash
+HASH=$(echo -n "Title here" | md5sum | cut -c1-8)
+EXISTS=$(curl -s -H "$AUTH" \
+  "$API/memos?filter=content.contains(\"source:+$HASH\")" \
+  | jq '.memos | length')
 
-# Create memo
-curl -s -X POST -H "Authorization: Bearer $MEMOS_TOKEN" \
-  -H 'Content-Type: application/json' \
-  "$MEMOS_URL/api/v1/memos" \
-  -d '{"content":"Hello from CLI","visibility":"PRIVATE"}' | jq
+# 2. Create (if not exists)
+curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+  "$API/memos" \
+  -d '{"content":"## Title\n\nContent\n\n---\nsource: '"$HASH"'\n\n#fact #access #auth","visibility":"PRIVATE"}' | jq
 
-# Search memos by content filter
-curl -s -H "Authorization: Bearer $MEMOS_TOKEN" \
-  "$MEMOS_URL/api/v1/memos?filter=content.contains(\"keyword\")" | jq
+# 3. Update (if exists and changed)
+curl -s -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
+  "$API/memos/{uid}?updateMask=content" \
+  -d '{"content":"...updated..."}' | jq
 
-# Update memo content
-curl -s -X PATCH -H "Authorization: Bearer $MEMOS_TOKEN" \
-  -H 'Content-Type: application/json' \
-  "$MEMOS_URL/api/v1/memos/{uid}?updateMask=content" \
-  -d '{"content":"Updated content"}' | jq
+# 4. Link related memos
+curl -s -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
+  "$API/memos/{uid}/relations" \
+  -d '{"relations":[{"relatedMemo":"memos/{otherUid}","type":"REFERENCE"}]}' | jq
+```
 
-# Delete memo
-curl -s -X DELETE -H "Authorization: Bearer $MEMOS_TOKEN" \
-  "$MEMOS_URL/api/v1/memos/{uid}" | jq
+### Query
 
-# Archive memo
-curl -s -X PATCH -H "Authorization: Bearer $MEMOS_TOKEN" \
-  -H 'Content-Type: application/json' \
-  "$MEMOS_URL/api/v1/memos/{uid}?updateMask=state" \
-  -d '{"state":"ARCHIVED"}' | jq
+Use queries to retrieve knowledge before acting. Return content to the agent context.
+
+```bash
+# Load project context before starting work
+curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"access\"]&pageSize=20" \
+  | jq '.memos[]|{uid,snippet,tags}'
+
+# Check prior decisions on a topic
+curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"decision\"]&pageSize=20" \
+  | jq '.memos[]|{snippet,content}' | grep -i "database\|orm\|drizzle"
+
+# Find gotchas before touching a component
+curl -s -H "$AUTH" \
+  "$API/memos?filter=tag+in+[\"discovery\"]" \
+  | jq '.memos[]|.content' | grep -i "traefik\|cors"
+
+# Reuse a known pattern
+curl -s -H "$AUTH" \
+  "$API/memos?filter=tag+in+[\"pattern\"]" \
+  | jq '.memos[]|{snippet,content}' | grep -i "merge\|worktree"
+
+# Full-text search
+curl -s -H "$AUTH" \
+  "$API/memos?filter=content.contains(\"keyword\")" \
+  | jq '.memos[]|{uid,snippet}'
+
+# Get full content of a specific memo
+curl -s -H "$AUTH" "$API/memos/{uid}" | jq '.content'
+
+# Get related knowledge (follow links)
+curl -s -H "$AUTH" "$API/memos/{uid}/relations" \
+  | jq '.relations[].relatedMemo'
 ```
 
 ## Reference Packs
 
-Load only what the current task needs:
-
-- `references/rest-api.md`
-  Full API endpoint reference: MemoService, UserService, AttachmentService, InstanceService, AuthService, ShortcutService.
-- `references/workflows.md`
-  Common workflows: bulk operations, tag management, memo relations, comments, reactions, search patterns, and attachment handling.
+- `references/storage-api.md`
+  Memos REST API reference (CRUD, filters, relations, pagination, attachments).
+- `references/knowledge-sync.md`
+  BKD → Knowledge sync workflow: scanning, extraction, dedup, incremental update.
 
 ## Quick Routing
 
-Choose references by intent:
-
-- Single memo CRUD or API details: load `references/rest-api.md`.
-- Bulk operations, search, tag workflows, or attachments: load `references/workflows.md`.
-- Full understanding of all endpoints: load both.
+- Store or retrieve knowledge: use operations above directly.
+- Need API details (updateMask, filters, error codes): load `references/storage-api.md`.
+- Sync from BKD issues: load `references/knowledge-sync.md`.
