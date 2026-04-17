@@ -15,10 +15,57 @@ Keep this entry file small. Load only the references needed for the current turn
 2. Do not implement before explicit approval such as `proceed`.
 3. Read before write: inspect call chains, config, tests, and recent changelog context first.
 4. Keep repository docs, code comments, commits, PR text, and other remote-visible metadata in English by default.
-5. Make the minimal requested change; avoid unrequested refactors.
-6. Do not use plan mode. Track plans only in `docs/plan/`.
-7. When the goal is unclear, stop and ask instead of guessing.
-8. Update task and plan files immediately; do not defer state sync.
+5. Do not use plan mode. Track plans only in `docs/plan/`.
+6. Update task and plan files immediately; do not defer state sync.
+7. Apply the Coding Principles below to every code change.
+
+## Coding Principles
+
+Behavioral guardrails for every edit. Bias toward caution over speed; for trivial tasks, use judgment.
+
+### 1. Think Before Coding
+
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+- State assumptions explicitly; if uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so and push back when warranted.
+- If something is unclear, stop, name what's confusing, and ask.
+
+### 2. Simplicity First
+
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No flexibility or configurability that wasn't requested.
+- No error handling for impossible scenarios.
+- If 200 lines could be 50, rewrite it.
+- Self-check: would a senior engineer say this is overcomplicated?
+
+### 3. Surgical Changes
+
+Touch only what you must. Clean up only your own mess.
+
+- Don't improve adjacent code, comments, or formatting.
+- Don't refactor code that isn't broken.
+- Match existing style even if you'd do it differently.
+- Mention unrelated dead code; do not delete it unless asked.
+- Remove imports/variables/functions that YOUR changes made unused.
+- Test: every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+Define success criteria. Loop until verified.
+
+- Convert vague tasks into verifiable goals:
+  - "Add validation" -> write tests for invalid inputs, then make them pass.
+  - "Fix the bug" -> write a test that reproduces it, then make it pass.
+  - "Refactor X" -> ensure tests pass before and after.
+- For multi-step work, state a brief plan with a verify step per item:
+  1. [Step] -> verify: [check]
+  2. [Step] -> verify: [check]
+- Strong criteria enable independent iteration; weak criteria ("make it work") require constant clarification.
 
 ## Core Workflow
 
