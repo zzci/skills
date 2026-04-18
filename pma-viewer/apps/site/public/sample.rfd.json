@@ -1,0 +1,20 @@
+{
+  "schema": "pma-draw/v1",
+  "type": "reactflow",
+  "metadata": {
+    "title": "Sample 3-Tier",
+    "palette": "default"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 0.9 },
+  "nodes": [
+    { "id": "web", "type": "frontend", "position": { "x": 0, "y": 0 }, "data": { "label": "Web UI", "subtitle": "React SPA", "badges": ["TypeScript", "Vite"] } },
+    { "id": "api", "type": "backend", "position": { "x": 0, "y": 180 }, "data": { "label": "API Server", "subtitle": "Node / Fastify", "badges": ["REST", "Auth"] } },
+    { "id": "db",  "type": "database", "position": { "x": 0, "y": 360 }, "data": { "label": "Primary DB", "subtitle": "Postgres 16" } },
+    { "id": "cache", "type": "cache", "position": { "x": 260, "y": 180 }, "data": { "label": "Cache", "subtitle": "Redis" } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "web", "target": "api", "type": "flow", "label": "HTTPS" },
+    { "id": "e2", "source": "api", "target": "db",  "type": "flow", "label": "SQL" },
+    { "id": "e3", "source": "api", "target": "cache", "type": "callback", "label": "read-through" }
+  ]
+}

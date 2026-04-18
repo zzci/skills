@@ -1,0 +1,30 @@
+{
+  "name": "pma-viewer-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler pages deploy dist",
+    "pages:dev": "wrangler pages dev dist",
+    "clean": "rm -rf dist .wrangler"
+  },
+  "dependencies": {
+    "@cloudflare/puppeteer": "^1.1.0",
+    "@pma/viewer": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241106.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "wrangler": "^3.84.1"
+  }
+}

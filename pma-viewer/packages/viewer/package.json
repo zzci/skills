@@ -1,0 +1,58 @@
+{
+  "name": "@pma/viewer",
+  "version": "0.1.0",
+  "description": "ReactFlow-based viewer for pma-draw .rfd.json diagrams",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/pma-viewer.cjs",
+  "module": "./dist/pma-viewer.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/pma-viewer.js",
+      "require": "./dist/pma-viewer.cjs"
+    },
+    "./style.css": "./dist/style.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc -p tsconfig.build.json && vite build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.3.5",
+    "html-to-image": "^1.11.11"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vite-plugin-dts": "^4.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "reactflow",
+    "xyflow",
+    "diagram",
+    "architecture",
+    "pma-draw",
+    "visualization"
+  ]
+}

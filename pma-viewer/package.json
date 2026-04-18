@@ -1,0 +1,23 @@
+{
+  "name": "pma-viewer-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ReactFlow-based viewer for pma-draw .rfd.json files",
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "build": "pnpm -r --filter=./packages/* build && pnpm -r --filter=./apps/* build",
+    "build:lib": "pnpm --filter=@pma/viewer build",
+    "build:site": "pnpm --filter=pma-viewer-site build",
+    "dev": "pnpm --filter=pma-viewer-site dev",
+    "dev:lib": "pnpm --filter=@pma/viewer dev",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18",
+    "pnpm": ">=9"
+  }
+}

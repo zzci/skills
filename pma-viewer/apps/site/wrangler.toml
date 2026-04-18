@@ -1,0 +1,13 @@
+name = "pma-viewer"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
+
+# Cloudflare Browser Rendering binding (required for /render.svg).
+# Enable Browser Rendering on your Cloudflare account before deploying.
+[[browser]]
+binding = "BROWSER"
+
+# Optional: public origin allow-list for the SVG render endpoint.
+# Comma-separated; leave unset to allow any https:// origin.
+# [vars]
+# ALLOWED_SRC_HOSTS = "raw.githubusercontent.com,diagrams.example.com"
