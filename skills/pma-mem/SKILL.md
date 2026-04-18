@@ -20,44 +20,35 @@ Capture and retrieve project knowledge. Storage backend: Memos (`$MEMOS_URL`, `$
 
 Agents should query the knowledge base in these situations:
 
-- **Starting work on a project**: `query tag:#projectname` — load context
-- **Hitting an error or unexpected behavior**: `query tag:#discovery` + keyword — someone may have seen this before
-- **Making a technical choice**: `query tag:#decision` + topic — check if a decision was already made and why
-- **Implementing a pattern**: `query tag:#pattern` + topic — reuse proven approaches
-- **Before proposing architecture**: `query tag:#fact` + relevant tech — verify assumptions
+- **Hitting an error or unexpected behavior**: query `#discovery` + keyword — someone may have seen this before
+- **Making a technical choice**: query `#decision` + keyword — check if a decision was already made and why
+- **Implementing a pattern**: query `#pattern` + keyword — reuse proven approaches
+- **Verifying an assumption**: query `#fact` + keyword — confirm before building on it
 
-## Knowledge Taxonomy
+## Knowledge Types
 
-### Types
+5 types, flat tags, exactly one per memo:
 
-| Tag | When to use |
-|-----|-------------|
-| `#fact` | Confirmed technical truth |
-| `#event` | Something that happened |
-| `#discovery` | Unexpected finding, gotcha |
-| `#decision` | Why A over B, with rationale |
-| `#pattern` | Reusable approach or template |
+`#fact` · `#event` · `#discovery` · `#decision` · `#pattern`
 
-### Other Tags
+Additional tags are optional and free-form — agent decides based on content.
 
-- **Project**: `#access`, `#bkd`, `#gino`, etc.
-- **Topic**: `#auth`, `#i18n`, `#deploy`, `#database`, etc.
-- **Source**: `#bkd-sync`, `#session`, `#manual` (optional, for filtering origin)
+Full classification rules, content guidelines, and quality checks: see `references/classification.md`.
 
 ## Memo Format
 
 ```markdown
 ## {title}
 
-{content — preserve key context, not just a summary}
+{content — preserve context and reasoning, not just the conclusion}
 
----
-source: {topicHash}
+#fact
 
-#fact #access #auth
+<!-- {topicHash} from:{origin} -->
 ```
 
-`source:` line is the **dedup key**. `topicHash` = first 8 chars of md5(title).
+- Bottom comment is metadata: `topicHash` (dedup key, first 8 chars of md5(title)) + `from:` (knowledge origin, e.g. `session`, `bkd/issueId`, `manual`)
+- Tags go in content body, not in metadata
 
 ## Operations
 
@@ -70,13 +61,13 @@ API="$MEMOS_URL/api/v1"
 # 1. Check duplicate by topicHash
 HASH=$(echo -n "Title here" | md5sum | cut -c1-8)
 EXISTS=$(curl -s -H "$AUTH" \
-  "$API/memos?filter=content.contains(\"source:+$HASH\")" \
+  "$API/memos?filter=content.contains(\"$HASH\")" \
   | jq '.memos | length')
 
 # 2. Create (if not exists)
 curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
   "$API/memos" \
-  -d '{"content":"## Title\n\nContent\n\n---\nsource: '"$HASH"'\n\n#fact #access #auth","visibility":"PRIVATE"}' | jq
+  -d '{"content":"## Title\n\nContent\n\n#fact\n\n<!-- '"$HASH"' from:session -->","visibility":"PRIVATE"}' | jq
 
 # 3. Update (if exists and changed)
 curl -s -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
@@ -94,46 +85,62 @@ curl -s -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
 Use queries to retrieve knowledge before acting. Return content to the agent context.
 
 ```bash
-# Load project context before starting work
-curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"access\"]&pageSize=20" \
-  | jq '.memos[]|{uid,snippet,tags}'
+# By type
+curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"discovery\"]" \
+  | jq '.memos[]|{uid,snippet}'
 
-# Check prior decisions on a topic
-curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"decision\"]&pageSize=20" \
-  | jq '.memos[]|{snippet,content}' | grep -i "database\|orm\|drizzle"
-
-# Find gotchas before touching a component
-curl -s -H "$AUTH" \
-  "$API/memos?filter=tag+in+[\"discovery\"]" \
-  | jq '.memos[]|.content' | grep -i "traefik\|cors"
-
-# Reuse a known pattern
-curl -s -H "$AUTH" \
-  "$API/memos?filter=tag+in+[\"pattern\"]" \
-  | jq '.memos[]|{snippet,content}' | grep -i "merge\|worktree"
+# By type + keyword
+curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"decision\"]" \
+  | jq '.memos[]|.content' | grep -i "keyword"
 
 # Full-text search
 curl -s -H "$AUTH" \
   "$API/memos?filter=content.contains(\"keyword\")" \
   | jq '.memos[]|{uid,snippet}'
 
-# Get full content of a specific memo
+# Get full content
 curl -s -H "$AUTH" "$API/memos/{uid}" | jq '.content'
 
-# Get related knowledge (follow links)
+# Follow links
 curl -s -H "$AUTH" "$API/memos/{uid}/relations" \
   | jq '.relations[].relatedMemo'
 ```
 
+### Capture
+
+During a conversation, when the user says "remember this" / "save this" / "store this",
+or when the agent identifies knowledge worth preserving:
+
+1. Extract one or more knowledge points from the current conversation
+2. For each point, assign type + tags, generate topicHash
+3. Dedup → create/update → link if multiple points
+
+The agent should also **proactively suggest** capturing when it encounters:
+- A non-obvious technical fact confirmed through debugging
+- A decision made after weighing alternatives
+- A gotcha or pitfall discovered during implementation
+- A reusable pattern or workflow that worked well
+
+### Consolidate
+
+On-demand: user asks to clean up or the agent notices overlapping memos during a query.
+
+1. Load a tag group: `curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"auth\"]&pageSize=100" | jq`
+2. Review for near-duplicates, superseded facts, or fragments
+3. Merge into one memo, archive originals — see `references/knowledge-sync.md` for details
+
 ## Reference Packs
 
+- `references/classification.md`
+  Type definitions, content guidelines, tagging rules, quality checks, consolidation rules.
 - `references/storage-api.md`
   Memos REST API reference (CRUD, filters, relations, pagination, attachments).
 - `references/knowledge-sync.md`
-  BKD → Knowledge sync workflow: scanning, extraction, dedup, incremental update.
+  Automated sync workflow: scanning, extraction, dedup, incremental update, automation guide.
 
 ## Quick Routing
 
-- Store or retrieve knowledge: use operations above directly.
-- Need API details (updateMask, filters, error codes): load `references/storage-api.md`.
-- Sync from BKD issues: load `references/knowledge-sync.md`.
+- Classifying or formatting knowledge: load `references/classification.md`.
+- API details (updateMask, filters, error codes): load `references/storage-api.md`.
+- Automated sync from task systems: load `references/knowledge-sync.md`.
+- Simple capture or query: use operations above directly.

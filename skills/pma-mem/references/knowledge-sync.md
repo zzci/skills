@@ -1,95 +1,109 @@
-# BKD → Knowledge Sync
+# Knowledge Sync
 
-Workflow for extracting knowledge from BKD issue logs and storing in Memos.
+Workflow for extracting knowledge from task/issue tracking systems and storing in Memos.
+
+## Overview
+
+```
+Source system (BKD, Linear, GitHub, etc.)
+  │
+  ├─ 1. Discover   — find completed work items (review/done)
+  ├─ 2. Extract    — pull conversation logs / comments / history
+  ├─ 3. Classify   — agent splits into typed knowledge points
+  ├─ 4. Dedup      — check topicHash against existing memos
+  ├─ 5. Write      — create/update memos, link relations
+  ├─ 6. Mark       — tag source item as scanned (ms:{unix_ts})
+  └─ 7. Consolidate — periodically merge near-duplicates
+```
 
 ## Prerequisites
 
 ```bash
 AUTH="Authorization: Bearer $MEMOS_TOKEN"
 API="$MEMOS_URL/api/v1"
-BKD="$BKD_URL"
 ```
 
-## Scan Flow
+## Step 1: Discover Target Items
 
-```
-1. List projects       GET $BKD/projects
-2. List issues         GET $BKD/projects/{id}/issues
-3. Filter targets      status=review|done AND no memo-scanned tag (or outdated)
-4. Extract logs        GET $BKD/projects/{id}/issues/{issueId}/logs/filter/...
-5. Analyze & split     Agent classifies into N knowledge points
-6. Dedup & write       Check → create/update → link relations
-7. Mark scanned        PATCH issue tag: memo-scanned:{updateTime}
-```
+Scan source system for completed work items that haven't been synced or have been updated since last sync.
 
-## Step 1: Discover Target Issues
+**Filter logic**: status is review/done AND (no `ms:` marker OR `ms:{ts}` < item's updateTime).
+
+The `ms:` marker is a tag/label on the source item. Format: `ms:{unix_timestamp}`.
+
+### Example: BKD
 
 ```bash
-for PID in $(curl -s "$BKD/projects" | jq -r '.data[].id'); do
-  PROJECT_NAME=$(curl -s "$BKD/projects/$PID" | jq -r '.data.name')
-  
-  curl -s "$BKD/projects/$PID/issues" | jq -r '
+for PID in $(curl -s "$BKD_URL/projects" | jq -r '.data[].id'); do
+  curl -s "$BKD_URL/projects/$PID/issues" | jq -r '
     [.data[] | select(
       (.statusId == "review" or .statusId == "done") and
-      ((.tags // []) | map(select(startswith("memo-scanned:"))) | length == 0
+      ((.tags // []) | map(select(startswith("ms:"))) | length == 0
        or
-       ((.tags // []) | map(select(startswith("memo-scanned:"))) | .[0] | split(":")[1]) as $scanned |
-       .updatedAt > $scanned)
+       ((.tags // []) | map(select(startswith("ms:"))) | .[0] | ltrimstr("ms:") | tonumber) as $scanned |
+       (.updatedAt | fromdateiso8601) > $scanned)
     )] | .[] | "\(.id)\t\(.title)\t\(.updatedAt)"
   '
 done
 ```
 
-## Step 2: Extract Logs
-
-Pull three log types — each carries different knowledge signals:
+### Example: GitHub Issues
 
 ```bash
-# Core: user messages (requirements, context, corrections) +
-#        thinking (reasoning, trade-offs) +
-#        assistant messages (conclusions, solutions)
-curl -s "$BKD/projects/$PID/issues/$ISSUE_ID/logs/filter/types/user-message,thinking,assistant-message" | jq
+gh issue list --state closed --json number,title,updatedAt --limit 50
+# Filter by absence of "ms:" label or outdated timestamp
 ```
 
-| Log type | Knowledge signal |
-|----------|-----------------|
-| `user-message` | Requirements, constraints, corrections, preferences |
-| `thinking` | Reasoning process, trade-offs, alternatives considered |
-| `assistant-message` | Conclusions, solutions, explanations |
-
-Pull **all turns**, not just the last few — knowledge points can appear at any stage
-(early requirements, mid-stage decisions, late discoveries).
-
-If logs are too large, paginate with `?limit=100&cursor=...` rather than truncating by turn.
-
-Only add `tool-use` when specific operations matter (e.g. for `#pattern` extraction):
+### Example: Linear
 
 ```bash
-curl -s "$BKD/projects/$PID/issues/$ISSUE_ID/logs/filter/types/user-message,thinking,assistant-message,tool-use" | jq
+# Use Linear API to query completed issues
+# Filter by completedAt > last sync timestamp
+```
+
+## Step 2: Extract Content
+
+Pull the full conversation/history from each target item. Three signal types:
+
+| Signal | Source examples | Knowledge value |
+|--------|----------------|-----------------|
+| User input | Comments, requirements, corrections | Context, constraints, preferences |
+| Reasoning | Thinking logs, discussion threads | Trade-offs, alternatives considered |
+| Conclusions | Final messages, PR descriptions | Solutions, explanations |
+
+Pull **all content**, not just the latest — knowledge can appear at any stage.
+
+### Example: BKD
+
+```bash
+curl -s "$BKD_URL/projects/$PID/issues/$ISSUE_ID/logs/filter/types/user-message,thinking,assistant-message" | jq
+```
+
+Add `tool-use` when specific operations matter (e.g. for `#pattern` extraction).
+Paginate with `?limit=100&cursor=...` if logs are large.
+
+### Example: GitHub
+
+```bash
+gh issue view $NUMBER --comments --json body,comments
+gh pr view $NUMBER --comments --json body,comments,reviews
 ```
 
 ## Step 3: Classify Knowledge Points
 
-Agent analyzes logs and produces a list of knowledge points. Each point:
+Agent analyzes extracted content and splits into discrete knowledge points.
+Apply rules from `references/classification.md` — type selection, content requirements, quality checks.
+
+Output per point:
 
 ```yaml
 - title: "Short descriptive title"
   type: fact | event | discovery | decision | pattern
-  topic: auth | deploy | database | ...    # free-form domain
   content: |
     Preserved context and reasoning.
     Not just a summary — include the WHY.
   topicHash: first 8 chars of md5(title)
 ```
-
-Classification guidelines:
-- **fact**: verified technical truth, API behavior, config requirement
-- **event**: something that happened with a timestamp
-- **discovery**: unexpected finding, gotcha, pitfall
-- **decision**: choice made with rationale (always include alternatives considered)
-- **pattern**: reusable approach, template, workflow
-
-Skip trivial operations (routine CRUD, obvious fixes). Only capture knowledge worth retrieving later.
 
 ## Step 4: Dedup & Write
 
@@ -100,7 +114,7 @@ TOPIC_HASH=$(echo -n "$TITLE" | md5sum | cut -c1-8)
 
 # Check existing by topicHash
 EXISTING=$(curl -s -H "$AUTH" \
-  "$API/memos?filter=content.contains(\"source:+$TOPIC_HASH\")" | jq)
+  "$API/memos?filter=content.contains(\"$TOPIC_HASH\")" | jq)
 COUNT=$(echo "$EXISTING" | jq '.memos | length')
 
 CONTENT=$(cat <<MEMO
@@ -108,22 +122,19 @@ CONTENT=$(cat <<MEMO
 
 $BODY
 
----
-source: $TOPIC_HASH
+#$TYPE
 
-#$TYPE #$PROJECT_NAME #$TOPIC
+<!-- $TOPIC_HASH from:bkd/$ISSUE_ID -->
 MEMO
 )
 
 if [ "$COUNT" -eq 0 ]; then
-  # Create new memo
   NEW_UID=$(curl -s -X POST -H "$AUTH" -H 'Content-Type: application/json' \
     "$API/memos" \
     -d "{\"content\":$(echo "$CONTENT" | jq -Rs .),\"visibility\":\"PRIVATE\"}" \
     | jq -r '.uid')
-  
+
 elif [ "$COUNT" -eq 1 ]; then
-  # Update if content changed
   EXISTING_UID=$(echo "$EXISTING" | jq -r '.memos[0].uid')
   curl -s -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
     "$API/memos/$EXISTING_UID?updateMask=content" \
@@ -133,35 +144,42 @@ fi
 
 ## Step 5: Link Related Memos
 
-All knowledge points from the same issue should be linked:
+Knowledge points from the same source item should be linked:
 
 ```bash
-# Collect UIDs of memos created/updated for this issue
 MEMO_UIDS=("uid1" "uid2" "uid3")
 
 for UID in "${MEMO_UIDS[@]}"; do
   RELATIONS=$(printf '{"relatedMemo":"memos/%s","type":"REFERENCE"},' \
     $(printf '%s\n' "${MEMO_UIDS[@]}" | grep -v "$UID"))
   RELATIONS="[${RELATIONS%,}]"
-  
+
   curl -s -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
     "$API/memos/$UID/relations" \
     -d "{\"relations\":$RELATIONS}" | jq
 done
 ```
 
-## Step 6: Mark Issue as Scanned
+## Step 6: Mark Source Item as Scanned
+
+Add `ms:{unix_timestamp}` marker to the source item. Mechanism depends on the source system:
+
+| System | Marker mechanism |
+|--------|-----------------|
+| BKD | Issue tag: `ms:1744300800` |
+| GitHub | Issue label: `ms:1744300800` |
+| Linear | Issue label or custom field |
+| Generic | Any metadata field the system supports |
+
+### Example: BKD
 
 ```bash
-# Get current tags
-CURRENT_TAGS=$(curl -s "$BKD/projects/$PID/issues/$ISSUE_ID" \
-  | jq '[.data.tags // [] | .[] | select(startswith("memo-scanned:") | not)]')
+CURRENT_TAGS=$(curl -s "$BKD_URL/projects/$PID/issues/$ISSUE_ID" \
+  | jq '[.data.tags // [] | .[] | select(startswith("ms:") | not)]')
+UPDATE_TIME=$(date +%s)
+NEW_TAGS=$(echo "$CURRENT_TAGS" | jq --arg t "ms:$UPDATE_TIME" '. + [$t]')
 
-# Add new scanned tag with timestamp
-UPDATE_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-NEW_TAGS=$(echo "$CURRENT_TAGS" | jq --arg t "memo-scanned:$UPDATE_TIME" '. + [$t]')
-
-curl -s -X PATCH "$BKD/projects/$PID/issues/$ISSUE_ID" \
+curl -s -X PATCH "$BKD_URL/projects/$PID/issues/$ISSUE_ID" \
   -H 'Content-Type: application/json' \
   -d "{\"tags\":$NEW_TAGS}" | jq
 ```
@@ -169,58 +187,27 @@ curl -s -X PATCH "$BKD/projects/$PID/issues/$ISSUE_ID" \
 ## Incremental Update Logic
 
 ```
-issue.updatedAt vs memo-scanned:{time} tag:
+item.updatedAt vs ms:{ts} marker:
 
-  no tag           → first scan: extract all, create memos
-  tag < updatedAt  → re-scan: extract all, dedup by topicHash
-                     existing memos (same hash): update content if changed
-                     new knowledge (new hash): create new memos
-                     old memos not in scan: leave as-is (don't delete)
-  tag >= updatedAt → skip, no changes since last scan
+  no marker        → first scan: extract all, create memos
+  marker < updated → re-scan: extract all, dedup by topicHash
+                     same hash: update content if changed
+                     new hash: create new memos
+                     missing hash: leave as-is (don't delete)
+  marker >= updated → skip, no changes
 ```
 
 The topicHash (md5 of title, first 8 chars) is the sole dedup key.
-BKD projectId/issueId are only used for scanning and traceability tags,
-not for memo identity.
+Source system IDs are only used for scanning and optional traceability tags.
 
 ## Knowledge Consolidation
 
-Over time, duplicate or overlapping memos accumulate. Run consolidation periodically (weekly or on-demand).
+See `references/classification.md` for merge rules, format, and triggers.
 
-### Process
-
-```
-1. Load all memos by tag group (e.g. all #discovery, or all #auth)
-2. Agent reviews for:
-   a. Near-duplicates  — same insight from different issues
-   b. Superseded facts — early memo contradicted by later one
-   c. Fragments        — multiple small memos that form one coherent topic
-3. For each group:
-   - Merge into one memo: combine content, keep best context, preserve all source: hashes
-   - Archive originals (state=ARCHIVED), don't delete — keeps audit trail
-   - Link merged memo to archived originals via REFERENCE relation
-```
-
-### Merge Format
-
-```markdown
-## {consolidated title}
-
-{merged content — best explanation, all relevant context}
-
----
-source: {newTopicHash}
-merged-from: {hash1}, {hash2}, {hash3}
-
-#fact #auth
-```
-
-The `merged-from:` line preserves traceability to original memos.
-
-### Operations
+Consolidation operations (find candidates → create merged → archive originals → link):
 
 ```bash
-# 1. Find candidates — load a tag group
+# 1. Find candidates
 curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"auth\"]&pageSize=100" \
   | jq '.memos[]|{uid,snippet,content}'
 
@@ -243,21 +230,37 @@ curl -s -X PATCH -H "$AUTH" -H 'Content-Type: application/json' \
   -d "{\"relations\":[${RELATIONS%,}]}" | jq
 ```
 
-### Consolidation Triggers
+## Automation Guide
 
-- **Tag group > 10 memos**: likely has overlaps
-- **Same topic across 3+ projects**: good candidate for a unified pattern
-- **Fact contradicts another fact**: one should supersede the other
-- **User request**: `/consolidate #tag` — on-demand cleanup
+This skill can be automated with any scheduler that can trigger an agent periodically.
 
-## BKD Cron Setup
+### Requirements
+
+1. A **persistent agent session** (e.g. keepAlive issue in BKD, long-running process, or scheduled trigger)
+2. The agent must have access to `$MEMOS_URL`, `$MEMOS_TOKEN`, and source system credentials
+3. Two scheduled tasks: **sync** (daily) and **consolidation** (weekly)
+
+### Scheduler Examples
+
+#### BKD Cron
 
 ```bash
-# Constant issue for the sync agent (keepAlive)
-ISSUE_ID="..."
+# Create keepAlive issue as sync agent
+ISSUE=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"knowledge-sync","statusId":"todo","keepAlive":true}')
+ISSUE_ID=$(echo "$ISSUE" | jq -r '.data.id')
 
-# Daily sync cron
-curl -s -X POST "$BKD/cron" \
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID/follow-up" \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"You are a knowledge sync agent. Use the pma-mem skill."}' | jq
+
+curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID" \
+  -H 'Content-Type: application/json' \
+  -d '{"statusId":"working"}' | jq
+
+# Daily sync
+curl -s -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "knowledge-sync",
@@ -266,23 +269,85 @@ curl -s -X POST "$BKD/cron" \
     "config": {
       "projectId": "...",
       "issueId": "'"$ISSUE_ID"'",
-      "prompt": "Run knowledge sync: scan all BKD projects for review/done issues that need syncing. Use the pma-mem skill. Extract knowledge points, classify, dedup, and store in Memos."
+      "prompt": "Run sync: scan all projects for completed items, extract knowledge, dedup, store."
     }
   }' | jq
+
+# Weekly consolidation
+curl -s -X POST "$BKD_URL/cron" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "knowledge-consolidate",
+    "cron": "@weekly",
+    "action": "issue-follow-up",
+    "config": {
+      "projectId": "...",
+      "issueId": "'"$ISSUE_ID"'",
+      "prompt": "Run consolidation: find and merge near-duplicate memos."
+    }
+  }' | jq
+```
+
+#### Claude Code Scheduled Triggers
+
+```bash
+# Using Claude Code remote triggers (if available)
+# Daily sync
+claude trigger create --name knowledge-sync --cron "@daily" \
+  --prompt "Use pma-mem skill. Run knowledge sync workflow."
+
+# Weekly consolidation
+claude trigger create --name knowledge-consolidate --cron "@weekly" \
+  --prompt "Use pma-mem skill. Run consolidation workflow."
+```
+
+#### System Cron + CLI
+
+```bash
+# crontab -e
+0 2 * * * claude --prompt "Use pma-mem skill. Run knowledge sync." 2>&1 >> /var/log/knowledge-sync.log
+0 3 * * 0 claude --prompt "Use pma-mem skill. Run consolidation." 2>&1 >> /var/log/knowledge-consolidate.log
+```
+
+### Frequency Guide
+
+| Task | Recommended | Rationale |
+|------|-------------|-----------|
+| Sync | `@daily` | Most items don't change status more than once a day |
+| Consolidation | `@weekly` | Accumulation is slow; weekly catches overlaps |
+| On-demand | manual trigger | After a burst of completions |
+
+### Monitoring
+
+```bash
+# Recent memos
+curl -s -H "$AUTH" \
+  "$API/memos?order_by=create_time+desc&pageSize=10" \
+  | jq '.memos[]|{uid,snippet,createTime}'
+
+# Count by type
+for TYPE in fact event discovery decision pattern; do
+  COUNT=$(curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"$TYPE\"]" | jq '.memos | length')
+  echo "$TYPE: $COUNT"
+done
 ```
 
 ## Retrieval Examples
 
 ```bash
-# All discoveries
+# By type
 curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"discovery\"]" | jq '.memos[]|{uid,snippet}'
 
-# Decisions in a project
-curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"decision\",\"access\"]" | jq
+# By type + keyword
+curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"decision\"]" \
+  | jq '.memos[]|.content' | grep -i "keyword"
 
-# Everything about a topic
-curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"auth\"]" | jq
+# Full-text
+curl -s -H "$AUTH" "$API/memos?filter=content.contains(\"keyword\")" | jq '.memos[]|{uid,snippet}'
 
-# Recent synced
-curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"bkd-sync\"]&order_by=create_time+desc&pageSize=10" | jq
+# Count by type
+for TYPE in fact event discovery decision pattern; do
+  COUNT=$(curl -s -H "$AUTH" "$API/memos?filter=tag+in+[\"$TYPE\"]" | jq '.memos | length')
+  echo "$TYPE: $COUNT"
+done
 ```
