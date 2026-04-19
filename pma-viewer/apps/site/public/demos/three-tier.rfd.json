@@ -1,0 +1,40 @@
+{
+  "schema": "pma-draw/v1",
+  "type": "reactflow",
+  "metadata": {
+    "title": "3-Tier SaaS",
+    "description": "Browser → CDN → API → DB + Cache. Classic web app topology.",
+    "palette": "default"
+  },
+  "viewport": { "x": 0, "y": 0, "zoom": 0.9 },
+  "nodes": [
+    { "id": "user", "type": "user", "position": { "x": 0, "y": 80 }, "data": { "label": "End User", "subtitle": "Browser" } },
+
+    { "id": "cdn", "type": "security", "position": { "x": 240, "y": 80 }, "data": { "label": "CDN / WAF", "subtitle": "Cloudflare", "badges": ["TLS", "DDoS"] } },
+
+    { "id": "web", "type": "frontend", "position": { "x": 480, "y": 80 }, "data": { "label": "Web App", "subtitle": "React SPA", "badges": ["TypeScript", "Vite"] } },
+
+    { "id": "group__api", "type": "group", "position": { "x": 720, "y": 0 }, "style": { "width": 320, "height": 320 }, "data": { "label": "API Tier", "color": "backend", "dashed": true } },
+
+    { "id": "api", "type": "backend", "position": { "x": 40, "y": 60 }, "parentNode": "group__api", "extent": "parent", "data": { "label": "API Server", "subtitle": "Fastify + Zod", "badges": ["REST", "Auth"] } },
+    { "id": "worker", "type": "backend", "position": { "x": 40, "y": 200 }, "parentNode": "group__api", "extent": "parent", "data": { "label": "Worker", "subtitle": "BullMQ", "badges": ["Jobs"] } },
+
+    { "id": "cache", "type": "cache", "position": { "x": 1120, "y": 40 }, "data": { "label": "Cache", "subtitle": "Redis 7" } },
+    { "id": "queue", "type": "queue", "position": { "x": 1120, "y": 200 }, "data": { "label": "Job Queue", "subtitle": "Redis Streams" } },
+
+    { "id": "db", "type": "database", "position": { "x": 1360, "y": 120 }, "data": { "label": "Primary DB", "subtitle": "Postgres 16", "badges": ["Primary"] } },
+
+    { "id": "s3", "type": "storage", "position": { "x": 1360, "y": 260 }, "data": { "label": "Object Store", "subtitle": "S3 / R2" } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "user", "target": "cdn", "type": "flow", "label": "HTTPS" },
+    { "id": "e2", "source": "cdn", "target": "web", "type": "flow" },
+    { "id": "e3", "source": "web", "target": "api", "type": "flow", "label": "REST" },
+    { "id": "e4", "source": "api", "target": "cache", "type": "callback", "label": "read-through" },
+    { "id": "e5", "source": "api", "target": "db", "type": "flow", "label": "SQL" },
+    { "id": "e6", "source": "api", "target": "queue", "type": "stream", "label": "enqueue", "animated": true },
+    { "id": "e7", "source": "worker", "target": "queue", "type": "stream", "label": "consume", "animated": true },
+    { "id": "e8", "source": "worker", "target": "s3", "type": "flow", "label": "upload" },
+    { "id": "e9", "source": "worker", "target": "db", "type": "flow" }
+  ]
+}
