@@ -1,0 +1,87 @@
+name: Release pma-viewer
+
+on:
+  push:
+    tags:
+      - 'pma-viewer-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (e.g. pma-viewer-v0.1.0)'
+        required: true
+
+defaults:
+  run:
+    working-directory: pma-viewer
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pma-viewer/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter=@pma/viewer build
+
+      - name: Pack tarball
+        run: pnpm --filter=@pma/viewer pack --pack-destination ../../release-artifacts
+
+      - name: Stage dist artifacts
+        working-directory: pma-viewer/release-artifacts
+        run: |
+          cp -r ../packages/viewer/dist ./pma-viewer-dist
+          (cd pma-viewer-dist && zip -r ../pma-viewer-dist.zip .)
+          ls -la
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${GITHUB_REF_NAME:-${{ inputs.tag }}}"
+          echo "name=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
+          generate_release_notes: true
+          files: |
+            pma-viewer/release-artifacts/*.tgz
+            pma-viewer/release-artifacts/pma-viewer-dist.zip
+          body: |
+            ## Install
+
+            **npm (from GitHub tarball):**
+            ```bash
+            npm i github:zzci/skills#${{ steps.tag.outputs.name }}
+            ```
+
+            **Browser via jsDelivr CDN:**
+            ```html
+            <script src="https://cdn.jsdelivr.net/gh/zzci/skills@${{ steps.tag.outputs.name }}/pma-viewer/packages/viewer/dist/pma-viewer.umd.cjs"></script>
+            ```
+
+            **ESM:**
+            ```html
+            <script type="module">
+              import { mount } from 'https://cdn.jsdelivr.net/gh/zzci/skills@${{ steps.tag.outputs.name }}/pma-viewer/packages/viewer/dist/pma-viewer.js';
+            </script>
+            ```
+
+            ## Assets
+
+            - `*.tgz` — npm-packed tarball, install with `npm i <url>`
+            - `pma-viewer-dist.zip` — raw build output (ESM + CJS + UMD + types + CSS)
