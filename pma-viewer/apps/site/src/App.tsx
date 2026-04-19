@@ -10,26 +10,28 @@ interface Demo {
   tags: string[];
 }
 
+const BASE = import.meta.env.BASE_URL;
+
 const DEMOS: Demo[] = [
   {
     id: "three-tier",
     title: "3-Tier SaaS",
     description: "Classic web topology: CDN → API → DB + Cache + Queue + Worker.",
-    src: "/demos/three-tier.rfd.json",
+    src: `${BASE}demos/three-tier.rfd.json`,
     tags: ["frontend", "backend", "database", "cache", "queue"],
   },
   {
     id: "ai-rag",
     title: "AI RAG Pipeline",
     description: "Embedder, vector DB, reranker, LLM with fallback and prompt cache.",
-    src: "/demos/ai-rag.rfd.json",
+    src: `${BASE}demos/ai-rag.rfd.json`,
     tags: ["ai", "decision", "monitoring"],
   },
   {
     id: "microservices",
     title: "Microservices",
     description: "Gateway, domain services, event bus, and observability stack.",
-    src: "/demos/microservices.rfd.json",
+    src: `${BASE}demos/microservices.rfd.json`,
     tags: ["orchestrator", "queue", "external", "group"],
   },
 ];
@@ -145,7 +147,7 @@ function ViewerHeader({ src }: { src?: string }) {
         fontSize: 13,
       }}
     >
-      <a href="/" style={{ color: "#0f172a", textDecoration: "none", fontWeight: 600 }}>← pma-viewer</a>
+      <a href={BASE} style={{ color: "#0f172a", textDecoration: "none", fontWeight: 600 }}>← pma-viewer</a>
       {src ? (
         <a href={src} target="_blank" rel="noreferrer" style={{ color: "#64748b", textDecoration: "none" }}>
           {src}
@@ -180,7 +182,7 @@ function Landing({ onPickFile }: { onPickFile: (f: File) => void }) {
             {DEMOS.map((d) => (
               <a
                 key={d.id}
-                href={`/?demo=${d.id}`}
+                href={`${BASE}?demo=${d.id}`}
                 style={{
                   display: "block",
                   padding: 16,
