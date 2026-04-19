@@ -1,18 +1,18 @@
-# @pma/viewer
+# @zzci/pma-viewer
 
 ReactFlow-based viewer for `.rfd.json` diagrams produced by the `pma-draw` skill.
 
 ## Install
 
 ```bash
-pnpm add @pma/viewer
+pnpm add @zzci/pma-viewer
 ```
 
 ## React / MDX
 
 ```tsx
-import { PmaViewer } from "@pma/viewer";
-import "@pma/viewer/style.css";
+import { PmaViewer } from "@zzci/pma-viewer";
+import "@zzci/pma-viewer/style.css";
 
 export default function Arch() {
   return <PmaViewer src="/diagrams/ingest.rfd.json" height={560} />;
@@ -22,8 +22,8 @@ export default function Arch() {
 ## Browser (UMD)
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@pma/viewer/dist/style.css" />
-<script src="https://cdn.jsdelivr.net/npm/@pma/viewer/dist/pma-viewer.umd.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@zzci/pma-viewer/dist/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/@zzci/pma-viewer/dist/pma-viewer.umd.js"></script>
 <div id="d" style="height:560px"></div>
 <script>
   PmaViewer.mount("#d", { src: "/diagrams/ingest.rfd.json" });

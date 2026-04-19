@@ -9,7 +9,7 @@ specification and docs — no runtime code.
 ```
 pma-viewer/
 ├── packages/
-│   └── viewer/        # @pma/viewer — the published React + UMD library
+│   └── viewer/        # @zzci/pma-viewer — the published React + UMD library
 └── apps/
     └── site/          # Cloudflare Pages SPA + /render.svg Pages Function
 ```
@@ -20,7 +20,7 @@ pma-viewer/
 pnpm install
 pnpm dev           # starts the SPA at localhost:5173
 pnpm build         # builds library + site
-pnpm build:lib     # build @pma/viewer only
+pnpm build:lib     # build @zzci/pma-viewer only
 pnpm build:site    # build Cloudflare Pages SPA only
 ```
 

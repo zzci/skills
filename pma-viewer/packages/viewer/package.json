@@ -1,6 +1,12 @@
 {
-  "name": "@pma/viewer",
-  "version": "0.1.0",
+  "name": "@zzci/pma-viewer",
+  "version": "0.1.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zzci/skills.git",
+    "directory": "pma-viewer/packages/viewer"
+  },
+  "homepage": "https://github.com/zzci/skills/tree/main/pma-viewer",
   "description": "ReactFlow-based viewer for pma-draw .rfd.json diagrams",
   "license": "MIT",
   "type": "module",

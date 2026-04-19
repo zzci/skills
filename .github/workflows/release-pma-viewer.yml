@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag name (e.g. pma-viewer-v0.1.0)'
+        description: 'Tag name (e.g. pma-viewer-v0.1.1)'
         required: true
 
 defaults:
@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -31,10 +32,11 @@ jobs:
           node-version: 20
           cache: pnpm
           cache-dependency-path: pma-viewer/pnpm-lock.yaml
+          registry-url: 'https://registry.npmjs.org'
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm --filter=@pma/viewer build
+      - run: pnpm --filter=@zzci/pma-viewer build
 
       - name: Pack tarball + zip dist
         working-directory: pma-viewer/packages/viewer
@@ -44,6 +46,12 @@ jobs:
           cp -r dist ../../release-artifacts/pma-viewer-dist
           (cd ../../release-artifacts/pma-viewer-dist && zip -r ../pma-viewer-dist.zip .)
           ls -la ../../release-artifacts
+
+      - name: Publish to npm
+        working-directory: pma-viewer/packages/viewer
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
 
       - name: Resolve tag
         id: tag
@@ -63,24 +71,27 @@ jobs:
           body: |
             ## Install
 
-            **npm (from GitHub tarball):**
+            **npm:**
             ```bash
-            npm i github:zzci/skills#${{ steps.tag.outputs.name }}
+            npm i @zzci/pma-viewer
+            # or
+            pnpm add @zzci/pma-viewer
             ```
 
-            **Browser via jsDelivr CDN:**
+            **Browser via jsDelivr CDN (from npm):**
             ```html
-            <script src="https://cdn.jsdelivr.net/gh/zzci/skills@${{ steps.tag.outputs.name }}/pma-viewer/packages/viewer/dist/pma-viewer.umd.cjs"></script>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@zzci/pma-viewer/dist/style.css" />
+            <script src="https://cdn.jsdelivr.net/npm/@zzci/pma-viewer/dist/pma-viewer.umd.js"></script>
             ```
 
             **ESM:**
             ```html
             <script type="module">
-              import { mount } from 'https://cdn.jsdelivr.net/gh/zzci/skills@${{ steps.tag.outputs.name }}/pma-viewer/packages/viewer/dist/pma-viewer.js';
+              import { mount } from 'https://cdn.jsdelivr.net/npm/@zzci/pma-viewer/dist/pma-viewer.js';
             </script>
             ```
 
             ## Assets
 
-            - `*.tgz` — npm-packed tarball, install with `npm i <url>`
+            - `*.tgz` — npm-packed tarball (same bytes published to registry)
             - `pma-viewer-dist.zip` — raw build output (ESM + CJS + UMD + types + CSS)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { PmaViewer, validateRfdFile, type RfdFile } from "@pma/viewer";
-import "@pma/viewer/style.css";
+import { PmaViewer, validateRfdFile, type RfdFile } from "@zzci/pma-viewer";
+import "@zzci/pma-viewer/style.css";
 
 function useQueryParams() {
   const [params] = useState(() => new URLSearchParams(window.location.search));
