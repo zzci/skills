@@ -36,15 +36,14 @@ jobs:
 
       - run: pnpm --filter=@pma/viewer build
 
-      - name: Pack tarball
-        run: pnpm --filter=@pma/viewer pack --pack-destination ../../release-artifacts
-
-      - name: Stage dist artifacts
-        working-directory: pma-viewer/release-artifacts
+      - name: Pack tarball + zip dist
+        working-directory: pma-viewer/packages/viewer
         run: |
-          cp -r ../packages/viewer/dist ./pma-viewer-dist
-          (cd pma-viewer-dist && zip -r ../pma-viewer-dist.zip .)
-          ls -la
+          mkdir -p ../../release-artifacts
+          pnpm pack --pack-destination ../../release-artifacts
+          cp -r dist ../../release-artifacts/pma-viewer-dist
+          (cd ../../release-artifacts/pma-viewer-dist && zip -r ../pma-viewer-dist.zip .)
+          ls -la ../../release-artifacts
 
       - name: Resolve tag
         id: tag
