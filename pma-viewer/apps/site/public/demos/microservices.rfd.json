@@ -6,30 +6,28 @@
     "description": "Gateway + domain services + event bus + observability stack.",
     "palette": "default"
   },
-  "viewport": { "x": 0, "y": 0, "zoom": 0.8 },
+  "viewport": { "x": 0, "y": 0, "zoom": 0.75 },
   "nodes": [
-    { "id": "user", "type": "user", "position": { "x": 0, "y": 200 }, "data": { "label": "Client", "subtitle": "Mobile + Web" } },
+    { "id": "user", "type": "user", "position": { "x": 0, "y": 260 }, "data": { "label": "Client", "subtitle": "Mobile + Web" } },
+    { "id": "gateway", "type": "orchestrator", "position": { "x": 240, "y": 260 }, "data": { "label": "API Gateway", "subtitle": "Kong", "badges": ["JWT", "RBAC"] } },
 
-    { "id": "gateway", "type": "orchestrator", "position": { "x": 220, "y": 200 }, "data": { "label": "API Gateway", "subtitle": "Kong", "badges": ["JWT", "RBAC"] } },
+    { "id": "group__svc", "type": "group", "position": { "x": 500, "y": 80 }, "style": { "width": 260, "height": 560 }, "data": { "label": "Domain Services", "color": "backend", "dashed": true } },
+    { "id": "users", "type": "backend", "position": { "x": 30, "y": 60 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Users", "subtitle": "Go / gRPC" } },
+    { "id": "orders", "type": "backend", "position": { "x": 30, "y": 210 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Orders", "subtitle": "Node / REST" } },
+    { "id": "billing", "type": "backend", "position": { "x": 30, "y": 360 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Billing", "subtitle": "Rust / gRPC" } },
+    { "id": "notify", "type": "backend", "position": { "x": 30, "y": 470 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Notifier", "subtitle": "Python" } },
 
-    { "id": "group__svc", "type": "group", "position": { "x": 460, "y": 0 }, "style": { "width": 420, "height": 540 }, "data": { "label": "Domain Services", "color": "backend", "dashed": true } },
+    { "id": "bus", "type": "queue", "position": { "x": 820, "y": 260 }, "data": { "label": "Event Bus", "subtitle": "Kafka", "badges": ["3 brokers"] } },
 
-    { "id": "users", "type": "backend", "position": { "x": 40, "y": 60 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Users", "subtitle": "Go / gRPC" } },
-    { "id": "orders", "type": "backend", "position": { "x": 40, "y": 200 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Orders", "subtitle": "Node / REST" } },
-    { "id": "billing", "type": "backend", "position": { "x": 40, "y": 340 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Billing", "subtitle": "Rust / gRPC" } },
-    { "id": "notify", "type": "backend", "position": { "x": 220, "y": 200 }, "parentNode": "group__svc", "extent": "parent", "data": { "label": "Notifier", "subtitle": "Python" } },
+    { "id": "group__data", "type": "group", "position": { "x": 1080, "y": 80 }, "style": { "width": 260, "height": 440 }, "data": { "label": "Data Stores", "color": "database", "dashed": true } },
+    { "id": "pg", "type": "database", "position": { "x": 30, "y": 60 }, "parentNode": "group__data", "extent": "parent", "data": { "label": "Postgres", "subtitle": "OLTP" } },
+    { "id": "mongo", "type": "database", "position": { "x": 30, "y": 200 }, "parentNode": "group__data", "extent": "parent", "data": { "label": "MongoDB", "subtitle": "catalog" } },
+    { "id": "s3", "type": "storage", "position": { "x": 30, "y": 340 }, "parentNode": "group__data", "extent": "parent", "data": { "label": "S3", "subtitle": "invoices" } },
 
-    { "id": "bus", "type": "queue", "position": { "x": 940, "y": 220 }, "data": { "label": "Event Bus", "subtitle": "Kafka", "badges": ["3 brokers"] } },
+    { "id": "stripe", "type": "external", "position": { "x": 1400, "y": 560 }, "data": { "label": "Stripe", "subtitle": "Payments" } },
+    { "id": "ses", "type": "external", "position": { "x": 1080, "y": 560 }, "data": { "label": "SES", "subtitle": "Email" } },
 
-    { "id": "group__data", "type": "group", "position": { "x": 1160, "y": 0 }, "style": { "width": 280, "height": 440 }, "data": { "label": "Data Stores", "color": "database", "dashed": true } },
-    { "id": "pg", "type": "database", "position": { "x": 40, "y": 60 }, "parentNode": "group__data", "extent": "parent", "data": { "label": "Postgres", "subtitle": "OLTP" } },
-    { "id": "mongo", "type": "database", "position": { "x": 40, "y": 200 }, "parentNode": "group__data", "extent": "parent", "data": { "label": "MongoDB", "subtitle": "catalog" } },
-    { "id": "s3", "type": "storage", "position": { "x": 40, "y": 340 }, "parentNode": "group__data", "extent": "parent", "data": { "label": "S3", "subtitle": "invoices" } },
-
-    { "id": "stripe", "type": "external", "position": { "x": 940, "y": 20 }, "data": { "label": "Stripe", "subtitle": "Payments" } },
-    { "id": "ses", "type": "external", "position": { "x": 940, "y": 420 }, "data": { "label": "SES", "subtitle": "Email" } },
-
-    { "id": "obs", "type": "monitoring", "position": { "x": 220, "y": 560 }, "data": { "label": "Observability", "subtitle": "Prometheus + Loki + Tempo", "badges": ["OTel"] } }
+    { "id": "obs", "type": "monitoring", "position": { "x": 240, "y": 560 }, "data": { "label": "Observability", "subtitle": "Prometheus + Loki + Tempo", "badges": ["OTel"] } }
   ],
   "edges": [
     { "id": "e1", "source": "user", "target": "gateway", "type": "flow" },
@@ -43,14 +41,12 @@
 
     { "id": "e8", "source": "users", "target": "pg", "type": "flow" },
     { "id": "e9", "source": "orders", "target": "mongo", "type": "flow" },
-    { "id": "e10", "source": "billing", "target": "pg", "type": "flow" },
-    { "id": "e11", "source": "billing", "target": "s3", "type": "flow", "label": "PDF" },
+    { "id": "e10", "source": "billing", "target": "s3", "type": "flow", "label": "PDF" },
 
-    { "id": "e12", "source": "billing", "target": "stripe", "type": "flow", "label": "charge" },
-    { "id": "e13", "source": "notify", "target": "ses", "type": "flow" },
+    { "id": "e11", "source": "billing", "target": "stripe", "type": "flow", "label": "charge" },
+    { "id": "e12", "source": "notify", "target": "ses", "type": "flow" },
 
-    { "id": "e14", "source": "gateway", "target": "obs", "type": "dependency" },
-    { "id": "e15", "source": "orders", "target": "obs", "type": "dependency" },
-    { "id": "e16", "source": "billing", "target": "obs", "type": "dependency" }
+    { "id": "e13", "source": "gateway", "target": "obs", "type": "dependency" },
+    { "id": "e14", "source": "billing", "target": "obs", "type": "dependency" }
   ]
 }

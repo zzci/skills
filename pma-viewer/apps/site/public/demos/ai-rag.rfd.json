@@ -6,26 +6,22 @@
     "description": "Retrieval-augmented generation with vector DB, reranker, and LLM fallback.",
     "palette": "default"
   },
-  "viewport": { "x": 0, "y": 0, "zoom": 0.85 },
+  "viewport": { "x": 0, "y": 0, "zoom": 0.7 },
   "nodes": [
-    { "id": "user", "type": "user", "position": { "x": 0, "y": 120 }, "data": { "label": "User", "subtitle": "Chat UI" } },
+    { "id": "user", "type": "user", "position": { "x": 0, "y": 220 }, "data": { "label": "User", "subtitle": "Chat UI" } },
+    { "id": "gateway", "type": "backend", "position": { "x": 220, "y": 220 }, "data": { "label": "API Gateway", "subtitle": "Hono / Workers", "badges": ["Auth", "Rate-limit"] } },
 
-    { "id": "gateway", "type": "backend", "position": { "x": 220, "y": 120 }, "data": { "label": "API Gateway", "subtitle": "Hono / Workers", "badges": ["Auth", "Rate-limit"] } },
+    { "id": "group__retrieval", "type": "group", "position": { "x": 480, "y": 120 }, "style": { "width": 640, "height": 220 }, "data": { "label": "Retrieval", "color": "ai", "dashed": true } },
+    { "id": "embed", "type": "ai", "position": { "x": 20, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Embedder", "subtitle": "text-embedding-3-small", "badges": ["1536-dim"] } },
+    { "id": "vector", "type": "database", "position": { "x": 230, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Vector DB", "subtitle": "pgvector / Pinecone" } },
+    { "id": "rerank", "type": "ai", "position": { "x": 440, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Reranker", "subtitle": "cross-encoder" } },
 
-    { "id": "group__retrieval", "type": "group", "position": { "x": 460, "y": 0 }, "style": { "width": 420, "height": 360 }, "data": { "label": "Retrieval", "color": "ai", "dashed": true } },
+    { "id": "decide", "type": "decision", "position": { "x": 1180, "y": 220 }, "data": { "label": "Context score", "subtitle": "> threshold?" } },
+    { "id": "llm", "type": "ai", "position": { "x": 1400, "y": 80 }, "data": { "label": "Primary LLM", "subtitle": "Claude Opus 4.7", "badges": ["streaming"] } },
+    { "id": "fallback", "type": "ai", "position": { "x": 1400, "y": 360 }, "data": { "label": "Fallback LLM", "subtitle": "Haiku 4.5", "badges": ["cheap"] } },
+    { "id": "cache", "type": "cache", "position": { "x": 1660, "y": 220 }, "data": { "label": "Prompt Cache", "subtitle": "24h TTL" } },
 
-    { "id": "embed", "type": "ai", "position": { "x": 40, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Embedder", "subtitle": "text-embedding-3-small", "badges": ["1536-dim"] } },
-    { "id": "vector", "type": "database", "position": { "x": 40, "y": 200 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Vector DB", "subtitle": "pgvector / Pinecone" } },
-    { "id": "rerank", "type": "ai", "position": { "x": 240, "y": 130 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Reranker", "subtitle": "cross-encoder" } },
-
-    { "id": "decide", "type": "decision", "position": { "x": 940, "y": 140 }, "data": { "label": "Context score", "subtitle": "> threshold?" } },
-
-    { "id": "llm", "type": "ai", "position": { "x": 1160, "y": 40 }, "data": { "label": "Primary LLM", "subtitle": "Claude Opus 4.7", "badges": ["streaming"] } },
-    { "id": "fallback", "type": "ai", "position": { "x": 1160, "y": 240 }, "data": { "label": "Fallback LLM", "subtitle": "Haiku 4.5", "badges": ["cheap"] } },
-
-    { "id": "cache", "type": "cache", "position": { "x": 1400, "y": 140 }, "data": { "label": "Prompt Cache", "subtitle": "24h TTL" } },
-
-    { "id": "obs", "type": "monitoring", "position": { "x": 700, "y": 420 }, "data": { "label": "Traces + Evals", "subtitle": "Langfuse", "badges": ["OTel"] } }
+    { "id": "obs", "type": "monitoring", "position": { "x": 700, "y": 460 }, "data": { "label": "Traces + Evals", "subtitle": "Langfuse", "badges": ["OTel"] } }
   ],
   "edges": [
     { "id": "e1", "source": "user", "target": "gateway", "type": "flow", "label": "query" },
@@ -37,9 +33,7 @@
     { "id": "e7", "source": "decide", "target": "fallback", "type": "flow", "label": "low" },
     { "id": "e8", "source": "llm", "target": "cache", "type": "callback", "label": "memoize" },
     { "id": "e9", "source": "fallback", "target": "cache", "type": "callback" },
-    { "id": "e10", "source": "cache", "target": "gateway", "type": "stream", "label": "tokens", "animated": true },
-    { "id": "e11", "source": "gateway", "target": "obs", "type": "dependency", "label": "trace" },
-    { "id": "e12", "source": "llm", "target": "obs", "type": "dependency" },
-    { "id": "e13", "source": "rerank", "target": "obs", "type": "dependency" }
+    { "id": "e10", "source": "gateway", "target": "obs", "type": "dependency", "label": "trace" },
+    { "id": "e11", "source": "llm", "target": "obs", "type": "dependency" }
   ]
 }
