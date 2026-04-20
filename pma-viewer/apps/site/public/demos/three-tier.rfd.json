@@ -3,35 +3,33 @@
   "type": "reactflow",
   "metadata": {
     "title": "3-Tier SaaS",
-    "description": "Browser → CDN → API → DB + Cache. Classic web app topology.",
-    "palette": "default",
-    "layout": "auto-lr"
+    "description": "Browser -> CDN -> Frontend -> API -> DB / Cache / Storage. Classic vertical-flow stack.",
+    "palette": "default"
   },
-  "viewport": { "x": 0, "y": 0, "zoom": 0.85 },
+  "viewport": { "x": 0, "y": 0, "zoom": 0.9 },
   "nodes": [
-    { "id": "user", "type": "user", "position": { "x": 0, "y": 180 }, "data": { "label": "End User", "subtitle": "Browser" } },
-    { "id": "cdn", "type": "security", "position": { "x": 240, "y": 180 }, "data": { "label": "CDN / WAF", "subtitle": "Cloudflare", "badges": ["TLS", "DDoS"] } },
-    { "id": "web", "type": "frontend", "position": { "x": 480, "y": 180 }, "data": { "label": "Web App", "subtitle": "React SPA", "badges": ["TypeScript", "Vite"] } },
+    { "id": "title", "type": "title", "position": { "x": 100, "y": 60 }, "data": { "text": "3-Tier SaaS", "level": 1 } },
 
-    { "id": "group__api", "type": "group", "position": { "x": 720, "y": 60 }, "style": { "width": 260, "height": 380 }, "data": { "label": "API Tier", "color": "backend", "dashed": true } },
-    { "id": "api", "type": "backend", "position": { "x": 30, "y": 60 }, "parentNode": "group__api", "extent": "parent", "data": { "label": "API Server", "subtitle": "Fastify + Zod", "badges": ["REST", "Auth"] } },
-    { "id": "worker", "type": "backend", "position": { "x": 30, "y": 220 }, "parentNode": "group__api", "extent": "parent", "data": { "label": "Worker", "subtitle": "BullMQ", "badges": ["Jobs"] } },
+    { "id": "user", "type": "user", "position": { "x": 440, "y": 140 }, "data": { "label": "End User", "subtitle": "Browser" }, "sourcePosition": "bottom", "targetPosition": "top" },
+    { "id": "cdn", "type": "security", "position": { "x": 440, "y": 280 }, "data": { "label": "CDN / WAF", "subtitle": "Cloudflare", "badges": ["TLS", "DDoS"] }, "sourcePosition": "bottom", "targetPosition": "top" },
+    { "id": "frontend", "type": "frontend", "position": { "x": 440, "y": 420 }, "data": { "label": "Web App", "subtitle": "React + Vite", "badges": ["SPA"] }, "sourcePosition": "bottom", "targetPosition": "top" },
+    { "id": "api", "type": "backend", "position": { "x": 440, "y": 560 }, "data": { "label": "API Server", "subtitle": "Fastify + Zod", "badges": ["REST", "Auth"] }, "sourcePosition": "bottom", "targetPosition": "top" },
+    { "id": "worker", "type": "backend", "position": { "x": 760, "y": 560 }, "data": { "label": "Worker", "subtitle": "BullMQ" }, "sourcePosition": "bottom", "targetPosition": "left" },
 
-    { "id": "cache", "type": "cache", "position": { "x": 1040, "y": 80 }, "data": { "label": "Cache", "subtitle": "Redis 7" } },
-    { "id": "queue", "type": "queue", "position": { "x": 1040, "y": 300 }, "data": { "label": "Job Queue", "subtitle": "Redis Streams" } },
-
-    { "id": "db", "type": "database", "position": { "x": 1300, "y": 140 }, "data": { "label": "Primary DB", "subtitle": "Postgres 16", "badges": ["Primary"] } },
-    { "id": "s3", "type": "storage", "position": { "x": 1300, "y": 320 }, "data": { "label": "Object Store", "subtitle": "S3 / R2" } }
+    { "id": "db", "type": "database", "position": { "x": 220, "y": 700 }, "data": { "label": "Primary DB", "subtitle": "Postgres 16" }, "targetPosition": "top" },
+    { "id": "cache", "type": "cache", "position": { "x": 440, "y": 700 }, "data": { "label": "Cache", "subtitle": "Redis 7" }, "targetPosition": "top" },
+    { "id": "storage", "type": "storage", "position": { "x": 660, "y": 700 }, "data": { "label": "Object Store", "subtitle": "S3 / R2" }, "targetPosition": "top" },
+    { "id": "queue", "type": "queue", "position": { "x": 880, "y": 700 }, "data": { "label": "Job Queue", "subtitle": "Redis Streams" }, "targetPosition": "top" }
   ],
   "edges": [
     { "id": "e1", "source": "user", "target": "cdn", "type": "flow", "label": "HTTPS" },
-    { "id": "e2", "source": "cdn", "target": "web", "type": "flow" },
-    { "id": "e3", "source": "web", "target": "api", "type": "flow", "label": "REST" },
-    { "id": "e4", "source": "api", "target": "cache", "type": "callback", "label": "read-through" },
-    { "id": "e5", "source": "api", "target": "db", "type": "flow", "label": "SQL" },
-    { "id": "e6", "source": "worker", "target": "queue", "type": "stream", "label": "consume", "animated": true },
-    { "id": "e7", "source": "api", "target": "queue", "type": "stream", "label": "enqueue", "animated": true },
-    { "id": "e8", "source": "worker", "target": "s3", "type": "flow", "label": "upload" },
+    { "id": "e2", "source": "cdn", "target": "frontend", "type": "flow" },
+    { "id": "e3", "source": "frontend", "target": "api", "type": "flow", "label": "REST" },
+    { "id": "e4", "source": "api", "target": "db", "type": "flow", "label": "SQL" },
+    { "id": "e5", "source": "api", "target": "cache", "type": "callback", "label": "read-through" },
+    { "id": "e6", "source": "api", "target": "worker", "type": "stream", "label": "enqueue" },
+    { "id": "e7", "source": "worker", "target": "queue", "type": "stream" },
+    { "id": "e8", "source": "worker", "target": "storage", "type": "flow", "label": "upload" },
     { "id": "e9", "source": "worker", "target": "db", "type": "flow" }
   ]
 }

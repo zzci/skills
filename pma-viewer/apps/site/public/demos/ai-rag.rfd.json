@@ -3,38 +3,38 @@
   "type": "reactflow",
   "metadata": {
     "title": "AI RAG Pipeline",
-    "description": "Retrieval-augmented generation with vector DB, reranker, and LLM fallback.",
-    "palette": "default",
-    "layout": "auto-lr"
+    "description": "Retrieval-augmented generation: embed -> vector search -> rerank -> decision -> LLM.",
+    "palette": "default"
   },
-  "viewport": { "x": 0, "y": 0, "zoom": 0.7 },
+  "viewport": { "x": 0, "y": 0, "zoom": 0.75 },
   "nodes": [
-    { "id": "user", "type": "user", "position": { "x": 0, "y": 220 }, "data": { "label": "User", "subtitle": "Chat UI" } },
-    { "id": "gateway", "type": "backend", "position": { "x": 220, "y": 220 }, "data": { "label": "API Gateway", "subtitle": "Hono / Workers", "badges": ["Auth", "Rate-limit"] } },
+    { "id": "title", "type": "title", "position": { "x": 100, "y": 60 }, "data": { "text": "AI RAG Pipeline", "level": 1 } },
 
-    { "id": "group__retrieval", "type": "group", "position": { "x": 480, "y": 120 }, "style": { "width": 640, "height": 220 }, "data": { "label": "Retrieval", "color": "ai", "dashed": true } },
-    { "id": "embed", "type": "ai", "position": { "x": 20, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Embedder", "subtitle": "text-embedding-3-small", "badges": ["1536-dim"] } },
-    { "id": "vector", "type": "database", "position": { "x": 230, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Vector DB", "subtitle": "pgvector / Pinecone" } },
-    { "id": "rerank", "type": "ai", "position": { "x": 440, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Reranker", "subtitle": "cross-encoder" } },
+    { "id": "user", "type": "user", "position": { "x": 100, "y": 220 }, "data": { "label": "User", "subtitle": "Chat UI" }, "sourcePosition": "right" },
+    { "id": "gateway", "type": "backend", "position": { "x": 380, "y": 220 }, "data": { "label": "API Gateway", "subtitle": "Hono / Workers", "badges": ["Auth", "Rate-limit"] }, "sourcePosition": "right", "targetPosition": "left" },
 
-    { "id": "decide", "type": "decision", "position": { "x": 1180, "y": 220 }, "data": { "label": "Context score", "subtitle": "> threshold?" } },
-    { "id": "llm", "type": "ai", "position": { "x": 1400, "y": 80 }, "data": { "label": "Primary LLM", "subtitle": "Claude Opus 4.7", "badges": ["streaming"] } },
-    { "id": "fallback", "type": "ai", "position": { "x": 1400, "y": 360 }, "data": { "label": "Fallback LLM", "subtitle": "Haiku 4.5", "badges": ["cheap"] } },
-    { "id": "cache", "type": "cache", "position": { "x": 1660, "y": 220 }, "data": { "label": "Prompt Cache", "subtitle": "24h TTL" } },
+    { "id": "group__retrieval", "type": "group", "position": { "x": 640, "y": 140 }, "style": { "width": 560, "height": 220 }, "data": { "label": "Retrieval", "color": "ai", "dashed": true } },
+    { "id": "embed", "type": "ai", "position": { "x": 20, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Embedder", "subtitle": "text-embedding-3-small", "badges": ["1536-d"] }, "sourcePosition": "right", "targetPosition": "left" },
+    { "id": "vector", "type": "database", "position": { "x": 200, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Vector DB", "subtitle": "pgvector" }, "sourcePosition": "right", "targetPosition": "left" },
+    { "id": "rerank", "type": "ai", "position": { "x": 380, "y": 60 }, "parentNode": "group__retrieval", "extent": "parent", "data": { "label": "Reranker", "subtitle": "cross-encoder" }, "sourcePosition": "right", "targetPosition": "left" },
 
-    { "id": "obs", "type": "monitoring", "position": { "x": 700, "y": 460 }, "data": { "label": "Traces + Evals", "subtitle": "Langfuse", "badges": ["OTel"] } }
+    { "id": "decide", "type": "decision", "position": { "x": 1240, "y": 220 }, "data": { "label": "Context score", "subtitle": "> threshold?" }, "targetPosition": "left" },
+    { "id": "llm", "type": "ai", "position": { "x": 1500, "y": 140 }, "data": { "label": "Primary LLM", "subtitle": "Claude Opus 4.7", "badges": ["streaming"] }, "sourcePosition": "right", "targetPosition": "left" },
+    { "id": "fallback", "type": "ai", "position": { "x": 1500, "y": 320 }, "data": { "label": "Fallback LLM", "subtitle": "Haiku 4.5", "badges": ["cheap"] }, "sourcePosition": "right", "targetPosition": "left" },
+    { "id": "cache", "type": "cache", "position": { "x": 1780, "y": 220 }, "data": { "label": "Prompt Cache", "subtitle": "24h TTL" }, "targetPosition": "left" },
+
+    { "id": "obs", "type": "monitoring", "position": { "x": 380, "y": 440 }, "data": { "label": "Traces + Evals", "subtitle": "Langfuse", "badges": ["OTel"] }, "targetPosition": "top" }
   ],
   "edges": [
     { "id": "e1", "source": "user", "target": "gateway", "type": "flow", "label": "query" },
     { "id": "e2", "source": "gateway", "target": "embed", "type": "flow" },
-    { "id": "e3", "source": "embed", "target": "vector", "type": "flow", "label": "ANN search" },
+    { "id": "e3", "source": "embed", "target": "vector", "type": "flow", "label": "ANN" },
     { "id": "e4", "source": "vector", "target": "rerank", "type": "flow", "label": "top-k" },
     { "id": "e5", "source": "rerank", "target": "decide", "type": "flow" },
-    { "id": "e6", "source": "decide", "target": "llm", "type": "flow", "label": "high" },
-    { "id": "e7", "source": "decide", "target": "fallback", "type": "flow", "label": "low" },
+    { "id": "e6", "source": "decide", "sourceHandle": "yes", "target": "llm", "type": "flow", "label": "high" },
+    { "id": "e7", "source": "decide", "sourceHandle": "no", "target": "fallback", "type": "rejected", "label": "low" },
     { "id": "e8", "source": "llm", "target": "cache", "type": "callback", "label": "memoize" },
     { "id": "e9", "source": "fallback", "target": "cache", "type": "callback" },
-    { "id": "e10", "source": "gateway", "target": "obs", "type": "dependency", "label": "trace" },
-    { "id": "e11", "source": "llm", "target": "obs", "type": "dependency" }
+    { "id": "e10", "source": "gateway", "target": "obs", "type": "dependency", "label": "trace" }
   ]
 }
