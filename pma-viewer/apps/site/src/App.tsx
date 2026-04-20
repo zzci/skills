@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { PmaViewer, validateRfdFile, type RfdFile } from "@zzci/pma-viewer";
+import { PmaViewer, validateRfdFile, type PmaViewerApi, type RfdFile } from "@zzci/pma-viewer";
 import "@zzci/pma-viewer/style.css";
 
 interface Demo {
@@ -44,8 +44,6 @@ function useQueryParams() {
     theme: (params.get("theme") as "light" | "dark" | "auto" | null) ?? undefined,
     fit: params.get("fit") !== "0",
     interactive: params.get("interactive") !== "0",
-    toolbar: params.get("toolbar") !== "0",
-    zoom: params.get("zoom") ? Number(params.get("zoom")) : undefined,
   };
 }
 
@@ -98,41 +96,80 @@ export function App() {
 
   if (resolvedSrc) {
     return (
-      <Shell>
-        <ViewerHeader src={resolvedSrc} />
-        <div style={{ flex: 1, minHeight: 0 }}>
+      <ViewerShell
+        src={resolvedSrc}
+        render={(onReady) => (
           <PmaViewer
             src={resolvedSrc}
             height="100%"
             theme={qs.theme ?? "auto"}
             fitView={qs.fit}
             interactive={qs.interactive}
-            toolbar={qs.toolbar}
+            toolbar={false}
+            onReady={onReady}
           />
-        </div>
-      </Shell>
+        )}
+      />
     );
   }
 
   if (data) {
     return (
-      <Shell>
-        <ViewerHeader />
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <PmaViewer data={data} height="100%" />
-        </div>
-      </Shell>
+      <ViewerShell
+        render={(onReady) => (
+          <PmaViewer data={data} height="100%" toolbar={false} onReady={onReady} />
+        )}
+      />
     );
   }
 
   return <Landing onPickFile={acceptFile} />;
 }
 
+function ViewerShell({
+  src,
+  render,
+}: {
+  src?: string;
+  render: (onReady: (api: PmaViewerApi) => void) => React.ReactNode;
+}) {
+  const [api, setApi] = useState<PmaViewerApi | null>(null);
+  return (
+    <Shell>
+      <ViewerHeader src={src} api={api} />
+      <div style={{ flex: 1, minHeight: 0 }}>{render(setApi)}</div>
+    </Shell>
+  );
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return <div style={{ height: "100vh", width: "100vw", display: "flex", flexDirection: "column" }}>{children}</div>;
 }
 
-function ViewerHeader({ src }: { src?: string }) {
+function ViewerHeader({ src, api }: { src?: string; api: PmaViewerApi | null }) {
+  const download = useCallback(async (kind: "png" | "svg") => {
+    if (!api) return;
+    const url = kind === "png" ? await api.exportPNG() : await api.exportSVG();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `diagram.${kind}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }, [api]);
+
+  const btn: React.CSSProperties = {
+    height: 28,
+    padding: "0 10px",
+    fontSize: 12,
+    border: "1px solid #cbd5e1",
+    borderRadius: 6,
+    background: "#ffffff",
+    color: "#0f172a",
+    cursor: api ? "pointer" : "not-allowed",
+    opacity: api ? 1 : 0.5,
+  };
+
   return (
     <div
       style={{
@@ -145,14 +182,33 @@ function ViewerHeader({ src }: { src?: string }) {
         borderBottom: "1px solid #e2e8f0",
         background: "#f8fafc",
         fontSize: 13,
+        gap: 12,
       }}
     >
       <a href={BASE} style={{ color: "#0f172a", textDecoration: "none", fontWeight: 600 }}>← pma-viewer</a>
       {src ? (
-        <a href={src} target="_blank" rel="noreferrer" style={{ color: "#64748b", textDecoration: "none" }}>
+        <a
+          href={src}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            color: "#64748b",
+            textDecoration: "none",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
           {src}
         </a>
-      ) : null}
+      ) : <span style={{ flex: 1 }} />}
+      <div style={{ display: "flex", gap: 6, flex: "0 0 auto" }}>
+        <button type="button" style={btn} disabled={!api} onClick={() => api?.fitView()}>Fit</button>
+        <button type="button" style={btn} disabled={!api} onClick={() => download("png")}>PNG</button>
+        <button type="button" style={btn} disabled={!api} onClick={() => download("svg")}>SVG</button>
+      </div>
     </div>
   );
 }
@@ -257,7 +313,7 @@ function Landing({ onPickFile }: { onPickFile: (f: File) => void }) {
           <h2 style={{ fontSize: 18, color: "#0f172a", margin: "0 0 12px" }}>URL params</h2>
           <code>?demo=three-tier | ai-rag | microservices</code> — open a bundled demo<br />
           <code>?src=&lt;url&gt;</code> — open a hosted diagram<br />
-          <code>?theme=light|dark|auto</code>, <code>fit=0|1</code>, <code>interactive=0|1</code>, <code>toolbar=0|1</code>, <code>zoom=&lt;n&gt;</code>
+          <code>?theme=light|dark|auto</code>, <code>fit=0|1</code>, <code>interactive=0|1</code>
         </section>
       </div>
     </div>

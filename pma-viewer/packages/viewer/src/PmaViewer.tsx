@@ -3,7 +3,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   Background,
-  MiniMap,
   Controls,
   useReactFlow,
   type Edge,
@@ -191,7 +190,6 @@ function Inner(props: PmaViewerProps) {
       >
         <Background gap={16} size={1} />
         {interactive ? <Controls showInteractive={false} /> : null}
-        {interactive ? <MiniMap pannable zoomable /> : null}
       </ReactFlow>
       {toolbar ? (
         <div className="pma-toolbar">
