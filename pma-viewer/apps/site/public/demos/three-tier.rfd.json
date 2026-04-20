@@ -4,7 +4,8 @@
   "metadata": {
     "title": "3-Tier SaaS",
     "description": "Browser → CDN → API → DB + Cache. Classic web app topology.",
-    "palette": "default"
+    "palette": "default",
+    "layout": "auto-lr"
   },
   "viewport": { "x": 0, "y": 0, "zoom": 0.85 },
   "nodes": [

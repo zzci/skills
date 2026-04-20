@@ -15,6 +15,7 @@ import { nodeTypes } from "./nodes";
 import { edgeTypes } from "./edges/presets";
 import { RFD_SCHEMA_VERSION, validateRfdFile, type RfdEdge, type RfdFile, type RfdNode } from "./schema";
 import { exportPaneAsPng, exportPaneAsSvg } from "./export";
+import { applyAutoLayout, type LayoutDirection } from "./layout/dagre";
 
 export interface PmaViewerApi {
   fitView: () => void;
@@ -31,7 +32,18 @@ export interface PmaViewerProps {
   interactive?: boolean;
   theme?: "light" | "dark" | "auto";
   toolbar?: boolean;
+  layout?: "manual" | "auto-lr" | "auto-tb" | "auto-rl" | "auto-bt";
   onReady?: (api: PmaViewerApi) => void;
+}
+
+function parseLayoutDirection(layout?: string): LayoutDirection | null {
+  switch (layout) {
+    case "auto-lr": return "LR";
+    case "auto-tb": return "TB";
+    case "auto-rl": return "RL";
+    case "auto-bt": return "BT";
+    default: return null;
+  }
 }
 
 function useResolvedTheme(theme: PmaViewerProps["theme"]) {
@@ -88,7 +100,7 @@ function toFlowEdges(edges: RfdEdge[]): Edge[] {
 }
 
 function Inner(props: PmaViewerProps) {
-  const { src, data, height = "60vh", width = "100%", fitView = true, interactive = true, theme = "auto", toolbar = true, onReady } = props;
+  const { src, data, height = "60vh", width = "100%", fitView = true, interactive = true, theme = "auto", toolbar = true, layout, onReady } = props;
   const rootRef = useRef<HTMLDivElement>(null);
   const [file, setFile] = useState<RfdFile | null>(data ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +130,15 @@ function Inner(props: PmaViewerProps) {
     return () => { cancelled = true; };
   }, [src, data]);
 
-  const flowNodes = useMemo(() => (file ? toFlowNodes(file.nodes) : []), [file]);
+  const laidOut = useMemo(() => {
+    if (!file) return null;
+    const effective = layout ?? file.metadata?.layout;
+    const dir = parseLayoutDirection(effective);
+    if (!dir) return file.nodes;
+    return applyAutoLayout(file.nodes, file.edges, { direction: dir });
+  }, [file, layout]);
+
+  const flowNodes = useMemo(() => (laidOut ? toFlowNodes(laidOut) : []), [laidOut]);
   const flowEdges = useMemo(() => (file ? toFlowEdges(file.edges) : []), [file]);
 
   const fit = useCallback(() => rf.fitView({ padding: 0.15, duration: 300 }), [rf]);

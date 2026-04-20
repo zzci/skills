@@ -4,7 +4,8 @@
   "metadata": {
     "title": "Microservices",
     "description": "Gateway + domain services + event bus + observability stack.",
-    "palette": "default"
+    "palette": "default",
+    "layout": "auto-lr"
   },
   "viewport": { "x": 0, "y": 0, "zoom": 0.75 },
   "nodes": [

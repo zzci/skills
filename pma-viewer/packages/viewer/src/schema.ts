@@ -92,6 +92,7 @@ export interface RfdFile {
     description?: string;
     createdAt?: string;
     palette?: "default" | "aws" | "azure" | "gcp" | "k8s";
+    layout?: "manual" | "auto-lr" | "auto-tb" | "auto-rl" | "auto-bt";
     [key: string]: unknown;
   };
   viewport?: RfdViewport;

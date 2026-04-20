@@ -4,7 +4,8 @@
   "metadata": {
     "title": "AI RAG Pipeline",
     "description": "Retrieval-augmented generation with vector DB, reranker, and LLM fallback.",
-    "palette": "default"
+    "palette": "default",
+    "layout": "auto-lr"
   },
   "viewport": { "x": 0, "y": 0, "zoom": 0.7 },
   "nodes": [
