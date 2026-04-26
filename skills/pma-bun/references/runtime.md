@@ -51,16 +51,16 @@ When the project supports compiled binaries:
 Recommended shape:
 
 - `app.ts` bootstraps config, logging, db wiring, and returns the `fetch` handler
-- `index.ts` owns `Bun.serve()` and graceful shutdown
-- `dev.ts` provides development-only integration such as Vite middleware entrypoints
+- `index.ts` owns `Bun.serve()` and graceful shutdown — reads `PORT` from the env (which `nsl run` injects in dev) and binds to it
 - `root.ts` resolves runtime root paths
 - `pid-lock.ts` prevents duplicate listeners when the service should be singleton-like
+- `dev.ts` is **optional**. Add it only if dev startup truly diverges from prod (e.g. seeding fixtures, attaching dev-only middleware). Frontend integration is handled by nsl outside the process — `dev.ts` should not exist solely to mount Vite.
 
 Rules:
 
 - keep startup side effects centralized
 - keep mutable runtime state out of business modules unless the design explicitly requires it
-- separate dev-only bootstrap from production startup
+- separate dev-only bootstrap from production startup *only when there is real divergence*
 
 ## HTTP Server With OpenAPIHono
 
@@ -95,14 +95,24 @@ Default API middleware ordering should be explicit:
 
 Keep security middleware close to the edge, not inside individual feature handlers.
 
-## Vite Dev Integration
+## Dev URL Routing (via nsl)
 
-For Bun full-stack projects:
+The full nsl protocol lives in `/pma references/dev-environment.md`. This section only covers the **Bun-specific** angle.
 
-- keep the web dev integration in a dedicated `dev.ts`
-- avoid leaking dev-server concerns into production bootstrap
-- proxy or share only the routes that need local integration
-- if the frontend imports the API package for local middleware mounting, keep that export target explicit
+### Bun dev script
+
+```bash
+bunx nsl run -n <name>:/api -s -- bun --watch src/index.ts
+```
+
+- `Bun.serve()` reads `PORT` natively, so the API binds to the port nsl allocates without any extra wiring.
+- `-s` (`--strip`) drops the `/api` prefix before forwarding, so route handlers stay mounted at their domain paths (`/users`, `/orders`, …) and remain unaware of the public mount point.
+
+### Bun-specific anti-patterns
+
+- Do **not** mount Vite into the Bun process (no `@hono/vite-dev-server`, no Vite middleware in `dev.ts`).
+- Do **not** import the API package from the frontend for middleware mounting — frontend and backend run as independent processes.
+- Production bootstrap stays untouched: `index.ts` reads `PORT` and serves embedded SPA assets normally; nothing in production depends on nsl.
 
 ## Logging
 

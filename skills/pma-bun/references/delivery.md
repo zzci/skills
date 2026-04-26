@@ -72,12 +72,12 @@ When containerizing:
 
 ## Workspaces
 
-For monorepos:
+Only relevant in the *Monorepo* layout (see `baseline.md`).
 
 - keep workspace boundaries explicit
 - centralize shared configs
 - avoid hidden cross-package imports
-- make package exports intentional, especially when the frontend mounts the API in dev mode
+- make package exports intentional; the API package should not be imported by the frontend at runtime — dev integration runs through nsl, not via cross-package middleware mounting
 
 ## Git Conventions
 

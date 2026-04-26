@@ -1,6 +1,6 @@
 ---
 name: pma-web
-description: Frontend implementation guide for PMA-managed React 19 + TypeScript + Vite 8 monorepo projects. Covers repository layout, required quality gates, file-based type-safe routing with TanStack Router, state conventions (TanStack Query + Zustand), shadcn/ui (Base UI + base-nova style) + Tailwind CSS v4 patterns, Vitest 4 testing, dual-channel theming, i18n, Vite dev server integration with backend, and delivery rules for frontend applications.
+description: Frontend implementation guide for PMA-managed React 19 + TypeScript + Vite 8 SPA projects. Defaults to a single-app layout (the right choice for a Rust/Go service that ships a UI); promotes to a Bun monorepo only when multiple apps or shared packages exist. Covers required quality gates, file-based type-safe routing with TanStack Router, state conventions (TanStack Query + Zustand), shadcn/ui (Base UI + base-nova style) + Tailwind CSS v4 patterns, Vitest 4 testing, dual-channel theming, i18n, nsl-based dev integration with backend services, and delivery rules for frontend applications.
 ---
 
 # Web Frontend Implementation Guide
@@ -19,20 +19,22 @@ For PMA-managed SPA and internal-tool frontend projects using:
 - Zustand for UI-only client state
 - shadcn/ui with `@base-ui/react` primitives and Tailwind CSS v4
 
+Single-app layout is the default. Reach for a Bun monorepo only when the repo really hosts multiple apps or shared packages — a single SPA bolted onto a Rust or Go service does not need workspaces.
+
 Not for SSR-first sites, content sites, or non-PMA projects.
 
 ## Loading Order
 
 1. Always load `references/baseline.md` first.
 2. Load `references/routing-and-ui.md` when touching route structure, providers, theming, Tailwind, or shadcn/ui.
-3. Load `references/runtime-and-data.md` when touching API integration, query state, i18n, Vite config, or frontend-backend dev integration.
+3. Load `references/runtime-and-data.md` when touching API integration, query state, i18n, Vite config, or the frontend-side dev script. For the full nsl protocol (registration patterns, `--strip`, `NSL_PORT`, fallback) load `/pma references/dev-environment.md`.
 4. Load `references/review.md` when touching release checks, tests, accessibility, or security-sensitive UI behavior.
 
 ## Quick Routing
 
-- New app setup or repo restructuring: `references/baseline.md`
+- New app setup or repo restructuring (single-app vs monorepo): `references/baseline.md`
 - Router, layouts, providers, entrypoint, shadcn, Tailwind, theme: `references/routing-and-ui.md`
-- HTTP client, query client, i18n, Vite dev server, API proxying: `references/runtime-and-data.md`
+- HTTP client, query client, i18n, Vite config, frontend nsl invocation: `references/runtime-and-data.md` (full nsl protocol → `/pma references/dev-environment.md`)
 - Lint, typecheck, build, test, accessibility, UI security review: `references/review.md`
 
 ## Reference Packs
@@ -42,7 +44,7 @@ Not for SSR-first sites, content sites, or non-PMA projects.
 - `references/routing-and-ui.md`
   TanStack Router layout, provider composition, entry point, shadcn/ui, Tailwind v4, and theming.
 - `references/runtime-and-data.md`
-  Query client, HTTP layer, state boundaries, i18n, and Vite dev-server integration with backend APIs.
+  Query client, HTTP layer, state boundaries, i18n, Vite config, and the frontend-side nsl invocation. Full nsl protocol lives in `/pma references/dev-environment.md`.
 - `references/review.md`
   Verification gates and the accessibility and security review checklist for UI changes.
 

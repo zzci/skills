@@ -1,6 +1,6 @@
 ---
 name: pma-bun
-description: Bun implementation guide for PMA-managed backend and full-stack monorepos. Covers Bun workspaces with `apps/*` and `packages/*`, API modules under `src/modules`, strict linting with ESLint + @antfu/eslint-config, Drizzle over SQLite-first storage, OpenAPIHono on top of `Bun.serve()`, validated env config, Vite dev integration, standalone binary compilation with embedded assets and migrations, and CI quality gates.
+description: Bun implementation guide for PMA-managed backend services. Defaults to a single-API-project layout; promotes to a Bun monorepo only when multiple deployable apps or shared packages exist. Covers API modules under `src/modules`, strict linting with ESLint + @antfu/eslint-config, Drizzle over SQLite-first storage, OpenAPIHono on top of `Bun.serve()`, validated env config, nsl-based dev URL routing (paired with `pma-web`), standalone binary compilation with embedded assets and migrations, and CI quality gates.
 ---
 
 # Bun Project Implementation Guide
@@ -11,7 +11,7 @@ Keep this entry file small. Load only the relevant reference packs.
 
 ## Scope
 
-For PMA-managed Bun backends, API services, internal tools, and Bun-based full-stack monorepos.
+For PMA-managed Bun backends, API services, and internal tools. A SPA shipped alongside the API (same repo) is supported via a sibling `web/` directory and `pma-web` — it does not require a Bun workspace.
 
 Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 
@@ -24,15 +24,15 @@ Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 
 ## Quick Routing
 
-- New Bun workspace setup or repo restructuring: `references/baseline.md`
-- `app.ts` / `index.ts` / `dev.ts`, OpenAPIHono, config, startup, graceful shutdown, logging, PID lock: `references/runtime.md`
+- New project setup or repo restructuring (single API / API + sibling SPA / monorepo): `references/baseline.md`
+- `app.ts` / `index.ts` / optional `dev.ts`, OpenAPIHono, config, startup, graceful shutdown, logging, PID lock, Bun-specific nsl invocation: `references/runtime.md` (full nsl protocol → `/pma references/dev-environment.md`; multi-app workspace setup → `/pma docs/monorepo-example.md`)
 - Schema design, SQLite setup, migration embedding, repositories, test setup: `references/data-and-testing.md`
 - Compile pipeline, binary delivery, static assets, CI, Docker, PR readiness: `references/delivery.md`
 
 ## Reference Packs
 
 - `references/baseline.md`
-  Scope, workspace defaults, required quality gates, project layout, scripts, conventions, and implementation workflow.
+  Scope, layout choice (single API vs monorepo vs API + sibling SPA), required quality gates, scripts, conventions, and implementation workflow.
 - `references/runtime.md`
   Formatting and TypeScript defaults, config loading, bootstrap structure, OpenAPIHono setup, middleware, logging, docs routes, and runtime lifecycle.
 - `references/data-and-testing.md`

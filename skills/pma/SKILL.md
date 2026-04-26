@@ -107,6 +107,8 @@ Load only what the current task needs:
   Use for task and plan file structure, canonical docs layout, changelog format, and project initialization.
 - `references/delivery.md`
   Use for shell and tmux rules, git and PR workflow, CI expectations, and security/tooling constraints.
+- `references/dev-environment.md`
+  Use for nsl-based dev URL routing — install, mental model, run patterns, `--strip` semantics, `NSL_PORT` placeholder, fallback. Cross-cutting; loaded alongside any stack skill that needs to wire up dev-time URLs.
 
 ## Canonical Format References
 
@@ -114,6 +116,7 @@ Use these format files instead of redefining schemas inline:
 
 - [docs/task-format.md](docs/task-format.md)
 - [docs/plan-format.md](docs/plan-format.md)
+- [docs/monorepo-example.md](docs/monorepo-example.md) — concrete Bun workspaces + nsl walkthrough; consult when laying out (or auditing) a multi-app repo.
 
 ## Quick Routing
 
@@ -123,5 +126,7 @@ Choose references by intent:
 - Task claiming, ownership, or status sync: load `references/workflow.md`.
 - Task or plan file creation: load `references/docs-and-tracking.md`.
 - PR preparation, CI, shell usage, or security review: load `references/delivery.md`.
+- Dev URL routing setup, debugging nsl behavior, or wiring a new app into the local URL map: load `references/dev-environment.md`.
+- Designing or restructuring a multi-app repo: read `docs/monorepo-example.md` together with the relevant stack skill's *Monorepo* section.
 
 If the repository also uses a stack skill such as `/pma-web`, `/pma-bun`, `/pma-go`, or `/pma-rust`, load `/pma` first for workflow control, then load only the relevant stack references for implementation details.
