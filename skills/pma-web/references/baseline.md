@@ -39,7 +39,7 @@ Use `/pma` for workflow control. Use this pack for implementation defaults.
 | Package manager | bun (single project) | use `bun install` directly; no workspaces unless promoted |
 | Router | TanStack Router | file-based routing with generated route tree |
 | Client state | Zustand | UI-only local state |
-| UI | shadcn/ui | `base-nova` style with `@base-ui/react` primitives |
+| UI | shadcn/ui + `@base-ui/react` | `base-nova` style. **Only** UI ecosystem allowed (see *UI Library Policy* below). |
 | Theming | ThemeProvider pattern | light, dark, system |
 | Icons | lucide-react | consistent icon set |
 | HTTP client | `src/shared/lib/http.ts` | typed fetch wrapper with `/api` base URL |
@@ -61,8 +61,38 @@ Use `/pma` for workflow control. Use this pack for implementation defaults.
 | bun (single project) | bun workspaces | promote when the repo really hosts multiple apps or shared packages |
 | bun workspaces | pnpm workspaces | use consistently across docs and CI |
 | react-i18next | LinguiJS | smaller bundle, compile-time approach |
-| `@base-ui/react` | Radix UI | change shadcn setup consistently |
 | `@nsio/nsl` | vite proxy / `@hono/vite-dev-server` | only when the dev environment cannot run nsl at all (rare; nsl is a single binary shipped via npm) |
+
+The *UI library* row has no Alternative. Radix UI, MUI, Mantine, Chakra UI, Ant Design, Headless UI, Ariakit, NextUI, Park UI, etc. are **not** acceptable substitutes — see *UI Library Policy*.
+
+## UI Library Policy
+
+The only allowed UI stack is **shadcn/ui (base-nova style) + `@base-ui/react`** primitives, on top of Tailwind CSS v4. This is a hard constraint, not a default.
+
+### Forbidden
+
+- **Radix UI** (`@radix-ui/*`). The shadcn `base-nova` style replaces Radix with Base UI primitives; do not mix in Radix packages, do not switch the shadcn style back to the Radix-based one.
+- Any other component / primitive library: MUI, Mantine, Chakra UI, Ant Design, Headless UI, Ariakit, NextUI, Park UI, daisyUI, Flowbite, React Aria Components, etc.
+- Cross-ecosystem combinations (e.g. shadcn for buttons + MUI for data grid). The whole app stays in one ecosystem.
+
+If a feature genuinely needs something neither shadcn nor Base UI provides (e.g. a virtualized data grid, a charting library), bring in a **non-component, headless** library scoped to that feature (e.g. `@tanstack/react-virtual`, `@tanstack/react-table`, `recharts`) and render it through shadcn-styled wrappers. Discuss the introduction in the proposal.
+
+### Component sourcing order
+
+When you need a component, walk this list in order and stop at the first match. Do **not** skip ahead and hand-write.
+
+1. **Existing project component** — under `src/shared/components/ui/` or a feature folder. Reuse / extend it.
+2. **shadcn/ui registry** — install via the shadcn CLI (`bunx shadcn@latest add <name>`). The output is owned code in `src/shared/components/ui/` and you can edit it.
+3. **`@base-ui/react` primitive** — when shadcn does not ship the primitive you need, build a thin wrapper around the Base UI primitive and place it under `src/shared/components/ui/`. Match shadcn's API conventions and Tailwind class style so it slots in next to other shadcn components.
+4. **Hand-written from scratch** — only when steps 1–3 cannot satisfy the requirement, and only after explicitly justifying it in the proposal. Hand-written components must still consume the same Tailwind tokens (`bg-background`, `text-muted-foreground`, etc.) and the same a11y patterns; they may not introduce a parallel styling or behavior system.
+
+The default expectation is that step 4 almost never fires. If a PR adds a hand-written primitive that has a shadcn or Base UI equivalent, treat that as a review blocker.
+
+### Adding a primitive
+
+- Use the shadcn CLI rather than copy-pasting from the docs site, so `components.json` and project aliases stay consistent.
+- Treat generated files as **owned code** (commit, edit, refactor freely). Do not re-add the same primitive on every CLI bump.
+- Keep business components (forms, page layouts, feature-specific composites) **outside** `src/shared/components/ui/`. That folder is reserved for primitives only.
 
 ## Required Quality Gates
 

@@ -1,6 +1,6 @@
 ---
 name: pma-web
-description: Frontend implementation guide for PMA-managed React 19 + TypeScript + Vite 8 SPA projects. Defaults to a single-app layout (the right choice for a Rust/Go service that ships a UI); promotes to a Bun monorepo only when multiple apps or shared packages exist. Covers required quality gates, file-based type-safe routing with TanStack Router, state conventions (TanStack Query + Zustand), shadcn/ui (Base UI + base-nova style) + Tailwind CSS v4 patterns, Vitest 4 testing, dual-channel theming, i18n, nsl-based dev integration with backend services, and delivery rules for frontend applications.
+description: Frontend implementation guide for PMA-managed React 19 + TypeScript + Vite 8 SPA projects. Defaults to a single-app layout (the right choice for a Rust/Go service that ships a UI); promotes to a Bun monorepo only when multiple apps or shared packages exist. UI is hard-locked to shadcn/ui (base-nova) + `@base-ui/react` — Radix and other UI ecosystems (MUI / Mantine / Chakra / Ant Design / Headless UI / Ariakit / NextUI / …) are forbidden. Covers required quality gates, file-based type-safe routing with TanStack Router, state conventions (TanStack Query + Zustand), Tailwind CSS v4 patterns, Vitest 4 testing, dual-channel theming, i18n, nsl-based dev integration with backend services, and delivery rules for frontend applications.
 ---
 
 # Web Frontend Implementation Guide
@@ -17,7 +17,7 @@ For PMA-managed SPA and internal-tool frontend projects using:
 - TanStack Router for file-based type-safe routing
 - TanStack Query for server state
 - Zustand for UI-only client state
-- shadcn/ui with `@base-ui/react` primitives and Tailwind CSS v4
+- shadcn/ui (base-nova style) with `@base-ui/react` primitives and Tailwind CSS v4 — this is the **only** allowed UI ecosystem; Radix UI and other component libraries are forbidden (see `references/baseline.md` *UI Library Policy*)
 
 Single-app layout is the default. Reach for a Bun monorepo only when the repo really hosts multiple apps or shared packages — a single SPA bolted onto a Rust or Go service does not need workspaces.
 

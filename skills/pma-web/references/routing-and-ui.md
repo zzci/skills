@@ -43,22 +43,34 @@ Requirements:
 
 ## shadcn/ui
 
-Use shadcn as owned code, not copy-pasted snippets.
+Use shadcn as owned code, not copy-pasted snippets. shadcn/ui + `@base-ui/react` is the **only** allowed UI ecosystem in PMA-Web — no Radix, no MUI/Mantine/Chakra/AntD/Headless UI/Ariakit/NextUI/Park UI/etc. See *UI Library Policy* in `baseline.md` for the full constraint and rationale.
 
-Recommended init choices:
+### Required init choices
 
-- component library: `base-ui`
+- component library: `base-ui` (do **not** pick the Radix-based option)
 - style: `base-nova`
 - base color: `neutral`
 - CSS variables: `yes`
 - aliases aligned to the actual folder layout
 
-Rules:
+### Component sourcing order
 
-- generate shared primitives into `src/shared/components/ui/`
-- keep business components inside features
-- add new primitives through the CLI
+Walk the list in order; stop at the first match. Do **not** skip ahead to hand-writing.
+
+1. existing project primitive under `src/shared/components/ui/` — reuse or extend it
+2. shadcn/ui registry — `bunx shadcn@latest add <name>`
+3. `@base-ui/react` primitive wrapped to match shadcn's API conventions and Tailwind classes, placed in `src/shared/components/ui/`
+4. hand-written from scratch — only after steps 1–3 cannot satisfy the need, and only after the proposal explicitly justifies it
+
+A PR that hand-writes a primitive with a shadcn or Base UI equivalent is a review blocker.
+
+### Rules
+
+- generate shared primitives into `src/shared/components/ui/`; keep business components (forms, page composites) inside features
+- add new primitives through the shadcn CLI rather than copy-pasting from the docs, so `components.json` and aliases stay consistent
+- treat generated files as owned code — commit, edit, and refactor them freely
 - keep `components.json` consistent with repository aliases and Tailwind paths
+- if a feature truly needs something neither shadcn nor Base UI ships (virtualized grid, charts, …), bring in a **headless** non-component lib (`@tanstack/react-table`, `@tanstack/react-virtual`, `recharts`, …) and render it through shadcn-styled wrappers; introduce it via the proposal
 
 ## Tailwind CSS v4
 

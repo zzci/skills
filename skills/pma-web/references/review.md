@@ -32,6 +32,15 @@ For frontend changes, verify:
 - redirects and route guards cannot be bypassed trivially
 - untrusted URL or file input is validated before use
 
+## UI Library Compliance
+
+For any UI-affecting change, verify:
+
+- no new dependency on Radix UI (`@radix-ui/*`) or any other component / primitive ecosystem (MUI, Mantine, Chakra, Ant Design, Headless UI, Ariakit, NextUI, Park UI, daisyUI, Flowbite, React Aria Components, …). Run `bun pm ls | grep -E '@radix-ui|@mui|@mantine|@chakra-ui|antd|@headlessui|@ariakit|@nextui|@park-ui'` (or equivalent) on diffs that touch `package.json`.
+- new primitives went through the *Component sourcing order* in `baseline.md` — check whether shadcn or `@base-ui/react` already ships the requested component before accepting a hand-written one
+- hand-written primitives, if present, are justified in the proposal and consume the same Tailwind tokens as shadcn (`bg-background`, `text-muted-foreground`, etc.); they do not introduce a parallel styling system
+- shadcn `components.json` still declares `base-ui` as the component library (not the Radix-based option)
+
 ## Testing Guidance
 
 - keep unit and integration tests in Vitest
