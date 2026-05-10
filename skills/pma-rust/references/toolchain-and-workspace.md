@@ -1,53 +1,569 @@
 # PMA-Rust Toolchain And Workspace
 
+This pack covers the **outside** of the code: workspace layout, edition 2024, lint enforcement, toolchain pinning, and the dev loop. Every pattern is anchored to a verified standard-bearer; see `references/evidence.md` for citations.
+
 ## Workspace Structure
 
-Typical layout:
+Service + CLI workspace (default for new PMA-Rust projects):
 
 ```text
-Cargo.toml
-rust-toolchain.toml
-.cargo/
-crates/
-  app/
-  core/
-  db/
-  common/
-tests/
+.
+├── Cargo.toml              # workspace root
+├── Cargo.lock              # COMMIT for binaries; NOT for libraries
+├── rust-toolchain.toml     # optional — see "Toolchain Pinning" below
+├── rustfmt.toml
+├── clippy.toml
+├── deny.toml               # cargo-deny policy
+├── .cargo/
+│   └── config.toml         # build flags, registries, aliases
+├── .config/
+│   └── nextest.toml        # nextest profiles
+├── crates/                 # OR direct top-level — both layouts seen in practice
+│   ├── app/                # binary crate (`acme-app`)
+│   ├── api/                # axum router + handlers
+│   ├── core/               # domain logic, no IO
+│   ├── db/                 # storage adapters (sqlx/seaorm/diesel)
+│   ├── config/             # figment + clap glue
+│   ├── telemetry/          # tracing + OTLP setup
+│   └── common/             # error types, shared models
+├── xtask/                  # see "xtask Pattern" — multiple valid shapes
+├── tests/                  # workspace-level integration tests (optional)
+├── benches/                # criterion / divan benches
+└── justfile                # task runner (optional)
 ```
 
-Rules:
+Layered ownership rules:
 
-- centralize shared dependencies in `[workspace.dependencies]`
-- keep crate responsibilities explicit
-- avoid circular crate relationships
+- `core` is dependency-free of IO. `db`, `api`, `app` may depend on `core`; `core` never depends on them.
+- `app` is the **only** crate that wires figment + clap + telemetry + db + api. It owns `main.rs`, signal handling, and config merge.
+- shared dependency versions live in `[workspace.dependencies]` — crates reference them with `dep = { workspace = true }`.
+- avoid circular crate relationships; if two crates need each other, extract a third.
+- single-binary projects (CLIs like ruff) may keep all code in one crate plus a `src/bin/<name>.rs` entry; multi-binary services should split.
 
-## Workspace Cargo Defaults
+## Workspace `Cargo.toml`
 
-- set resolver to `"2"`
-- define `default-members`
-- keep edition and license at workspace level when appropriate
-- use shared dependency versions instead of drifting crate-local versions
+Skeleton (edition 2024, resolver `"2"`, workspace inheritance, lints):
+
+```toml
+[workspace]
+resolver       = "2"               # cargo / rust-analyzer / reth all use "2"; "3" is acceptable on edition 2024
+members        = ["crates/*", "xtask"]
+default-members = ["crates/app"]   # OPTIONAL — only reth uses it (`Cargo.toml:155`).
+                                   # Use when one bin is the canonical build target.
+
+[workspace.package]
+edition      = "2024"
+rust-version = "1.85"              # MSRV; bump only in minor releases (Tokio policy)
+license      = "Apache-2.0"
+repository   = "https://github.com/acme/acme"
+authors      = ["Acme Engineering"]
+
+[workspace.dependencies]
+# Shared deps; crates use `tokio = { workspace = true }`.
+# Pin features at the workspace level so members opt into a consistent surface.
+tokio       = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "fs", "net"] }
+tokio-util  = { version = "0.7", features = ["rt"] }      # for TaskTracker, CancellationToken
+axum        = { version = "0.8", default-features = false, features = ["macros", "json", "tokio", "http1", "http2"] }
+tower       = { version = "0.5", features = ["util", "retry", "timeout", "limit", "load-shed"] }
+tower-http  = { version = "0.6", features = ["trace", "cors", "compression-gzip", "timeout", "limit", "sensitive-headers"] }
+hyper       = { version = "1", features = ["server", "http1", "http2"] }
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+serde_with  = "3"
+thiserror   = "2"                  # uv/ruff/quickwit confirmed thiserror 2.0
+anyhow      = "1"
+tracing     = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+tracing-opentelemetry = "0.32"
+opentelemetry       = "0.31"
+opentelemetry-otlp  = { version = "0.31", features = ["grpc-tonic", "http-json"] }
+opentelemetry_sdk   = { version = "0.31", features = ["rt-tokio"] }
+clap        = { version = "4", features = ["derive", "env"] }
+clap_complete_command = "0.6"      # uv + ruff use this for shell completions
+figment     = { version = "0.10", features = ["toml", "env", "yaml"] }
+sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "macros", "migrate"] }
+reqwest     = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+rustls      = "0.23"
+secrecy     = "0.10"
+zeroize     = { version = "1", features = ["derive"] }
+subtle      = "2"
+validator   = { version = "0.18", features = ["derive"] }
+
+# === Lock 4 — workspace lints (Path A) ===
+[workspace.lints.rust]
+unsafe_code                 = "forbid"
+unused_must_use             = "deny"
+unsafe_op_in_unsafe_fn      = "deny"
+missing_debug_implementations = "warn"
+missing_docs                = "warn"
+unreachable_pub             = "warn"
+rust_2018_idioms            = { level = "deny", priority = -1 }
+elided_lifetimes_in_paths   = "warn"
+
+[workspace.lints.clippy]
+correctness                 = { level = "deny",  priority = -1 }
+perf                        = { level = "deny",  priority = -1 }
+complexity                  = { level = "warn",  priority = -1 }
+suspicious                  = { level = "warn",  priority = -1 }
+style                       = { level = "warn",  priority = -1 }
+pedantic                    = { level = "warn",  priority = -1 }
+# Tightened individual lints (override priority -1 group with explicit deny):
+unwrap_used                 = "deny"
+expect_used                 = "deny"
+panic                       = "deny"
+todo                        = "warn"
+dbg_macro                   = "deny"
+print_stdout                = "deny"
+print_stderr                = "deny"
+disallowed_methods          = "deny"
+disallowed_types            = "deny"
+# Allow-list for noisy pedantic lints (apply selectively):
+module_name_repetitions     = "allow"
+must_use_candidate          = "allow"
+missing_errors_doc          = "allow"
+missing_panics_doc          = "allow"
+```
+
+Member crate `Cargo.toml` opts in:
+
+```toml
+[package]
+name        = "acme-core"
+version     = "0.1.0"
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+repository.workspace   = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde     = { workspace = true }
+thiserror = { workspace = true }
+tracing   = { workspace = true }
+```
+
+`crates/app/src/lib.rs` (or `main.rs`) starts with:
+
+```rust
+#![forbid(unsafe_code)]
+```
+
+### Path B — build-flag lint enforcement (vector pattern)
+
+When `[workspace.lints]` is too coarse (e.g. you need different lints for build scripts vs runtime), enforce via `.cargo/config.toml`. Verified at `vector/.cargo/config.toml:9-15`:
+
+```toml
+[target.'cfg(all())']
+rustflags = [
+    "-D", "warnings",
+    "-D", "clippy::print_stdout",
+    "-D", "clippy::print_stderr",
+    "-D", "clippy::dbg_macro",
+]
+```
+
+This is harder to scope per-crate but easier to override locally for a single build. Pick **one path per workspace** — do not mix.
 
 ## Toolchain Pinning
 
-- pin stable Rust in `rust-toolchain.toml`
-- keep target toolchain and CI toolchain aligned
-- document any required components such as `clippy` or `rustfmt`
+Two equally valid approaches, depending on project type.
 
-## Compiler And Cargo Flags
+### Approach A — `rust-version` only (cargo / rust-analyzer / reth pattern)
 
-- keep reproducible flags in `.cargo/config.toml`
-- prefer rustls-backed dependencies
-- forbid hidden platform-specific behavior unless the product needs it
+`Cargo.toml` declares `rust-version`; CI installs via `dtolnay/rust-toolchain@stable` (or `master` for explicit pin). **No** `rust-toolchain.toml`. Lighter for libraries and CI variability.
 
-## Lint Configuration
+```yaml
+# .github/workflows/ci.yml
+- uses: dtolnay/rust-toolchain@stable
+- uses: dtolnay/rust-toolchain@master
+  with:
+    toolchain: "1.93"   # for MSRV verification job
+```
 
-Common files:
+### Approach B — `rust-toolchain.toml` (vector pattern)
 
-- `rustfmt.toml`
-- `clippy.toml`
-- `Cranky.toml`
-- `deny.toml`
+```toml
+[toolchain]
+channel    = "1.92"             # match MSRV exactly, or pin a sliding stable
+components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
+profile    = "minimal"
+targets    = ["x86_64-unknown-linux-gnu"]
+```
 
-Use them to keep policy centralized rather than repeating flags across scripts.
+Verified at `vector/rust-toolchain.toml`. Use when developer environments must be byte-for-byte reproducible (services with strict deployment pipelines).
+
+## `.cargo/config.toml`
+
+Reproducible settings, aliases, and the rustls-only posture:
+
+```toml
+[build]
+# rustflags here apply to ALL targets; alternative to workspace.lints (Path B).
+# Comment out if using workspace.lints (Path A).
+# rustflags = ["-D", "warnings"]
+
+[net]
+git-fetch-with-cli = true
+
+[alias]
+# xtask invocation — names match what `just` / CI use
+xtask        = "run --quiet --package xtask --"
+ci           = "nextest run --workspace --all-features --locked"
+ci-fmt       = "fmt --all -- --check"
+ci-clippy    = "clippy --workspace --all-targets --all-features --locked -- -D warnings"
+ci-deny      = "deny --all-features check"
+docs         = "doc --workspace --all-features --no-deps"
+
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"             # rust-analyzer pattern, .cargo/config.toml:8-10
+
+# Do NOT enable `vendored-openssl` features anywhere. rustls only.
+```
+
+Aliases pattern verified at `cargo/.cargo/config.toml:1-6` and `rust-analyzer/.cargo/config.toml:1-6`.
+
+## Lint And Format Configuration
+
+| File | Purpose | Verified pattern |
+|---|---|---|
+| `rustfmt.toml` | formatting policy | cargo: `style_edition = "2024"` (1 line). reth/r-a add `imports_granularity = "Crate"`, `use_small_heuristics = "Max"` |
+| `clippy.toml` | thresholds + disallowed methods/types | enforces project-specific anti-patterns |
+| `deny.toml` | supply chain policy | see `references/delivery.md` |
+| `.config/nextest.toml` | test profiles (`default`, `ci`, `slow`) | reth: retries=2, slow-timeout 30s |
+
+Recommended `clippy.toml` (composes patterns from cargo, rust-analyzer, vector):
+
+```toml
+# from rust-analyzer/clippy.toml — discourage HashMap in hot paths
+disallowed-types = [
+    { path = "std::collections::HashMap",  reason = "use FxHashMap from rustc-hash" },
+    { path = "std::collections::HashSet",  reason = "use FxHashSet from rustc-hash" },
+    { path = "once_cell::sync::Lazy",      reason = "use std::sync::LazyLock" },
+    { path = "once_cell::unsync::Lazy",    reason = "use std::cell::LazyCell" },
+]
+
+# from cargo/clippy.toml — block global mutable state via env
+disallowed-methods = [
+    { path = "std::env::set_var",          reason = "set env at process boot only" },
+    { path = "std::process::Command::new", reason = "use the project's `command` wrapper for testability" },
+]
+
+# Permit some patterns in tests
+allow-print-in-tests   = true
+allow-dbg-in-tests     = true
+allow-unwrap-in-tests  = true
+
+# Tunables
+cognitive-complexity-threshold  = 25
+too-many-arguments-threshold    = 7
+type-complexity-threshold       = 250
+```
+
+`Cranky.toml` is **not** in any of the 10 standard-bearers — do not introduce `cargo-cranky`.
+
+## `xtask` Pattern
+
+Four valid shapes, observed in standard-bearers. Pick the smallest one that fits.
+
+### A — single `xtask/` crate, `publish = false` (rust-analyzer)
+
+`/tmp/pma-rust-research/rust-analyzer/xtask/Cargo.toml:1-25` is the canonical minimal shape:
+
+```toml
+[package]
+name    = "xtask"
+version = "0.1.0"
+publish = false                # never goes to crates.io
+edition.workspace = true
+
+[dependencies]
+# "Avoid adding more dependencies to this crate" — comment in real file
+xshell = "0.2"
+xflags = "0.4"
+anyhow = "1"
+```
+
+`xtask/src/main.rs` skeleton:
+
+```rust
+use anyhow::Result;
+use xshell::{cmd, Shell};
+
+xflags::xflags! {
+    cmd xtask {
+        cmd ci {}
+        cmd codegen {}
+        cmd dist { tag: String }
+    }
+}
+
+fn main() -> Result<()> {
+    let sh = Shell::new()?;
+    match Xtask::from_env_or_exit().subcommand {
+        XtaskCmd::Ci(_)      => { cmd!(sh, "cargo fmt --all -- --check").run()?;
+                                  cmd!(sh, "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings").run()?;
+                                  cmd!(sh, "cargo nextest run --workspace --all-features --locked").run()?;
+                                  cmd!(sh, "cargo test --doc --workspace --all-features --locked").run()?; }
+        XtaskCmd::Codegen(_) => { /* … */ }
+        XtaskCmd::Dist(d)    => { /* tag, build, sign … */ }
+    }
+    Ok(())
+}
+```
+
+### B — multiple `xtask-*` crates inside `crates/*` (cargo)
+
+cargo splits five focused tools: `xtask-build-man`, `xtask-bump-check`, `xtask-lint-docs`, `xtask-spellcheck`, `xtask-stale-label` (`/tmp/pma-rust-research/cargo/.cargo/config.toml:1-6`). Each is a normal workspace member with its own dependency surface. Pick this when xtask grows beyond ~3 distinct responsibilities.
+
+### C — published xtask crate (vector's `vdev`)
+
+If your xtask is genuinely useful outside the repo (e.g. a release tool that other projects might run), publish it like vector publishes `vdev` (`/tmp/pma-rust-research/vector/vdev/Cargo.toml:3-10`). This is rare; default to A or B.
+
+### D — Makefile + shell scripts (reth)
+
+reth deliberately has **no** `xtask` — uses a top-level `Makefile` and `.github/scripts/*.sh`. Acceptable when CI is the primary driver and developer-side tooling is minimal. Not recommended for cross-platform developer ergonomics.
+
+In all cases: **xtask is invoked via cargo aliases** (`cargo xtask ci`), not by `cd xtask && cargo run`.
+
+## `justfile` (Optional, Recommended)
+
+```just
+default: ci
+
+ci:
+    cargo fmt --all -- --check
+    cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+    cargo nextest run --workspace --all-features --locked
+    cargo test --doc --workspace --all-features --locked
+    cargo deny check
+    cargo shear
+
+watch:
+    bacon
+
+test name="":
+    cargo nextest run {{name}}
+
+cov:
+    cargo llvm-cov nextest --workspace --html
+
+fix:
+    cargo clippy --fix --workspace --all-targets --allow-dirty
+    cargo fmt --all
+```
+
+## Local Dev Loop
+
+| Tool | Purpose | Verified at |
+|---|---|---|
+| `bacon` | background `cargo check`/`clippy`/`test` on save | (general convention; not in standard-bearers) |
+| `cargo nextest` | parallel test runner | r-a, reth, vector, tokio, uv, ruff, quickwit |
+| `cargo expand` | view macro-expanded code | (debug only) |
+| `cargo flamegraph` | CPU profiling | |
+| `tokio-console` | runtime task inspection | gate behind `tokio_unstable` cfg |
+| `cargo-llvm-cov` | coverage | preferred over tarpaulin |
+| `mold` linker | faster Linux linking | reth (`setup-mold` action in every CI job) |
+| `sccache` | distributed build cache | reth (`mozilla-actions/sccache-action`) |
+
+`bacon.toml` minimal:
+
+```toml
+default_job = "clippy-all"
+
+[jobs.clippy-all]
+command     = ["cargo", "clippy", "--workspace", "--all-targets", "--all-features", "--locked"]
+need_stdout = false
+```
+
+## Release Profiles & Binary Size
+
+PMA-Rust binaries ship with **two profiles** beyond the stock `release`: a balanced runtime profile and a size-optimized `dist` profile. Anchored on the Rust Performance Book (build-configuration chapter) and uv/ruff's actual `cargo-dist` settings.
+
+### `[profile.release]` — runtime-speed default
+
+```toml
+# Workspace root Cargo.toml — speed-tuned profile for normal release builds
+[profile.release]
+opt-level       = 3
+lto             = "fat"          # +10-20% perf vs default; +link time
+codegen-units   = 1              # better cross-unit inlining
+debug           = "line-tables-only"  # keep enough info for backtraces; small cost
+strip           = "none"         # keep symbols so backtraces resolve
+panic           = "unwind"       # default; needed by tests, hyper, tokio backtraces
+incremental     = false          # release builds are not incremental
+```
+
+Why `panic = "unwind"` here: many ecosystem crates (hyper, tokio internals, axum middleware) assume unwind is available. Switch to `"abort"` only in the dist profile after verifying.
+
+### `[profile.dist]` — size-tuned profile for shipped binaries
+
+Used by `cargo-dist`-driven release jobs (uv, ruff). Inherits from `release`:
+
+```toml
+[profile.dist]
+inherits        = "release"
+opt-level       = "z"            # "z" (smallest) or "s" (balanced); benchmark before picking
+lto             = "fat"
+codegen-units   = 1
+strip           = "symbols"      # 30-60% binary size reduction
+panic           = "abort"        # +smaller binary, +less unwind metadata
+debug           = false
+incremental     = false
+```
+
+Build with: `cargo build --profile dist --target x86_64-unknown-linux-musl`.
+
+Trade-offs (Performance Book confirms):
+- `opt-level = "z"` may run **5-15% slower** than `opt-level = 3` — benchmark before adopting
+- `panic = "abort"` removes unwind tables (smaller binary) but `catch_unwind` no longer works; tests must still build with `panic = "unwind"` (cargo defaults the test harness profile separately)
+- `strip = "symbols"` makes backtraces unresolvable in production — pair with a sourcemap/symbol upload pipeline (Sentry, Datadog) if you need crash analysis
+
+### `[profile.dev]` — fast inner loop
+
+```toml
+[profile.dev]
+opt-level       = 0
+debug           = "line-tables-only"   # 20-40% faster compile vs full debug info
+incremental     = true
+split-debuginfo = "unpacked"           # macOS / Linux: keep .dSYM/.dwo separate
+
+[profile.dev.package."*"]              # optimize all dependencies, even in dev
+opt-level       = 1                    # speeds up runtime tests massively
+```
+
+`split-debuginfo = "unpacked"` is the Rust 1.84+ default on Linux/macOS — restating for clarity. The `[profile.dev.package."*"]` trick is widely used in game and graphics codebases to keep dependency code fast while keeping your own crate fast to compile.
+
+### Linker selection (faster builds)
+
+```toml
+# .cargo/config.toml — opt-in fast linkers per platform
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]   # ~5-10× faster link than ld
+
+[target.aarch64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld"        # rust-analyzer uses this; faster than link.exe
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+```
+
+reth installs `mold` on every CI job (`.github/workflows/lint.yml`, `rui314/setup-mold` action). Local devs install via package manager.
+
+## Cross-Platform Static Binaries (musl)
+
+Standard pattern for distributing Rust binaries that run on any Linux without a libc dependency: build against `*-unknown-linux-musl` with `+crt-static`. Verified across `astral-sh/uv` (`build-release-binaries.yml` ships 4 musl targets) and `astral-sh/ruff` (`cargo-dist` config).
+
+### Why musl for production binaries
+
+- **No glibc version drift** — a glibc-linked binary built on Ubuntu 24.04 fails on Debian 11; a musl-static binary runs on both
+- **Containers** — drops the need for a base image with libc; works in `FROM scratch` or `FROM gcr.io/distroless/static`
+- **Smaller attack surface** — no dynamic loader, no LD_PRELOAD shenanigans
+- **Cross-compile friendly** — pairs naturally with `cross` or `cargo-zigbuild` from any host
+
+### `.cargo/config.toml` — pin `+crt-static`
+
+```toml
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.armv7-unknown-linux-musleabihf]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.riscv64gc-unknown-linux-musl]
+rustflags = ["-C", "target-feature=+crt-static"]
+```
+
+`+crt-static` is **default for musl** on Rust ≥ 1.79, but pin it explicitly so a future toolchain change cannot silently break the static guarantee.
+
+### Build commands
+
+```bash
+# Local cross-build via cross (Docker-based, supports all listed targets)
+cargo install cross --locked
+cross build --profile dist --target x86_64-unknown-linux-musl
+cross build --profile dist --target aarch64-unknown-linux-musl
+
+# Or via cargo-zigbuild (newer, no Docker, uses zig as cross-linker)
+cargo install cargo-zigbuild --locked
+cargo zigbuild --profile dist --target x86_64-unknown-linux-musl
+cargo zigbuild --profile dist --target aarch64-unknown-linux-musl.2.17  # glibc fallback option
+
+# Verify static linkage
+file       target/x86_64-unknown-linux-musl/dist/myapp
+ldd        target/x86_64-unknown-linux-musl/dist/myapp     # must say "not a dynamic executable"
+readelf -d target/x86_64-unknown-linux-musl/dist/myapp     # NEEDED entries should be empty
+```
+
+### Cargo features that DO NOT belong on musl
+
+Add to `cargo deny` `bans` for static-binary projects:
+
+```toml
+# deny.toml — keep musl builds clean
+[[bans.deny]]
+name   = "openssl-sys"
+reason = "rustls only — also breaks musl static link"
+
+[[bans.deny]]
+name   = "native-tls"
+reason = "rustls only — pulls libssl on glibc, broken on musl"
+```
+
+### Allocator note for musl
+
+The musl built-in allocator is famously slow on multi-threaded workloads. Choose one:
+
+```rust
+// Option A — mimalloc (recommended for musl, avoids jemalloc's musl issues)
+#[cfg(all(target_env = "musl", not(target_arch = "wasm32")))]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
+// Option B — jemalloc on glibc only, default on musl
+#[cfg(all(not(target_env = "musl"), not(target_os = "windows"), not(target_arch = "wasm32")))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
+#[cfg(target_os = "windows")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+```
+
+Mirrors ruff's `crates/ruff/src/main.rs:11-28` allocator switching, extended for the musl case. **Library crates never install global allocators.**
+
+### TLS provider on musl
+
+`rustls` works out of the box on musl with both providers (`ring` and `aws-lc-rs`). `aws-lc-rs` builds with `cmake` and may slow CI; `ring` is the simpler default. quickwit calls `install_default_crypto_ring_provider()` at startup — copy the pattern.
+
+## Editor / IDE Convention
+
+Pin one of:
+
+- VS Code with `rust-analyzer` extension (most common, mirrors the standard-bearer of the same name)
+- IntelliJ Rust / RustRover
+
+`.editorconfig` should match `rustfmt.toml` line widths.
+
+## What To Reuse From Each Standard-Bearer
+
+| Pattern | Source |
+|---|---|
+| `[workspace.lints]` shape | `cargo/Cargo.toml:131-145` (compact); `reth/Cargo.toml:162-259` (extensive) |
+| Single `xtask/` (`publish=false`) | `rust-analyzer/xtask/Cargo.toml` |
+| Build-flag enforcement | `vector/.cargo/config.toml:9-15` |
+| MSRV CI via `cargo hack` | `cargo/.github/workflows/main.yml:320-323` |
+| MSRV CI via `cargo msrv verify` | `vector/.github/workflows/msrv.yml` |
+| `mold` + `sccache` for big workspaces | `reth/.github/workflows/lint.yml:11-30` |
+| `crate-ci/typos` typo gate | `cargo`, `rust-analyzer`, `reth`, `uv` |
+
+If migrating an existing project: adopt in this order — workspace `[lints]` → workspace `[dependencies]` → `xtask/` → `cargo nextest` → `cargo deny`. Each step lands cleanly without invasive rewrites.
