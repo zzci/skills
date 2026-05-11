@@ -18,7 +18,7 @@ These rules apply to **every** PMA-Rust project. They cannot be overridden by pr
 | 1 | **Pure Rust ecosystem first.** No new dependency may pull in OpenSSL, native-tls, libgit2-sys, or any other C-FFI binding when a pure-Rust alternative exists. | `cargo deny bans` + dependency review |
 | 2 | **rustls only** for TLS. `tokio-rustls` / `rustls-pemfile` / `rustls-platform-verifier` are the canonical stack. | `bans.deny = [openssl, openssl-sys, native-tls, native-tls-sys]` |
 | 3 | **`#![forbid(unsafe_code)]`** at every crate root (lib.rs / main.rs). Only data-crate or FFI-crate may relax to `deny`, with `// SAFETY:` comments on every `unsafe` block. | clippy + workspace lints |
-| 4 | **`-D warnings`** in CI, in build (`.cargo/config.toml` `rustflags`), and ideally in `[workspace.lints]`. Warnings are errors. | CI gate + build flag |
+| 4 | **Deny warnings is config, not CLI.** Set `[workspace.lints]` (per-lint policy) **and** `.cargo/config.toml [build] rustflags = ["-D", "warnings"]` (global hammer). CI runs `cargo clippy` with no `-- -D warnings` suffix — policy lives in files so dev and CI see the same gate. | `.cargo/config.toml` + `[workspace.lints]` |
 | 5 | **MSRV declared** in `[workspace.package].rust-version`. CI verifies via `cargo hack check --rust-version` or `cargo msrv verify`. | CI gate |
 | 6 | **No `unwrap` / `expect` / `panic!` in runtime paths.** Allowed only in `#[cfg(test)]`, `xtask/`, `build.rs`. Enforced via clippy `unwrap_used = "deny"` / `panic = "deny"` in runtime crates. | workspace lints |
 | 7 | **edition 2024.** New crates and refactors must adopt edition 2024 unless an upstream dependency blocks. | `[workspace.package].edition` |

@@ -582,11 +582,11 @@ Rules:
 
 ## CI Pipeline
 
-Mandatory stages, runnable as `cargo xtask ci` locally and in GitHub Actions / GitLab CI:
+Mandatory stages, runnable as `cargo xtask ci` locally and in GitHub Actions / GitLab CI. **None of these carry `-- -D warnings` on the command line** — that policy is in `.cargo/config.toml [build] rustflags` (see Lock 4). Plain commands keep dev and CI on the same gate:
 
 ```text
 1. fmt           : cargo fmt --all -- --check
-2. clippy        : cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+2. clippy        : cargo clippy --workspace --all-targets --all-features --locked
 3. doc-check     : cargo doc --workspace --no-deps --document-private-items
 4. test          : cargo nextest run --workspace --all-features --locked
 5. doctest       : cargo test --doc --workspace --all-features --locked
@@ -635,7 +635,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      # No `-- -D warnings` here — policy lives in .cargo/config.toml [build] rustflags
+      - run: cargo clippy --workspace --all-targets --all-features --locked
 
   test:
     steps:

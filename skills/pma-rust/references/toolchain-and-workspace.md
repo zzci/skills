@@ -199,20 +199,22 @@ Verified at `vector/rust-toolchain.toml`. Use when developer environments must b
 Reproducible settings, aliases, and the rustls-only posture:
 
 ```toml
+# === Policy lives here, not in CI scripts (Lock 4) ===
+# Applies to every build: dev, CI, IDE check. Cargo auto-caps dep warnings,
+# so this only fails YOUR crates' warnings — not transitive ones.
 [build]
-# rustflags here apply to ALL targets; alternative to workspace.lints (Path B).
-# Comment out if using workspace.lints (Path A).
-# rustflags = ["-D", "warnings"]
+rustflags = ["-D", "warnings"]
 
 [net]
 git-fetch-with-cli = true
 
+# Aliases are plain commands — NO `-- -D warnings` suffix.
+# The policy is in `[build] rustflags` above; the alias is just a shortcut.
 [alias]
-# xtask invocation — names match what `just` / CI use
 xtask        = "run --quiet --package xtask --"
 ci           = "nextest run --workspace --all-features --locked"
 ci-fmt       = "fmt --all -- --check"
-ci-clippy    = "clippy --workspace --all-targets --all-features --locked -- -D warnings"
+ci-clippy    = "clippy --workspace --all-targets --all-features --locked"
 ci-deny      = "deny --all-features check"
 docs         = "doc --workspace --all-features --no-deps"
 
@@ -222,7 +224,7 @@ linker = "rust-lld"             # rust-analyzer pattern, .cargo/config.toml:8-10
 # Do NOT enable `vendored-openssl` features anywhere. rustls only.
 ```
 
-Aliases pattern verified at `cargo/.cargo/config.toml:1-6` and `rust-analyzer/.cargo/config.toml:1-6`.
+Aliases pattern verified at `cargo/.cargo/config.toml:1-6` and `rust-analyzer/.cargo/config.toml:1-6`. The "no `-- -D warnings` in aliases or CI" rule is the corollary of Lock 4: policy in files, triggers on the command line.
 
 ## Lint And Format Configuration
 
@@ -302,8 +304,9 @@ xflags::xflags! {
 fn main() -> Result<()> {
     let sh = Shell::new()?;
     match Xtask::from_env_or_exit().subcommand {
-        XtaskCmd::Ci(_)      => { cmd!(sh, "cargo fmt --all -- --check").run()?;
-                                  cmd!(sh, "cargo clippy --workspace --all-targets --all-features --locked -- -D warnings").run()?;
+        XtaskCmd::Ci(_)      => { // `-D warnings` is in .cargo/config.toml [build] rustflags; commands stay plain
+                                  cmd!(sh, "cargo fmt --all -- --check").run()?;
+                                  cmd!(sh, "cargo clippy --workspace --all-targets --all-features --locked").run()?;
                                   cmd!(sh, "cargo nextest run --workspace --all-features --locked").run()?;
                                   cmd!(sh, "cargo test --doc --workspace --all-features --locked").run()?; }
         XtaskCmd::Codegen(_) => { /* … */ }
@@ -332,9 +335,10 @@ In all cases: **xtask is invoked via cargo aliases** (`cargo xtask ci`), not by 
 ```just
 default: ci
 
+# Plain commands — `-D warnings` lives in .cargo/config.toml [build] rustflags
 ci:
     cargo fmt --all -- --check
-    cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+    cargo clippy --workspace --all-targets --all-features --locked
     cargo nextest run --workspace --all-features --locked
     cargo test --doc --workspace --all-features --locked
     cargo deny check

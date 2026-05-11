@@ -43,11 +43,23 @@ Exceptions (very narrow):
 - A crate that genuinely owns FFI or memory layout primitives may relax to `#![deny(unsafe_code)]` and place every `unsafe` block behind a `// SAFETY:` comment that covers aliasing + lifetimes + invariants.
 - The pattern in `tokio/src/lib.rs:13` is `#![deny(unsafe_op_in_unsafe_fn)]` — even inside an `unsafe fn`, the `unsafe { … }` block must be explicit. Adopt this in any crate that legitimately uses `unsafe`.
 
-### Lock 4 — Deny warnings everywhere
+### Lock 4 — Deny warnings everywhere (config-driven, not CLI)
 
-Two equally valid enforcement paths (pick one per workspace):
+**Rule: `-D warnings` belongs in configuration files, not in CI command lines or shell aliases.** A CI workflow that passes `-- -D warnings` on the command line means developers building locally get a different policy than CI — every "passes locally, fails in CI" headache traces to this. The policy lives in `.cargo/config.toml` and `[workspace.lints]` so that every `cargo build`, `cargo check`, `cargo clippy`, IDE check, and CI job sees the same gate.
 
-**Path A — workspace lints (preferred).** Used by `cargo`, `rust-analyzer`, `reth`. Centralizes policy in `Cargo.toml`, supports per-crate opt-out:
+CI scripts and aliases run plain commands:
+
+```yaml
+# Right — policy is in config; CI is the trigger:
+- run: cargo clippy --workspace --all-targets --all-features --locked
+
+# Wrong — duplicates policy on the command line; dev and CI drift:
+- run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+```
+
+Two complementary enforcement paths — **use both**:
+
+**Path A — workspace lints.** Used by `cargo`, `rust-analyzer`, `reth`. Centralizes per-lint policy in `Cargo.toml`, supports per-crate opt-out:
 
 ```toml
 # workspace root Cargo.toml
@@ -87,9 +99,10 @@ workspace = true
 
 Lint table priorities matter: `priority = -1` lets you mass-`deny` a clippy group, then upgrade individual lints to `deny` (or downgrade noisy ones to `allow`) on top.
 
-**Path B — build flags.** Used by `vector` in `.cargo/config.toml:9-15`:
+**Path B — build flags.** Used by `vector` in `.cargo/config.toml:9-15`. This is the only way to deny **future toolchain warnings** that don't yet exist in `[workspace.lints]`:
 
 ```toml
+# .cargo/config.toml — applies to every build (dev, CI, IDE check)
 [target.'cfg(all())']
 rustflags = [
     "-D", "warnings",
@@ -99,15 +112,19 @@ rustflags = [
 ]
 ```
 
-Path B is cheaper to bootstrap but harder to scope per-crate. Path A is the default for new PMA projects.
+**Use both** in new PMA projects: Path A catches the lints you have named opinions about; Path B catches everything else (including warnings added by future rustc releases). `reth` runs CI on **nightly** with `RUSTFLAGS: -D warnings` set at the workflow env level (`.github/workflows/lint.yml:60-69`) — same pattern, just env-scoped instead of file-scoped.
 
-In **CI**, always also pass `-- -D warnings` to clippy:
+**Dependency builds are safe under `-D warnings`.** Cargo automatically passes `--cap-lints=warn` (path deps) or `--cap-lints=allow` (registry / git deps) to non-local crates, so your strict policy applies to your own crates without breaking on transitive warnings. No extra config needed for this.
 
-```yaml
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+**Local opt-out for in-progress work.** A developer who needs to iterate on warning-emitting code locally can override per-run without changing the policy file:
+
+```bash
+RUSTFLAGS="" cargo check          # bypass the workspace -D warnings just for this shell
+# or per-call
+cargo clippy --workspace --cap-lints=warn
 ```
 
-`reth` runs this on **nightly** with `RUSTFLAGS: -D warnings` (see `.github/workflows/lint.yml:60-69`).
+Policy stays in the repo; only the developer's local shell relaxes it for the WIP iteration. CI is unaffected.
 
 ### Lock 5 — MSRV declared and verified
 
