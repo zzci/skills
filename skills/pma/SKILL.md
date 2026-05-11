@@ -18,6 +18,8 @@ Keep this entry file small. Load only the references needed for the current turn
 5. Do not use plan mode. Track plans only in `docs/plan/`.
 6. Update task and plan files immediately; do not defer state sync.
 7. Apply the Coding Principles below to every code change.
+8. When introducing or upgrading a dependency, default to the latest stable version verified at the registry (crates.io / npmjs.com / pkg.go.dev), not at a version that came from a tutorial, prior PR, or model recall. Pin to a non-latest version only with a recorded reason. See `references/workflow.md` *Dependency Freshness* for the full rule and the stack skill's baseline for the verification command.
+9. Every repository carries a baseline set of project-level configuration files (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, plus stack-pinned toolchain files). See `references/delivery.md` *Repository Hygiene*.
 
 ## Coding Principles
 
@@ -126,6 +128,8 @@ Choose references by intent:
 - Task claiming, ownership, or status sync: load `references/workflow.md`.
 - Task or plan file creation: load `references/docs-and-tracking.md`.
 - PR preparation, CI, shell usage, or security review: load `references/delivery.md`.
+- Repository initialization or hygiene audit (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, toolchain pinning): load `references/delivery.md` *Repository Hygiene*.
+- Introducing or upgrading a dependency: load `references/workflow.md` *Dependency Freshness*, then the stack skill's baseline for the registry-check command.
 - Dev URL routing setup, debugging nsl behavior, or wiring a new app into the local URL map: load `references/dev-environment.md`.
 - Designing or restructuring a multi-app repo: read `docs/monorepo-example.md` together with the relevant stack skill's *Monorepo* section.
 

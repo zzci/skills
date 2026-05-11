@@ -297,6 +297,38 @@ Patterns to avoid:
 
 Pair every public item with a `Debug` impl (C-DEBUG) and a `///` rustdoc example (C-EXAMPLE). Examples use `?`, never `unwrap()` (C-QUESTION-MARK).
 
+## Dependency Freshness (Rust)
+
+See `/pma references/workflow.md` *Dependency Freshness* for the cross-stack rule. Rust-specific verification:
+
+```bash
+# Latest stable version on crates.io
+cargo search <crate> --limit 1
+
+# Or via the registry API
+curl -s https://crates.io/api/v1/crates/<crate> | jq -r '.crate.max_stable_version'
+
+# Show what would change against current Cargo.lock without writing
+cargo update --dry-run
+
+# Find dependencies that are behind latest compatible / latest stable
+cargo install cargo-edit  # one-time
+cargo upgrade --dry-run --incompatible
+
+# Compare resolved versions vs latest published
+cargo install cargo-outdated  # one-time
+cargo outdated --workspace
+```
+
+When pinning to a non-latest version, add a comment next to the `Cargo.toml` entry:
+
+```toml
+[dependencies]
+some-crate = "1.4"   # PINNED: 1.5 bumps MSRV to 1.86; revisit after toolchain bump
+```
+
+For MSRV-related downgrades, also note in `[workspace.package].rust-version` rationale or `docs/decisions/`.
+
 ## Required Conventions
 
 | Area | Convention |

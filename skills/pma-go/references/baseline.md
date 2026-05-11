@@ -58,6 +58,41 @@ Goals:
 | goose | Atlas | declarative schema management |
 | koanf | envconfig | env-only services |
 
+## Dependency Freshness (Go)
+
+See `/pma references/workflow.md` *Dependency Freshness* for the cross-stack rule. Go-specific verification:
+
+```bash
+# All published versions of a module
+go list -m -versions <module>
+
+# Latest version (the trailing token of the line above)
+go list -m -versions <module> | awk '{print $NF}'
+
+# Find direct deps with newer minor/patch available
+go list -u -m all | grep '\['
+
+# Apply the latest patch within current major (safe default)
+go get -u=patch ./...
+
+# Apply latest minor within current major
+go get -u ./...
+go mod tidy
+
+# Cross-check via pkg.go.dev for breaking-change notes before upgrading a major
+```
+
+When pinning to a non-latest version, note the reason in `go.mod` near the `require` block or in `docs/decisions/`:
+
+```go
+require (
+    // PINNED: <module>@v1 — v2 requires Go 1.27; revisit after toolchain bump
+    example.com/<module> v1.8.3
+)
+```
+
+For major-version upgrades (`v2`, `v3`, …), Go requires updating the import path; treat that as a tracked refactor, not a routine bump.
+
 ## Required Quality Gates
 
 Every PMA-Go project should define:

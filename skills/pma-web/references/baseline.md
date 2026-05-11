@@ -94,6 +94,36 @@ The default expectation is that step 4 almost never fires. If a PR adds a hand-w
 - Treat generated files as **owned code** (commit, edit, refactor freely). Do not re-add the same primitive on every CLI bump.
 - Keep business components (forms, page layouts, feature-specific composites) **outside** `src/shared/components/ui/`. That folder is reserved for primitives only.
 
+## Dependency Freshness (Web)
+
+See `/pma references/workflow.md` *Dependency Freshness* for the cross-stack rule. Web-specific verification:
+
+```bash
+# Latest stable version on npm
+bun pm view <pkg> version            # bun
+npm view <pkg> version               # npm fallback
+
+# Find outdated packages in the current project
+bun outdated                         # bun
+npx npm-check-updates                # cross-PM, supports --target latest/minor/patch
+
+# Resolve peer-dep conflicts before adding
+npx npm-check-updates -u --target latest --filter '<pkg>'
+```
+
+When pinning to a non-latest version (peer-dep conflict, breaking-change deferral, React 19 / Vite 8 compatibility), note the reason in `package.json` near the entry or in `docs/decisions/`:
+
+```jsonc
+{
+  "dependencies": {
+    // PINNED: <pkg>@2.x — 3.x drops Node 18; revisit after CI bump
+    "<pkg>": "^2.4.1"
+  }
+}
+```
+
+Library docs check: when adopting or upgrading a non-trivial library, fetch current docs via Context7 (`mcp__plugin_context7_context7__query-docs`) — React 19, TanStack Router/Query, Tailwind v4, and shadcn all evolve faster than training-data recall.
+
 ## Required Quality Gates
 
 Every PMA-Web project should define:

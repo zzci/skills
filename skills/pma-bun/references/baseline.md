@@ -63,6 +63,35 @@ Goals:
 | consola + pino | pino only | headless services |
 | ESLint | Biome | faster, smaller ecosystem |
 
+## Dependency Freshness (Bun)
+
+See `/pma references/workflow.md` *Dependency Freshness* for the cross-stack rule. Bun-specific verification:
+
+```bash
+# Latest stable version on npm
+bun pm view <pkg> version
+
+# Find outdated packages in the current project
+bun outdated
+
+# For deeper upgrade planning (peer-dep aware)
+npx npm-check-updates --target latest
+npx npm-check-updates -u --target minor   # safer bump
+```
+
+When pinning to a non-latest version, note the reason in `package.json` near the entry or in `docs/decisions/`:
+
+```jsonc
+{
+  "dependencies": {
+    // PINNED: <pkg>@3.x — 4.x requires Bun 1.3; revisit after runtime bump
+    "<pkg>": "^3.8.0"
+  }
+}
+```
+
+Library docs check: when adopting or upgrading Hono, Drizzle, Zod, or any other core dep, fetch current docs via Context7 (`mcp__plugin_context7_context7__query-docs`). Hono v4 and Drizzle's APIs evolve faster than training-data recall.
+
 ## Required Quality Gates
 
 Every PMA-Bun project should expose:
