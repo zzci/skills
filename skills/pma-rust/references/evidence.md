@@ -4,6 +4,34 @@ This file lists the **verifiable file:line citations** behind every recommendati
 
 If a future change to this skill is not anchored in real code from a respected project (or in an official Rust guideline), it should be challenged.
 
+## Table of Contents
+
+- [Standard-Bearer Repositories](#standard-bearer-repositories)
+- [Workspace, Edition, MSRV (Lock 5, Lock 7)](#workspace-edition-msrv-lock-5-lock-7)
+- [Workspace Lints (Lock 4, Path A)](#workspace-lints-lock-4-path-a)
+- [Build-Flag Lint Enforcement (Lock 4, Path B)](#build-flag-lint-enforcement-lock-4-path-b)
+- [`[workspace.dependencies]` Inheritance](#workspacedependencies-inheritance)
+- [`xtask` Patterns](#xtask-patterns)
+- [Toolchain & TLS](#toolchain--tls)
+- [Tokio API/Lint Policy](#tokio-apilint-policy)
+- [Axum 0.8 Patterns](#axum-08-patterns)
+- [Tower / Production Stacks](#tower--production-stacks)
+- [Database](#database)
+- [Configuration](#configuration)
+- [Observability (OTLP, metrics, health)](#observability-otlp-metrics-health)
+- [Allocator (binaries)](#allocator-binaries)
+- [Release Profiles & Binary Size](#release-profiles--binary-size)
+- [Cross-Platform / musl](#cross-platform--musl)
+- [Crash Handling & Core Dump Suppression](#crash-handling--core-dump-suppression)
+- [Linker (build performance)](#linker-build-performance)
+- [Testing Tools](#testing-tools)
+- [Supply Chain](#supply-chain)
+- [Release Automation](#release-automation)
+- [Caching / CI Performance](#caching--ci-performance)
+- [Official Rust Resources Consulted](#official-rust-resources-consulted)
+- [Known Trade-off Citations](#known-trade-off-citations)
+- [How to extend this skill](#how-to-extend-this-skill)
+
 ## Standard-Bearer Repositories
 
 The 10 projects clone-checked for this skill (paths refer to where they were cloned during research):

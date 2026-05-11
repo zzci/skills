@@ -4,6 +4,14 @@ Copy-paste JSON for (A) common node/edge forms and (B) full starter diagrams. De
 
 ---
 
+## Table of Contents
+
+- [A. Node Templates](#a-node-templates)
+- [B. Edge Templates](#b-edge-templates)
+- [C. Starter Diagrams](#c-starter-diagrams)
+- [When to Use Which Starter](#when-to-use-which-starter)
+
+
 ## A. Node Templates
 
 ### Semantic node with subtitle + badges

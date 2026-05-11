@@ -4,6 +4,19 @@ ReactFlow uses absolute pixel `position` values. Pick a template, fix a grid, em
 
 ---
 
+## Table of Contents
+
+- [Grid Basics](#grid-basics)
+- [Vertical Flow (Most Common)](#vertical-flow-most-common)
+- [Horizontal Pipeline](#horizontal-pipeline)
+- [Hub-and-Spoke](#hub-and-spoke)
+- [Swimlanes (Parallel Actors)](#swimlanes-parallel-actors)
+- [Timeline](#timeline)
+- [Matrix (Grid Comparison)](#matrix-grid-comparison)
+- [Choosing a Layout](#choosing-a-layout)
+- [Viewport Defaults](#viewport-defaults)
+
+
 ## Grid Basics
 
 - Node default width: **220px** (semantic / evidence nodes wider).

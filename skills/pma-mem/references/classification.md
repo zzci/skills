@@ -3,6 +3,15 @@
 Rules for analyzing, classifying, and formatting knowledge points.
 Applies to all sources: manual capture, conversation, automated sync.
 
+## Table of Contents
+
+- [Types](#types)
+- [Tags](#tags)
+- [Memo Format](#memo-format)
+- [What to Capture](#what-to-capture)
+- [Consolidation Rules](#consolidation-rules)
+
+
 ## Types
 
 | Tag | Definition | Content requirements |

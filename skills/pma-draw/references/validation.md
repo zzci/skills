@@ -4,6 +4,15 @@ Pre-flight checks for `.rfd.json`. Because the agent cannot see the rendered out
 
 ---
 
+## Table of Contents
+
+- [Pre-Flight Algorithm](#pre-flight-algorithm)
+- [Before Generating (design checks)](#before-generating-design-checks)
+- [During Generation (per-element checks)](#during-generation-per-element-checks)
+- [After Generation (file-level checks)](#after-generation-file-level-checks)
+- [Common Bugs & Fixes](#common-bugs-fixes)
+
+
 ## Pre-Flight Algorithm
 
 ```

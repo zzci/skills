@@ -2,6 +2,16 @@
 
 Use this pack only for whole-repository audits.
 
+## Table of Contents
+
+- [Goal](#goal)
+- [Audit Phases](#audit-phases)
+- [Output Model](#output-model)
+- [Noise Control](#noise-control)
+- [Evidence Rules](#evidence-rules)
+- [Source Notes](#source-notes)
+
+
 ## Goal
 
 Assess the repository as it exists now, not just a diff.

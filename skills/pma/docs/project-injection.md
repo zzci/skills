@@ -2,6 +2,16 @@
 
 This document defines what each PMA-managed repository's `CLAUDE.md` (and the parallel `AGENTS.md`) should contain to wire the project into the PMA workflow. The actual rules live in the `/pma` skill — project files only declare **what is project-specific**, never duplicate skill content.
 
+## Table of Contents
+
+- [Why this matters](#why-this-matters)
+- [Canonical template](#canonical-template)
+- [What the template intentionally omits](#what-the-template-intentionally-omits)
+- [AGENTS.md parity](#agentsmd-parity)
+- [When to update the project injection](#when-to-update-the-project-injection)
+- [Common anti-patterns](#common-anti-patterns)
+- [Initialization checklist](#initialization-checklist)
+
 ## Why this matters
 
 `/pma` and its stack skills (`/pma-rust`, `/pma-go`, `/pma-bun`, `/pma-web`) hold the canonical rules. Inlining them into every repo's `CLAUDE.md` causes two failures:

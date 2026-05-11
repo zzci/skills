@@ -4,6 +4,20 @@ D2 chooses where to put nodes; you choose only *direction*, *grouping*, and some
 
 ---
 
+## Table of Contents
+
+- [Direction](#direction)
+- [Grid layouts](#grid-layouts)
+- [Layout engines](#layout-engines)
+- [Label positioning with `near:`](#label-positioning-with-near)
+- [Label placement with `label.near:` (on containers / shapes)](#label-placement-with-labelnear-on-containers-shapes)
+- [Size control — `width`, `height`](#size-control-width-height)
+- [Spacing knobs (per diagram)](#spacing-knobs-per-diagram)
+- [Pad & center (global canvas)](#pad-center-global-canvas)
+- [Layout recipes](#layout-recipes)
+- [Anti-patterns](#anti-patterns)
+
+
 ## Direction
 
 Set once at the root; overridable per container.

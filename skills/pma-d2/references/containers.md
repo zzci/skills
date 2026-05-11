@@ -4,6 +4,23 @@ A container is a shape that has children. In D2 every map that declares nested s
 
 ---
 
+## Table of Contents
+
+- [Basic nesting](#basic-nesting)
+- [Dotted paths](#dotted-paths)
+- [Inline declaration (shorthand)](#inline-declaration-shorthand)
+- [`_` — parent reference](#parent-reference)
+- [Containers can be connected](#containers-can-be-connected)
+- [Direction per container](#direction-per-container)
+- [When to use a container](#when-to-use-a-container)
+- [When to flatten](#when-to-flatten)
+- [Container styling](#container-styling)
+- [Glob styling for every container at a level](#glob-styling-for-every-container-at-a-level)
+- [Label placement on containers](#label-placement-on-containers)
+- [Container as a folder — multi-file composition](#container-as-a-folder-multi-file-composition)
+- [Anti-patterns](#anti-patterns)
+
+
 ## Basic nesting
 
 ```d2

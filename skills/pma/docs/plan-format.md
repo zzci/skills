@@ -34,8 +34,6 @@ All detailed information goes in the corresponding detail file.
 
 Create the detail file atomically when adding a new plan line to `index.md`.
 
-English is the default for plan files. Use the Chinese template only when the user explicitly requests a specific plan document in Chinese.
-
 ### English Template
 
 ```markdown
@@ -71,41 +69,6 @@ Estimated scope of changes.
 (User annotations and responses. Keep all history.)
 ```
 
-### Chinese Template (Explicit Request Only)
-
-```markdown
-# PLAN-001 简短方案标题
-
-- **status**: draft
-- **createdAt**: YYYY-MM-DD HH:mm
-- **approvedAt**: (待审批)
-- **relatedTask**: PREFIX-NNN
-
-## 现状
-
-调查发现及现状：涉及哪些文件/模块，调用链，现有逻辑。
-
-## 方案
-
-具体改哪些文件、怎么改，含代码片段。
-
-## 风险
-
-副作用、可能的 Bug、是否需要迁移。
-
-## 工作量
-
-改动范围评估。
-
-## 备选方案
-
-（有多种方案时列出对比。）
-
-## 批注
-
-（用户批注和回复。保留所有历史记录。）
-```
-
 ### Detail File Update Rules
 
 - Allowed detail `status` values: `draft`, `implementing`, `completed`, `rejected`
@@ -138,8 +101,6 @@ Estimated scope of changes.
 - Plan IDs are permanent.
 
 ## Index Templates
-
-English is the default for plan indexes. Use the Chinese template only when the user explicitly requests that specific document in Chinese.
 
 ### English Template
 
@@ -174,41 +135,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 ---
 
 ## Plans
-
-```
-
-### Chinese Template (Explicit Request Only)
-
-```markdown
-# 项目名 — 方案索引
-
-> 更新日期: YYYY-MM-DD
-
-## 使用规范
-
-每个方案为单行链接，指向对应的详情文件 `docs/plan/PLAN-NNN.md`。
-
-### 格式
-
-- [ ] [**PLAN-001 简短方案标题**](PLAN-001.md) `YYYY-MM-DD`
-
-### 状态标记
-
-| 标记 | 含义 |
-|------|------|
-| `[ ]` | 草稿/待审批 |
-| `[-]` | 已批准/实现中 |
-| `[x]` | 已完成 |
-| `[~]` | 否决/废弃 |
-
-### 规则
-
-- 仅更新复选框标记，禁止删除方案行。
-- 新方案追加到列表末尾。
-- 详细信息见各 `PLAN-NNN.md` 文件。
-
----
-
-## 方案
 
 ```

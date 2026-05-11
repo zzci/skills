@@ -6,6 +6,17 @@ Single source of truth for node colors. Each semantic node type in `node-types.m
 
 ---
 
+## Table of Contents
+
+- [Semantic Slots (default palette)](#semantic-slots-default-palette)
+- [Text Hierarchy (free-floating text: `title`, `note`)](#text-hierarchy-free-floating-text-title-note)
+- [Evidence Artifact Colors](#evidence-artifact-colors)
+- [Edge Colors](#edge-colors)
+- [Group Border Colors](#group-border-colors)
+- [Cloud-Specific Palettes](#cloud-specific-palettes)
+- [Canvas Background](#canvas-background)
+
+
 ## Semantic Slots (default palette)
 
 | Slot | Background | Border | Text | Used By Node Type |

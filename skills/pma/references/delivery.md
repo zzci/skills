@@ -1,5 +1,16 @@
 # PMA Delivery Rules
 
+## Table of Contents
+
+- [Shell And Process Management](#shell-and-process-management)
+- [Repository Hygiene](#repository-hygiene)
+- [Git Conventions](#git-conventions)
+- [Pull Request Workflow](#pull-request-workflow)
+- [PR Review Checklist](#pr-review-checklist)
+- [CI Pipeline](#ci-pipeline)
+- [GitHub Actions Conventions](#github-actions-conventions)
+- [Tools And Security](#tools-and-security)
+
 ## Shell And Process Management
 
 - Prefer `bash` for all command execution. Do not use `zsh` unless explicitly requested.

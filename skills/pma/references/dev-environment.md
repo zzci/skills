@@ -2,6 +2,11 @@
 
 Cross-cutting dev-runtime conventions used by every stack skill (`pma-web`, `pma-bun`, `pma-go`, `pma-rust`). Stack skills carry only the stack-specific invocation; the protocol lives here.
 
+## Table of Contents
+
+- [Dev URL Routing (nsl)](#dev-url-routing-nsl)
+- [Tmux Process Lifecycle](#tmux-process-lifecycle)
+
 ## Dev URL Routing (nsl)
 
 `@nsio/nsl` is a local reverse proxy that maps named `.localhost` URLs to dynamically allocated ports. Each app process — frontend or backend, in any language — runs independently and registers itself with nsl; nsl unifies them under one host and one port (default `:3355`), so the browser sees a single origin and routes like `/api` resolve to the right backend without any in-process middleware bridge.

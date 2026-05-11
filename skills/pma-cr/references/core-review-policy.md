@@ -2,6 +2,18 @@
 
 Use this file for all review modes and all stacks.
 
+## Table of Contents
+
+- [Primary Objective](#primary-objective)
+- [Review Order](#review-order)
+- [Confidence Filter](#confidence-filter)
+- [Severity Guide](#severity-guide)
+- [Shared Heuristics](#shared-heuristics)
+- [Dead Code Guidance](#dead-code-guidance)
+- [Security Baseline](#security-baseline)
+- [Source Notes](#source-notes)
+
+
 ## Primary Objective
 
 Find real problems in changed code:

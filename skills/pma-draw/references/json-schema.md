@@ -4,6 +4,19 @@ Reference for the `.rfd.json` file format consumed by pma-viewer.
 
 ---
 
+## Table of Contents
+
+- [File Wrapper](#file-wrapper)
+- [Node Object](#node-object)
+- [Edge Object](#edge-object)
+- [Viewport](#viewport)
+- [Grouping (Parent-Child)](#grouping-parent-child)
+- [Handles](#handles)
+- [ID Naming Conventions](#id-naming-conventions)
+- [Minimal Valid File](#minimal-valid-file)
+- [Dynamic ID Generation (codebase extraction)](#dynamic-id-generation-codebase-extraction)
+
+
 ## File Wrapper
 
 ```json

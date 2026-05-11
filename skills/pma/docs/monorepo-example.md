@@ -2,6 +2,11 @@
 
 A concrete walkthrough of when to reach for a Bun monorepo, how to lay it out, and how the apps inside it tie together at dev time via `@nsio/nsl`. Pair this with the *Monorepo* sections in `pma-bun` and `pma-web`, and the protocol reference in [`references/dev-environment.md`](../references/dev-environment.md).
 
+## Table of Contents
+
+- [When to use this layout](#when-to-use-this-layout)
+- [Example: `acme` - main app + admin + worker + shared types](#example-acme---main-app--admin--worker--shared-types)
+
 ## When to use this layout
 
 A monorepo is justified when **at least one** of these is true:

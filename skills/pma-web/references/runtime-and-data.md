@@ -1,5 +1,16 @@
 # PMA-Web Runtime And Data
 
+## Table of Contents
+
+- [State Boundaries](#state-boundaries)
+- [Query Client](#query-client)
+- [HTTP Client](#http-client)
+- [i18n](#i18n)
+- [Vite Configuration](#vite-configuration)
+- [Backend Integration In Dev (via nsl)](#backend-integration-in-dev-via-nsl)
+- [Shared Packages](#shared-packages)
+
+
 ## State Boundaries
 
 - TanStack Query owns request lifecycle, caching, retries, and invalidation.

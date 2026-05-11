@@ -6,6 +6,18 @@ All shapes accept: `label`, `icon`, `tooltip`, `link`, `near`, `width`, `height`
 
 ---
 
+## Table of Contents
+
+- [Generic](#generic)
+- [System & data](#system-data)
+- [People](#people)
+- [Text & rich content](#text-rich-content)
+- [Icons on any shape](#icons-on-any-shape)
+- [Shape + class combo](#shape-class-combo)
+- [Shape fallback behavior (gotcha)](#shape-fallback-behavior-gotcha)
+- [Choosing shape by concept](#choosing-shape-by-concept)
+
+
 ## Generic
 
 | Shape | ID | Use for |

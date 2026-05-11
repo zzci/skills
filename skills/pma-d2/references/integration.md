@@ -4,6 +4,21 @@ How to embed D2 diagrams in docs, READMEs, websites, and CI pipelines.
 
 ---
 
+## Table of Contents
+
+- [Approaches](#approaches)
+- [GitHub README (checked-in SVG)](#github-readme-checked-in-svg)
+- [Docusaurus](#docusaurus)
+- [Nextra / Next.js](#nextra-nextjs)
+- [Astro / SvelteKit / Remix](#astro-sveltekit-remix)
+- [WASM (live render in browser)](#wasm-live-render-in-browser)
+- [Obsidian / Notion / VS Code](#obsidian-notion-vs-code)
+- [CI pipelines](#ci-pipelines)
+- [Confluence / Google Docs / Slack](#confluence-google-docs-slack)
+- [Project convention](#project-convention)
+- [Anti-patterns](#anti-patterns)
+
+
 ## Approaches
 
 | Approach | Pros | Cons |

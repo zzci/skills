@@ -2,6 +2,21 @@
 
 This pack covers the **outside** of the code: workspace layout, edition 2024, lint enforcement, toolchain pinning, and the dev loop. Every pattern is anchored to a verified standard-bearer; see `references/evidence.md` for citations.
 
+## Table of Contents
+
+- [Workspace Structure](#workspace-structure)
+- [Workspace `Cargo.toml`](#workspace-cargotoml)
+- [Toolchain Pinning](#toolchain-pinning)
+- [`.cargo/config.toml`](#cargoconfigtoml)
+- [Lint And Format Configuration](#lint-and-format-configuration)
+- [`xtask` Pattern (Optional - Use Only For Rust-Code Tasks)](#xtask-pattern-optional--use-only-for-rust-code-tasks)
+- [`justfile` (Optional, Recommended)](#justfile-optional-recommended)
+- [Local Dev Loop](#local-dev-loop)
+- [Release Profiles & Binary Size](#release-profiles--binary-size)
+- [Cross-Platform Static Binaries (musl)](#cross-platform-static-binaries-musl)
+- [Editor / IDE Convention](#editor--ide-convention)
+- [What To Reuse From Each Standard-Bearer](#what-to-reuse-from-each-standard-bearer)
+
 ## Workspace Structure
 
 Service + CLI workspace (default for new PMA-Rust projects):
@@ -313,7 +328,7 @@ Invoked via the `cargo xtask` alias. Keep `xtask` outside `default-members` so p
 ```just
 default: ci
 
-# Plain commands — `-D warnings` lives in .cargo/config.toml [build] rustflags
+# Plain commands — deny-warnings policy lives in [workspace.lints.rust]
 ci:
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets --all-features --locked

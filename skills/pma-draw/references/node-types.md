@@ -6,6 +6,17 @@ Predefined `type` values for nodes. pma-viewer ships a matching custom component
 
 ---
 
+## Table of Contents
+
+- [Categories](#categories)
+- [Semantic Nodes](#semantic-nodes)
+- [Structural Nodes](#structural-nodes)
+- [Evidence Nodes](#evidence-nodes)
+- [Utility Nodes (simple diagrams)](#utility-nodes-simple-diagrams)
+- [Handle Conventions](#handle-conventions)
+- [Picking a Type](#picking-a-type)
+
+
 ## Categories
 
 | Category | Purpose |

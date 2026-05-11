@@ -1,5 +1,18 @@
 # PMA-Web Baseline
 
+## Table of Contents
+
+- [Scope](#scope)
+- [Tech Stack](#tech-stack)
+- [UI Library Policy](#ui-library-policy)
+- [Dependency Freshness (Web)](#dependency-freshness-web)
+- [Required Quality Gates](#required-quality-gates)
+- [Project Layout](#project-layout)
+- [Required Conventions](#required-conventions)
+- [Workspace Management](#workspace-management)
+- [Baseline Scripts](#baseline-scripts)
+
+
 ## Scope
 
 This skill is for PMA-managed SPA and internal-tool web applications using:

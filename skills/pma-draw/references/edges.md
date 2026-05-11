@@ -6,6 +6,17 @@ Predefined `type` values for edges. Each preset encodes a specific semantic and 
 
 ---
 
+## Table of Contents
+
+- [Preset Catalog](#preset-catalog)
+- [Choosing an Edge Type](#choosing-an-edge-type)
+- [Handles](#handles)
+- [Labels](#labels)
+- [Staggering Multiple Edges Between the Same Nodes](#staggering-multiple-edges-between-the-same-nodes)
+- [Edge Data (metadata, not rendered)](#edge-data-metadata-not-rendered)
+- [Override Style (last resort)](#override-style-last-resort)
+
+
 ## Preset Catalog
 
 | Type | Visual | `markerEnd` | `animated` | Use For |

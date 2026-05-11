@@ -1,5 +1,16 @@
 # PMA-Web Routing And UI
 
+## Table of Contents
+
+- [Routing](#routing)
+- [Provider Composition](#provider-composition)
+- [Entry Point](#entry-point)
+- [shadcn/ui](#shadcnui)
+- [Tailwind CSS v4](#tailwind-css-v4)
+- [Theming](#theming)
+- [Fonts And Visual Tokens](#fonts-and-visual-tokens)
+
+
 ## Routing
 
 - Use TanStack Router file-based routing under `src/app/routes/`.

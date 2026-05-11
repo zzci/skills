@@ -1,5 +1,18 @@
 # PMA-Bun Baseline
 
+## Table of Contents
+
+- [Scope](#scope)
+- [Tech Stack](#tech-stack)
+- [Dependency Freshness (Bun)](#dependency-freshness-bun)
+- [Required Quality Gates](#required-quality-gates)
+- [Project Layout](#project-layout)
+- [Required Conventions](#required-conventions)
+- [Code Quality Standards](#code-quality-standards)
+- [Baseline Scripts](#baseline-scripts)
+- [Implementation Workflow](#implementation-workflow)
+
+
 ## Scope
 
 Use this pack for PMA-managed Bun backends, API services, and Bun-based full-stack monorepos.

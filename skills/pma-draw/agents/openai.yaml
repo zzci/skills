@@ -1,0 +1,4 @@
+interface:
+  display_name: "PMA Draw"
+  short_description: "Create ReactFlow diagram JSON artifacts"
+  default_prompt: "Use $pma-draw to create a ReactFlow diagram for this architecture."

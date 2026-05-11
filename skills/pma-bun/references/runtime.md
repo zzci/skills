@@ -1,5 +1,22 @@
 # PMA-Bun Runtime
 
+## Table of Contents
+
+- [Formatting And TypeScript](#formatting-and-typescript)
+- [Scripts](#scripts)
+- [Error Handling](#error-handling)
+- [Configuration](#configuration)
+- [ROOT_DIR And Compiled Mode](#rootdir-and-compiled-mode)
+- [Bootstrap Split](#bootstrap-split)
+- [HTTP Server With OpenAPIHono](#http-server-with-openapihono)
+- [Middleware Stack](#middleware-stack)
+- [Dev URL Routing (via nsl)](#dev-url-routing-via-nsl)
+- [Logging](#logging)
+- [API Documentation](#api-documentation)
+- [PID Lock And Singleton Safety](#pid-lock-and-singleton-safety)
+- [Single-Binary Delivery](#single-binary-delivery)
+
+
 ## Formatting And TypeScript
 
 - Use `@antfu/eslint-config`.

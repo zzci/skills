@@ -6,6 +6,24 @@ All keys live under `style:` and can be written flat (`x.style.fill: red`) or gr
 
 ---
 
+## Table of Contents
+
+- [Colors — `fill`, `stroke`](#colors-fill-stroke)
+- [Borders — `stroke`, `stroke-width`, `stroke-dash`, `double-border`](#borders-stroke-stroke-width-stroke-dash-double-border)
+- [Fill pattern — `fill-pattern`](#fill-pattern-fill-pattern)
+- [Shadow, 3D, multiple](#shadow-3d-multiple)
+- [Corners — `border-radius`](#corners-border-radius)
+- [Opacity](#opacity)
+- [Text — `font-size`, `bold`, `italic`, `underline`, `font-color`](#text-font-size-bold-italic-underline-font-color)
+- [Animations — `animated`](#animations-animated)
+- [Text wrap — `text-transform`](#text-wrap-text-transform)
+- [Connection-specific notes](#connection-specific-notes)
+- [Label label-specific (`.label.near`, `.label.style`)](#label-label-specific-labelnear-labelstyle)
+- [Recommended palette](#recommended-palette)
+- [Style precedence (reminder)](#style-precedence-reminder)
+- [Don'ts](#donts)
+
+
 ## Colors — `fill`, `stroke`
 
 ```d2

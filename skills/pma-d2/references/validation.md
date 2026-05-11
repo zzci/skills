@@ -4,6 +4,15 @@ Before handing a `.d2` file to the user, run it through this checklist. D2 parse
 
 ---
 
+## Table of Contents
+
+- [Pre-flight checklist](#pre-flight-checklist)
+- [Common D2 mistakes (silent failures)](#common-d2-mistakes-silent-failures)
+- [Parser-level verification (optional but cheap)](#parser-level-verification-optional-but-cheap)
+- [Review-by-reading](#review-by-reading)
+- [Handoff statement (what to tell the user)](#handoff-statement-what-to-tell-the-user)
+
+
 ## Pre-flight checklist
 
 Walk every section of the file and verify:

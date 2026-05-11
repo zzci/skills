@@ -160,5 +160,6 @@ For repository audit mode, output:
 - `references/go.md`: Go review rules around context, errors, concurrency, HTTP, and resource safety
 - `references/rust.md`: Rust review rules around panic boundaries, async blocking, unsafe, docs, and API contracts
 - `references/python.md`: Python review rules around validation, deserialization, async, type safety, and command injection
+- `agents/code-reviewer.md`: optional subagent prompt for isolated review passes when explicit parallel-agent validation is allowed
 
 These packs intentionally hold the detailed rules so this file stays small and cheap to load.

@@ -3,6 +3,21 @@
 > Memos v0.27.0 — gRPC-gateway REST. Base: `/api/v1/`.
 > Auth: `Authorization: Bearer $MEMOS_TOKEN`.
 
+## Table of Contents
+
+- [Conventions](#conventions)
+- [Memo CRUD](#memo-crud)
+- [Filters](#filters)
+- [Relations](#relations)
+- [Comments](#comments)
+- [Reactions](#reactions)
+- [Attachments](#attachments)
+- [Users](#users)
+- [Instance](#instance)
+- [Pagination Pattern](#pagination-pattern)
+- [Tags](#tags)
+
+
 ## Conventions
 
 - **Update mask**: `PATCH /memos/{uid}?updateMask=content&updateMask=visibility`

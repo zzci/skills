@@ -1,5 +1,14 @@
 # PMA Workflow
 
+## Table of Contents
+
+- [Hard Rules](#hard-rules)
+- [Three-Phase Workflow](#three-phase-workflow)
+- [Claim-Before-Work](#claim-before-work)
+- [Sync Rules](#sync-rules)
+- [Dependency Freshness](#dependency-freshness)
+- [Session Checklist](#session-checklist)
+
 ## Hard Rules
 
 1. Repository docs, task files, plan files, code comments, commit messages, PR text, and other remote-visible metadata stay in English by default.

@@ -4,6 +4,21 @@ Copy-paste-ready `.d2` files. Each template is complete and renders as-is with `
 
 ---
 
+## Table of Contents
+
+- [1. Three-tier web architecture](#1-three-tier-web-architecture)
+- [2. Event-driven microservices](#2-event-driven-microservices)
+- [3. Data pipeline](#3-data-pipeline)
+- [4. CI/CD pipeline](#4-cicd-pipeline)
+- [5. OAuth 2.0 sequence](#5-oauth-20-sequence)
+- [6. ERD — e-commerce core](#6-erd-e-commerce-core)
+- [7. Kubernetes cluster grid](#7-kubernetes-cluster-grid)
+- [8. Decision flowchart (incident triage)](#8-decision-flowchart-incident-triage)
+- [9. Multi-view composition (layers)](#9-multi-view-composition-layers)
+- [10. Animated request lifecycle (steps)](#10-animated-request-lifecycle-steps)
+- [Using templates](#using-templates)
+
+
 ## 1. Three-tier web architecture
 
 ```d2

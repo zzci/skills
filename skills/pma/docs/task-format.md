@@ -35,8 +35,6 @@ All detailed information goes in the corresponding detail file. `index.md` must 
 
 Create the detail file atomically when adding a new task line to `index.md`. This maps cleanly to `TaskCreate` parameters.
 
-English is the default for task files. Use the Chinese template only when the user explicitly requests a specific task document in Chinese.
-
 ### English Template
 
 ```markdown
@@ -63,34 +61,6 @@ Present-continuous description for spinner display.
 ## Notes
 
 (Implementation notes, progress logs, or related links.)
-```
-
-### Chinese Template (Explicit Request Only)
-
-```markdown
-# PREFIX-001 简短祈使句标题
-
-- **status**: pending
-- **priority**: P1
-- **owner**: (未分配)
-- **createdAt**: YYYY-MM-DD HH:mm
-
-## 描述
-
-需要做什么，包含上下文和验收标准。
-
-## 进行时描述
-
-进行中的现在进行时描述（用于 spinner 显示）。
-
-## 依赖
-
-- **blocked by**: (无)
-- **blocks**: (无)
-
-## 笔记
-
-（实现笔记、进度日志或相关链接。）
 ```
 
 ### Detail File Update Rules
@@ -136,8 +106,6 @@ Present-continuous description for spinner display.
 
 ## Index Templates
 
-English is the default for task indexes. Use the Chinese template only when the user explicitly requests that specific document in Chinese.
-
 ### English Template
 
 ```markdown
@@ -173,43 +141,5 @@ Each task is a single line linking to its detail file. All detailed information 
 ---
 
 ## Tasks
-
-```
-
-### Chinese Template (Explicit Request Only)
-
-```markdown
-# 项目名 — 任务清单
-
-> 更新日期: YYYY-MM-DD
-
-## 使用规范
-
-每个任务为单行链接，指向对应的详情文件 `docs/task/PREFIX-NNN.md`。
-
-### 格式
-
-- [ ] [**PREFIX-001 简短祈使句标题**](PREFIX-001.md) `P1`
-
-### 状态标记
-
-| 标记 | 含义 |
-|------|------|
-| `[ ]` | 待办 |
-| `[-]` | 进行中 |
-| `[x]` | 已完成 |
-| `[~]` | 关闭/不做 |
-
-### 优先级: P0 (阻塞) > P1 (高) > P2 (中) > P3 (低)
-
-### 规则
-
-- 仅更新复选框标记，禁止删除任务行。
-- 新任务追加到列表末尾。
-- 详细信息见各 `PREFIX-NNN.md` 文件。
-
----
-
-## 任务
 
 ```

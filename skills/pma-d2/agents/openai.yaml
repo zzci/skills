@@ -1,0 +1,4 @@
+interface:
+  display_name: "PMA D2"
+  short_description: "Create D2 diagrams from project context"
+  default_prompt: "Use $pma-d2 to create a source-controlled D2 architecture diagram."

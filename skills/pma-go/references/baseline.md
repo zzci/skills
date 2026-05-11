@@ -1,5 +1,17 @@
 # PMA-Go Baseline
 
+## Table of Contents
+
+- [Scope](#scope)
+- [Tech Stack](#tech-stack)
+- [Dependency Freshness (Go)](#dependency-freshness-go)
+- [Required Quality Gates](#required-quality-gates)
+- [Project Layout](#project-layout)
+- [Required Conventions](#required-conventions)
+- [Error Handling](#error-handling)
+- [Code Quality Standards](#code-quality-standards)
+
+
 ## Scope
 
 This pack is for PMA-managed Go backends, API services, and CLI applications.

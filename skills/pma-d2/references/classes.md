@@ -4,6 +4,19 @@ Classes are D2's native mechanism for reusable styling. They replace ad-hoc per-
 
 ---
 
+## Table of Contents
+
+- [Declare](#declare)
+- [Apply by name](#apply-by-name)
+- [Multi-class](#multi-class)
+- [Apply by glob](#apply-by-glob)
+- [Order of precedence](#order-of-precedence)
+- [Recommended class vocabulary](#recommended-class-vocabulary)
+- [Class vs inline style — when to pick which](#class-vs-inline-style-when-to-pick-which)
+- [Naming classes](#naming-classes)
+- [Common gotchas](#common-gotchas)
+
+
 ## Declare
 
 `classes:` is a top-level map. Each entry is a style bundle.

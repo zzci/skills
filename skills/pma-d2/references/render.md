@@ -4,6 +4,24 @@ What to tell the user so they can turn `.d2` source into pixels. This skill neve
 
 ---
 
+## Table of Contents
+
+- [Install D2](#install-d2)
+- [Basic render](#basic-render)
+- [CLI flag cheat sheet](#cli-flag-cheat-sheet)
+- [Watch mode](#watch-mode)
+- [Themes](#themes)
+- [Sketch mode](#sketch-mode)
+- [Layout engines](#layout-engines)
+- [Animated GIFs from `steps:`](#animated-gifs-from-steps)
+- [Rendering multi-board diagrams](#rendering-multi-board-diagrams)
+- [Bundling remote assets](#bundling-remote-assets)
+- [Icon catalogs](#icon-catalogs)
+- [Playground (no install required)](#playground-no-install-required)
+- [Size tips](#size-tips)
+- [Error output](#error-output)
+
+
 ## Install D2
 
 Cross-platform install options:

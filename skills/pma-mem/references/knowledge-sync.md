@@ -2,6 +2,22 @@
 
 Workflow for extracting knowledge from task/issue tracking systems and storing in Memos.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Step 1: Discover Target Items](#step-1-discover-target-items)
+- [Step 2: Extract Content](#step-2-extract-content)
+- [Step 3: Classify Knowledge Points](#step-3-classify-knowledge-points)
+- [Step 4: Dedup & Write](#step-4-dedup-write)
+- [Step 5: Link Related Memos](#step-5-link-related-memos)
+- [Step 6: Mark Source Item as Scanned](#step-6-mark-source-item-as-scanned)
+- [Incremental Update Logic](#incremental-update-logic)
+- [Knowledge Consolidation](#knowledge-consolidation)
+- [Automation Guide](#automation-guide)
+- [Retrieval Examples](#retrieval-examples)
+
+
 ## Overview
 
 ```

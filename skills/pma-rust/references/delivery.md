@@ -2,6 +2,17 @@
 
 This pack covers everything between "code compiles" and "shipped to prod": secrets, observability, testing, supply-chain, release automation, CI, and Git. Every recommendation is anchored to a verified standard-bearer; see `references/evidence.md`.
 
+## Table of Contents
+
+- [Security](#security)
+- [Logging And Observability](#logging-and-observability)
+- [Testing](#testing)
+- [Supply Chain](#supply-chain)
+- [Release Automation](#release-automation)
+- [CI Pipeline](#ci-pipeline)
+- [Git Conventions](#git-conventions)
+- [Review Focus](#review-focus)
+
 ## Security
 
 ### Threat surface to review
@@ -582,7 +593,7 @@ Rules:
 
 ## CI Pipeline
 
-Mandatory stages, runnable as `cargo xtask ci` locally and in GitHub Actions / GitLab CI. **None of these carry `-- -D warnings` on the command line** — that policy is in `.cargo/config.toml [build] rustflags` (see Lock 4). Plain commands keep dev and CI on the same gate:
+Mandatory stages, runnable as `cargo xtask ci` locally and in GitHub Actions / GitLab CI. **None of these carry `-- -D warnings` on the command line** — that policy is in `[workspace.lints.rust]` (see Lock 4). Plain commands keep dev and CI on the same gate:
 
 ```text
 1. fmt           : cargo fmt --all -- --check
@@ -635,7 +646,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
       - uses: Swatinem/rust-cache@v2
-      # No `-- -D warnings` here — policy lives in .cargo/config.toml [build] rustflags
+      # No `-- -D warnings` here — policy lives in [workspace.lints.rust]
       - run: cargo clippy --workspace --all-targets --all-features --locked
 
   test:
@@ -690,7 +701,7 @@ jobs:
 
 When reviewing a PR, prioritize in this order:
 
-1. **Hard locks** — does the change re-introduce `openssl`, drop `#![forbid(unsafe_code)]`, or relax `-D warnings`?
+1. **Hard locks** — does the change re-introduce `openssl`, drop `#![forbid(unsafe_code)]`, or relax workspace deny-warnings policy?
 2. **Panic boundaries** — any new `unwrap`/`expect`/`panic!` outside `tests`/`xtask`/`build.rs`?
 3. **Blocking work in async** — `std::fs`, `std::sync::Mutex` across `.await`, CPU-bound work without `spawn_blocking`?
 4. **Resource lifetime** — pools closed on shutdown, tasks tracked via `TaskTracker`, files/handles released?

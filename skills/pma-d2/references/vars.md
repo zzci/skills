@@ -4,6 +4,20 @@
 
 ---
 
+## Table of Contents
+
+- [Basic syntax](#basic-syntax)
+- [Nested vars](#nested-vars)
+- [`d2-config` — renderer & theme settings](#d2-config-renderer-theme-settings)
+- [Layout engine config](#layout-engine-config)
+- [Design-token pattern](#design-token-pattern)
+- [Vars in sub-containers](#vars-in-sub-containers)
+- [Vars can't be computed](#vars-cant-be-computed)
+- [Vars with shape / class / style values](#vars-with-shape-class-style-values)
+- [Environment overrides](#environment-overrides)
+- [Anti-patterns](#anti-patterns)
+
+
 ## Basic syntax
 
 ```d2

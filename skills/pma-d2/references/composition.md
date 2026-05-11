@@ -4,6 +4,20 @@ D2 composes multiple diagrams — or multiple *views* of one diagram — via `la
 
 ---
 
+## Table of Contents
+
+- [Three composition primitives at a glance](#three-composition-primitives-at-a-glance)
+- [`layers:` — multiple isolated boards](#layers-multiple-isolated-boards)
+- [`scenarios:` — inherit + override](#scenarios-inherit-override)
+- [`steps:` — animated walk-through](#steps-animated-walk-through)
+- [Nesting](#nesting)
+- [File imports — `@file`](#file-imports-file)
+- [Spread imports — `...@file`](#spread-imports-file)
+- [Composing scenarios with imports](#composing-scenarios-with-imports)
+- [Recipes](#recipes)
+- [Anti-patterns](#anti-patterns)
+
+
 ## Three composition primitives at a glance
 
 | Primitive | Inheritance | Use for |

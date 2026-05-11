@@ -4,6 +4,20 @@ Principles for making diagrams that **argue visually**, not just display informa
 
 ---
 
+## Table of Contents
+
+- [Core Tests](#core-tests)
+- [Depth Assessment (First Decision)](#depth-assessment-first-decision)
+- [Evidence Artifacts](#evidence-artifacts)
+- [Multi-Zoom Architecture](#multi-zoom-architecture)
+- [Visual Pattern Library](#visual-pattern-library)
+- [Node Choice Discipline](#node-choice-discipline)
+- [Edge Choice Discipline](#edge-choice-discipline)
+- [Layout Principles](#layout-principles)
+- [Bad vs Good](#bad-vs-good)
+- [Quality Checklist (Design)](#quality-checklist-design)
+
+
 ## Core Tests
 
 **Isomorphism Test**: remove all labels. Does the structure alone communicate the concept? If not, redesign.

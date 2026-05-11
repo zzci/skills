@@ -4,6 +4,22 @@ The minimum grammar needed to read and write D2 without surprises.
 
 ---
 
+## Table of Contents
+
+- [Identifiers & Labels](#identifiers-labels)
+- [Maps (attribute blocks)](#maps-attribute-blocks)
+- [Comments](#comments)
+- [Nesting (container declaration)](#nesting-container-declaration)
+- [Connections](#connections)
+- [Style shorthand](#style-shorthand)
+- [Escaping labels](#escaping-labels)
+- [Variables (`vars:`)](#variables-vars)
+- [Globs](#globs)
+- [Order matters (for duplicate keys)](#order-matters-for-duplicate-keys)
+- [Whitespace & indentation](#whitespace-indentation)
+- [Minimum viable file](#minimum-viable-file)
+
+
 ## Identifiers & Labels
 
 A line of the form `key` creates a shape whose ID equals its label.

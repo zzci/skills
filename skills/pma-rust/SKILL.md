@@ -1,7 +1,6 @@
 ---
 name: pma-rust
-description: >-
-  Production-grade Rust acceptance baseline for PMA-managed projects. Hard-locks pure-Rust ecosystem (rustls only, no C-FFI bindings unless justified), `#![forbid(unsafe_code)]`, edition 2024 workspaces with `resolver = "3"`, `[workspace.lints.rust] warnings = "deny"` policy (manifest-versioned, not CLI), MSRV declared and CI-verified. Async stack: Tokio + Axum 0.8 + tower-http (or Tonic for gRPC). Data: SQLx with rustls TLS. Config: figment + clap v4. Secrets: secrecy + zeroize + subtle. Observability: OpenTelemetry-OTLP + tracing-subscriber. Testing: cargo-nextest + insta + proptest + criterion. Supply chain: cargo-deny + cargo-shear + typos. Build: dual-profile (`release` speed + `dist` size with lto=fat/codegen-units=1/panic=abort/strip=symbols), `*-unknown-linux-musl` + `+crt-static` for portable static binaries, `cross` or `cargo-zigbuild` cross-compile. Task running: `just` (cross-project standard, low learning cost); `xtask` only for Rust-code tasks. All recommendations anchored to file:line evidence from cargo, rust-analyzer, reth, vector, axum, tokio, linkerd2-proxy, uv, ruff, and quickwit.
+description: Production-grade Rust acceptance baseline for PMA-managed Rust services and CLIs. Use with /pma when creating, reviewing, or upgrading Rust workspaces, Axum/Tokio services, CLI binaries, CI pipelines, release packaging, lint policy, dependency choices, testing, observability, security, or supply-chain controls. Defines hard locks for pure-Rust dependencies, rustls TLS, forbid unsafe code, edition 2024, workspace lint inheritance, MSRV, nextest, cargo-deny, cargo-shear, typos, and portable release builds.
 ---
 
 # Rust Project Implementation & Acceptance Guide
@@ -74,7 +73,7 @@ Before `/pma` accepts a Rust crate or service for production:
 
 - [ ] Workspace declares `edition = "2024"` and `rust-version`
 - [ ] Every crate has `#![forbid(unsafe_code)]` (or documented exception)
-- [ ] CI runs: fmt + clippy `-D warnings` + nextest + `--doc` test + cargo-deny + cargo-shear (or machete) + typos
+- [ ] CI runs: fmt + clippy with workspace deny-warnings policy + nextest + `--doc` test + cargo-deny + cargo-shear (or machete) + typos
 - [ ] No transitive `openssl` / `native-tls` (verified by `cargo deny bans`)
 - [ ] All TLS uses rustls; `install_default_crypto_provider()` called in `main`
 - [ ] Tracing initialized with JSON formatter in prod; OTLP optional

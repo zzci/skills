@@ -2,6 +2,20 @@
 
 This pack covers everything that runs at request time: errors, layered architecture, async DB access, configuration, the Axum 0.8 + tower stack, and graceful shutdown. Every code pattern below is verified against an axum example, a tokio doc, a linkerd2-proxy module, or a quickwit handler. See `references/evidence.md` for citations.
 
+## Table of Contents
+
+- [Error Handling](#error-handling)
+- [Architecture Patterns](#architecture-patterns)
+- [Database Strategy](#database-strategy)
+- [Configuration](#configuration)
+- [CLI Parsing (clap v4 derive)](#cli-parsing-clap-v4-derive)
+- [Axum 0.8 Runtime](#axum-08-runtime)
+- [Tokio Runtime](#tokio-runtime)
+- [Graceful Shutdown](#graceful-shutdown)
+- [Background Tasks](#background-tasks)
+- [Health Endpoints](#health-endpoints)
+- [Signal Handling Summary](#signal-handling-summary)
+
 ## Error Handling
 
 ### Per-crate `thiserror` 2.x (verified universal)

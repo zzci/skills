@@ -4,6 +4,21 @@ How to decide *what* to draw before deciding *how*. This file is about the upstr
 
 ---
 
+## Table of Contents
+
+- [Concept → pattern map](#concept-pattern-map)
+- [The isomorphism test](#the-isomorphism-test)
+- [One concept per diagram](#one-concept-per-diagram)
+- [When D2 wins](#when-d2-wins)
+- [When D2 loses](#when-d2-loses)
+- [D2 vs Mermaid](#d2-vs-mermaid)
+- [D2 vs ReactFlow (pma-draw)](#d2-vs-reactflow-pma-draw)
+- [Level of detail](#level-of-detail)
+- [Consistency rules for docs-wide use](#consistency-rules-for-docs-wide-use)
+- [Diagram review checklist (before shipping)](#diagram-review-checklist-before-shipping)
+- [Anti-patterns](#anti-patterns)
+
+
 ## Concept → pattern map
 
 Start from the thing the reader needs to understand; pick the pattern that's native to it.

@@ -2,6 +2,18 @@
 
 This is the **acceptance baseline** every PMA-Rust project must meet. It is anchored to the standard-bearer projects listed in `SKILL.md` and the official Rust API Guidelines. Citations refer to file paths under `/tmp/pma-rust-research/` (verifiable via `references/evidence.md`).
 
+## Table of Contents
+
+- [Hard Locks](#hard-locks)
+- [Known Trade-offs (When the Locks Backfire)](#known-trade-offs-when-the-locks-backfire)
+- [Other Strict Rules - When They Backfire](#other-strict-rules--when-they-backfire)
+- [Meta-rule: how to add an exception cleanly](#meta-rule-how-to-add-an-exception-cleanly)
+- [Tech Stack](#tech-stack)
+- [Naming (Rust API Guidelines)](#naming-rust-api-guidelines)
+- [Dependency Freshness (Rust)](#dependency-freshness-rust)
+- [Required Conventions](#required-conventions)
+- [Code Quality](#code-quality)
+
 ## Hard Locks
 
 These rules are non-negotiable. Loosening one requires a dated decision record under `docs/decisions/`.
@@ -159,7 +171,7 @@ Verified at all 10 standard-bearers (see `references/evidence.md`). New crates a
 See `references/delivery.md` for the full CI matrix. Summary:
 
 ```
-fmt → clippy -D warnings → nextest run → cargo test --doc →
+fmt → clippy with workspace deny-warnings policy → nextest run → cargo test --doc →
 cargo deny check (advisories + bans + licenses + sources) →
 cargo shear (or machete) → typos → release build verification
 ```

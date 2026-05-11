@@ -4,6 +4,21 @@ Edges in D2 are first-class — they have IDs, labels, styles, and arrowheads. U
 
 ---
 
+## Table of Contents
+
+- [Operators](#operators)
+- [Chained connections](#chained-connections)
+- [Labels](#labels)
+- [Multiple edges between the same pair](#multiple-edges-between-the-same-pair)
+- [Edges inside maps](#edges-inside-maps)
+- [Arrowheads](#arrowheads)
+- [Style catalog for connections](#style-catalog-for-connections)
+- [Semantic edge styles (conventions)](#semantic-edge-styles-conventions)
+- [Label positioning (near)](#label-positioning-near)
+- [Self-loops](#self-loops)
+- [Conventions summary](#conventions-summary)
+
+
 ## Operators
 
 | Operator | Meaning |

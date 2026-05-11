@@ -1,0 +1,4 @@
+interface:
+  display_name: "PMA Memory"
+  short_description: "Capture and retrieve project knowledge"
+  default_prompt: "Use $pma-mem to capture or retrieve project knowledge for this task."

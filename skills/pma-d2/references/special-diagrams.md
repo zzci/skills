@@ -4,6 +4,19 @@ Four D2 shape types have dedicated syntax and rendering: `sequence_diagram`, `sq
 
 ---
 
+## Table of Contents
+
+- [Sequence diagrams — `shape: sequence_diagram`](#sequence-diagrams-shape-sequencediagram)
+- [ERDs — `shape: sql_table`](#erds-shape-sqltable)
+- [UML class — `shape: class`](#uml-class-shape-class)
+- [Markdown inside shapes](#markdown-inside-shapes)
+- [Code blocks inside shapes](#code-blocks-inside-shapes)
+- [LaTeX blocks](#latex-blocks)
+- [Image shapes](#image-shapes)
+- [Choosing among special shapes](#choosing-among-special-shapes)
+- [Anti-patterns](#anti-patterns)
+
+
 ## Sequence diagrams — `shape: sequence_diagram`
 
 Container-level shape. Children become actors (lifelines); messages between them become spans.
