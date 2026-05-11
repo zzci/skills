@@ -119,6 +119,7 @@ Use these format files instead of redefining schemas inline:
 - [docs/task-format.md](docs/task-format.md)
 - [docs/plan-format.md](docs/plan-format.md)
 - [docs/monorepo-example.md](docs/monorepo-example.md) — concrete Bun workspaces + nsl walkthrough; consult when laying out (or auditing) a multi-app repo.
+- [docs/project-injection.md](docs/project-injection.md) — `CLAUDE.md` / `AGENTS.md` template for activating PMA in a new (or audited) project. Load when bootstrapping a repo or when an existing project's `CLAUDE.md` looks thin compared to the current rule set.
 
 ## Quick Routing
 
@@ -129,6 +130,7 @@ Choose references by intent:
 - Task or plan file creation: load `references/docs-and-tracking.md`.
 - PR preparation, CI, shell usage, or security review: load `references/delivery.md`.
 - Repository initialization or hygiene audit (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, toolchain pinning): load `references/delivery.md` *Repository Hygiene*.
+- Bootstrapping a new project, or auditing an existing project's `CLAUDE.md` / `AGENTS.md` injection: load `docs/project-injection.md`.
 - Introducing or upgrading a dependency: load `references/workflow.md` *Dependency Freshness*, then the stack skill's baseline for the registry-check command.
 - Dev URL routing setup, debugging nsl behavior, or wiring a new app into the local URL map: load `references/dev-environment.md`.
 - Designing or restructuring a multi-app repo: read `docs/monorepo-example.md` together with the relevant stack skill's *Monorepo* section.
