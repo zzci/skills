@@ -46,8 +46,8 @@ Skeleton (edition 2024, resolver `"2"`, workspace inheritance, lints):
 
 ```toml
 [workspace]
-resolver       = "2"               # cargo / rust-analyzer / reth all use "2"; "3" is acceptable on edition 2024
-members        = ["crates/*", "xtask"]
+resolver        = "3"              # default pairing for edition 2024 virtual workspaces
+members         = ["crates/*", "xtask"]
 default-members = ["crates/app"]   # OPTIONAL — only reth uses it (`Cargo.toml:155`).
                                    # Use when one bin is the canonical build target.
 
@@ -89,39 +89,42 @@ zeroize     = { version = "1", features = ["derive"] }
 subtle      = "2"
 validator   = { version = "0.18", features = ["derive"] }
 
-# === Lock 4 — workspace lints (Path A) ===
+# === Lock 4 — workspace lints (canonical place for deny-warnings policy) ===
+# Rule of thumb: list only what deviates from rustc/clippy defaults.
 [workspace.lints.rust]
-unsafe_code                 = "forbid"
-unused_must_use             = "deny"
-unsafe_op_in_unsafe_fn      = "deny"
+# Catch every warn-by-default lint (current + future toolchains). priority -2 lets
+# named lints below at default priority 0 override the group cleanly.
+warnings    = { level = "deny", priority = -2 }
+unsafe_code = "forbid"
+# Opt-in lints (allow-by-default in rustc; turn on workspace-wide):
 missing_debug_implementations = "warn"
-missing_docs                = "warn"
-unreachable_pub             = "warn"
-rust_2018_idioms            = { level = "deny", priority = -1 }
-elided_lifetimes_in_paths   = "warn"
+missing_docs                  = "warn"
+unreachable_pub               = "warn"
+elided_lifetimes_in_paths     = "warn"
 
+# Clippy defaults: correctness=deny, perf/suspicious/style/complexity=warn. We list
+# only deviations — restating defaults is noise.
 [workspace.lints.clippy]
-correctness                 = { level = "deny",  priority = -1 }
-perf                        = { level = "deny",  priority = -1 }
-complexity                  = { level = "warn",  priority = -1 }
-suspicious                  = { level = "warn",  priority = -1 }
-style                       = { level = "warn",  priority = -1 }
-pedantic                    = { level = "warn",  priority = -1 }
-# Tightened individual lints (override priority -1 group with explicit deny):
-unwrap_used                 = "deny"
-expect_used                 = "deny"
-panic                       = "deny"
-todo                        = "warn"
-dbg_macro                   = "deny"
-print_stdout                = "deny"
-print_stderr                = "deny"
-disallowed_methods          = "deny"
-disallowed_types            = "deny"
-# Allow-list for noisy pedantic lints (apply selectively):
-module_name_repetitions     = "allow"
-must_use_candidate          = "allow"
-missing_errors_doc          = "allow"
-missing_panics_doc          = "allow"
+# Promote allow-by-default groups to warn:
+pedantic = { level = "warn", priority = -1 }
+nursery  = { level = "warn", priority = -1 }
+cargo    = { level = "warn", priority = -1 }
+# Tighten individual lints (Lock 6):
+unwrap_used        = "deny"
+expect_used        = "deny"
+panic              = "deny"
+todo               = "warn"
+dbg_macro          = "deny"
+# Relax inside CLI output module(s) only via `#![allow(...)]` on that boundary:
+print_stdout       = "deny"
+print_stderr       = "deny"
+disallowed_methods = "deny"
+disallowed_types   = "deny"
+# Pedantic lints with poor signal-to-noise:
+module_name_repetitions = "allow"
+must_use_candidate      = "allow"
+missing_errors_doc      = "allow"
+missing_panics_doc      = "allow"
 ```
 
 Member crate `Cargo.toml` opts in:
@@ -199,24 +202,16 @@ Verified at `vector/rust-toolchain.toml`. Use when developer environments must b
 Reproducible settings, aliases, and the rustls-only posture:
 
 ```toml
-# === Policy lives here, not in CI scripts (Lock 4) ===
-# Applies to every build: dev, CI, IDE check. Cargo auto-caps dep warnings,
-# so this only fails YOUR crates' warnings — not transitive ones.
-[build]
-rustflags = ["-D", "warnings"]
+# Lint policy lives in Cargo.toml's [workspace.lints] (Lock 4), NOT here.
+# This file is for build environment (linkers, registries, xtask shortcut) only.
 
 [net]
 git-fetch-with-cli = true
 
-# Aliases are plain commands — NO `-- -D warnings` suffix.
-# The policy is in `[build] rustflags` above; the alias is just a shortcut.
+# Single cargo alias — `cargo xtask <subcmd>` is the standard invocation. Day-to-day
+# task running (fmt/clippy/test/deny) happens via `just`; see the justfile section below.
 [alias]
-xtask        = "run --quiet --package xtask --"
-ci           = "nextest run --workspace --all-features --locked"
-ci-fmt       = "fmt --all -- --check"
-ci-clippy    = "clippy --workspace --all-targets --all-features --locked"
-ci-deny      = "deny --all-features check"
-docs         = "doc --workspace --all-features --no-deps"
+xtask = "run --quiet --package xtask --"
 
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld"             # rust-analyzer pattern, .cargo/config.toml:8-10
@@ -224,7 +219,7 @@ linker = "rust-lld"             # rust-analyzer pattern, .cargo/config.toml:8-10
 # Do NOT enable `vendored-openssl` features anywhere. rustls only.
 ```
 
-Aliases pattern verified at `cargo/.cargo/config.toml:1-6` and `rust-analyzer/.cargo/config.toml:1-6`. The "no `-- -D warnings` in aliases or CI" rule is the corollary of Lock 4: policy in files, triggers on the command line.
+The PMA-Rust convention is **`just` as the task runner, cargo aliases only for `xtask`**. `just` is cross-project standard, lower learning cost than a workspace's bespoke alias names, and composes cleanly with non-cargo tooling. Cargo aliases are reserved for invoking other Cargo packages (`xtask`, `codegen`), not for re-aliasing what `just` already covers.
 
 ## Lint And Format Configuration
 
@@ -265,29 +260,28 @@ type-complexity-threshold       = 250
 
 `Cranky.toml` is **not** in any of the 10 standard-bearers — do not introduce `cargo-cranky`.
 
-## `xtask` Pattern
+## `xtask` Pattern (Optional — Use Only For Rust-Code Tasks)
 
-Four valid shapes, observed in standard-bearers. Pick the smallest one that fits.
+**Most tasks belong in `just`, not in `xtask`.** Reach for `xtask` only when a task needs Rust code: codegen, complex release flows (version bump + sign + multi-arch dist), graph manipulation. Plain shell-equivalent work (fmt, clippy, test, deny) belongs in the `justfile` below.
 
-### A — single `xtask/` crate, `publish = false` (rust-analyzer)
-
-`/tmp/pma-rust-research/rust-analyzer/xtask/Cargo.toml:1-25` is the canonical minimal shape:
+Canonical shape — a single `xtask/` crate, `publish = false` (verified at `rust-analyzer/xtask/Cargo.toml:1-25`):
 
 ```toml
+# xtask/Cargo.toml
 [package]
 name    = "xtask"
 version = "0.1.0"
-publish = false                # never goes to crates.io
+publish = false                        # never goes to crates.io
 edition.workspace = true
 
 [dependencies]
-# "Avoid adding more dependencies to this crate" — comment in real file
+# "Avoid adding more dependencies to this crate" — comment in rust-analyzer's real file.
 xshell = "0.2"
 xflags = "0.4"
 anyhow = "1"
 ```
 
-`xtask/src/main.rs` skeleton:
+`xtask/src/main.rs` skeleton — only tasks that genuinely need Rust:
 
 ```rust
 use anyhow::Result;
@@ -295,7 +289,6 @@ use xshell::{cmd, Shell};
 
 xflags::xflags! {
     cmd xtask {
-        cmd ci {}
         cmd codegen {}
         cmd dist { tag: String }
     }
@@ -304,31 +297,16 @@ xflags::xflags! {
 fn main() -> Result<()> {
     let sh = Shell::new()?;
     match Xtask::from_env_or_exit().subcommand {
-        XtaskCmd::Ci(_)      => { // `-D warnings` is in .cargo/config.toml [build] rustflags; commands stay plain
-                                  cmd!(sh, "cargo fmt --all -- --check").run()?;
-                                  cmd!(sh, "cargo clippy --workspace --all-targets --all-features --locked").run()?;
-                                  cmd!(sh, "cargo nextest run --workspace --all-features --locked").run()?;
-                                  cmd!(sh, "cargo test --doc --workspace --all-features --locked").run()?; }
-        XtaskCmd::Codegen(_) => { /* … */ }
-        XtaskCmd::Dist(d)    => { /* tag, build, sign … */ }
+        XtaskCmd::Codegen(_) => { /* regenerate code from .proto / schema / … */ }
+        XtaskCmd::Dist(d)    => { /* tag → cross-build matrix → sign → upload */ }
     }
     Ok(())
 }
 ```
 
-### B — multiple `xtask-*` crates inside `crates/*` (cargo)
+Invoked via the `cargo xtask` alias. Keep `xtask` outside `default-members` so plain `cargo build` from the root doesn't pull in dev tooling.
 
-cargo splits five focused tools: `xtask-build-man`, `xtask-bump-check`, `xtask-lint-docs`, `xtask-spellcheck`, `xtask-stale-label` (`/tmp/pma-rust-research/cargo/.cargo/config.toml:1-6`). Each is a normal workspace member with its own dependency surface. Pick this when xtask grows beyond ~3 distinct responsibilities.
-
-### C — published xtask crate (vector's `vdev`)
-
-If your xtask is genuinely useful outside the repo (e.g. a release tool that other projects might run), publish it like vector publishes `vdev` (`/tmp/pma-rust-research/vector/vdev/Cargo.toml:3-10`). This is rare; default to A or B.
-
-### D — Makefile + shell scripts (reth)
-
-reth deliberately has **no** `xtask` — uses a top-level `Makefile` and `.github/scripts/*.sh`. Acceptable when CI is the primary driver and developer-side tooling is minimal. Not recommended for cross-platform developer ergonomics.
-
-In all cases: **xtask is invoked via cargo aliases** (`cargo xtask ci`), not by `cd xtask && cargo run`.
+> **Escape hatches** (don't adopt prophylactically): cargo splits its xtask into multiple focused crates (`xtask-build-man`, `xtask-bump-check`, …); vector publishes its xtask as `vdev`; reth skips xtask entirely and drives everything from `Makefile` + `.github/scripts/*.sh`. Reach for these only after the single-crate shape genuinely outgrows itself.
 
 ## `justfile` (Optional, Recommended)
 
@@ -385,59 +363,44 @@ need_stdout = false
 
 PMA-Rust binaries ship with **two profiles** beyond the stock `release`: a balanced runtime profile and a size-optimized `dist` profile. Anchored on the Rust Performance Book (build-configuration chapter) and uv/ruff's actual `cargo-dist` settings.
 
-### `[profile.release]` — runtime-speed default
+**Rule of thumb: list only non-default values.** Cargo's defaults are stable and well-documented; restating them adds noise without changing behavior.
 
 ```toml
-# Workspace root Cargo.toml — speed-tuned profile for normal release builds
+# Workspace root Cargo.toml
+
+# === [profile.release] — runtime-speed tuned ===
+# Defaults inherited: opt-level=3, strip="none", panic="unwind", incremental=false.
+# Why panic="unwind" here: hyper/tokio/axum middleware assume catch_unwind works.
 [profile.release]
-opt-level       = 3
-lto             = "fat"          # +10-20% perf vs default; +link time
-codegen-units   = 1              # better cross-unit inlining
-debug           = "line-tables-only"  # keep enough info for backtraces; small cost
-strip           = "none"         # keep symbols so backtraces resolve
-panic           = "unwind"       # default; needed by tests, hyper, tokio backtraces
-incremental     = false          # release builds are not incremental
-```
+lto           = "fat"                 # +10-20% perf vs default `false`
+codegen-units = 1                     # cross-unit inlining (default 16)
+debug         = "line-tables-only"    # smaller than full, keeps backtraces
 
-Why `panic = "unwind"` here: many ecosystem crates (hyper, tokio internals, axum middleware) assume unwind is available. Switch to `"abort"` only in the dist profile after verifying.
-
-### `[profile.dist]` — size-tuned profile for shipped binaries
-
-Used by `cargo-dist`-driven release jobs (uv, ruff). Inherits from `release`:
-
-```toml
+# === [profile.dist] — size-tuned for shipped binaries (cargo-dist drives this) ===
+# Inherits from release, overrides for size:
 [profile.dist]
-inherits        = "release"
-opt-level       = "z"            # "z" (smallest) or "s" (balanced); benchmark before picking
-lto             = "fat"
-codegen-units   = 1
-strip           = "symbols"      # 30-60% binary size reduction
-panic           = "abort"        # +smaller binary, +less unwind metadata
-debug           = false
-incremental     = false
-```
+inherits  = "release"
+opt-level = "z"                       # smallest; benchmark — may cost 5-15% runtime
+strip     = "symbols"                 # 30-60% binary size reduction
+panic     = "abort"                   # no unwind tables; `catch_unwind` no longer works
+debug     = false
 
-Build with: `cargo build --profile dist --target x86_64-unknown-linux-musl`.
-
-Trade-offs (Performance Book confirms):
-- `opt-level = "z"` may run **5-15% slower** than `opt-level = 3` — benchmark before adopting
-- `panic = "abort"` removes unwind tables (smaller binary) but `catch_unwind` no longer works; tests must still build with `panic = "unwind"` (cargo defaults the test harness profile separately)
-- `strip = "symbols"` makes backtraces unresolvable in production — pair with a sourcemap/symbol upload pipeline (Sentry, Datadog) if you need crash analysis
-
-### `[profile.dev]` — fast inner loop
-
-```toml
+# === [profile.dev] — fast inner loop ===
+# Defaults inherited: opt-level=0, incremental=true,
+# split-debuginfo="unpacked" (Linux/macOS default since Rust 1.84).
 [profile.dev]
-opt-level       = 0
-debug           = "line-tables-only"   # 20-40% faster compile vs full debug info
-incremental     = true
-split-debuginfo = "unpacked"           # macOS / Linux: keep .dSYM/.dwo separate
+debug = "line-tables-only"            # 20-40% faster compile than full debug info
 
-[profile.dev.package."*"]              # optimize all dependencies, even in dev
-opt-level       = 1                    # speeds up runtime tests massively
+# Optimize all dependency code in dev — massive speedup for test runs.
+# Widely used pattern in game/graphics workspaces.
+[profile.dev.package."*"]
+opt-level = 1
 ```
 
-`split-debuginfo = "unpacked"` is the Rust 1.84+ default on Linux/macOS — restating for clarity. The `[profile.dev.package."*"]` trick is widely used in game and graphics codebases to keep dependency code fast while keeping your own crate fast to compile.
+Trade-offs to watch (Performance Book):
+- `opt-level = "z"` may run **5-15% slower** than `3` — benchmark before adopting in `dist`
+- `panic = "abort"` removes unwind tables (smaller binary) but **breaks `catch_unwind`**; verify no dep needs it before flipping. Tests still build with `unwind` (Cargo's test profile is separate)
+- `strip = "symbols"` makes prod backtraces unresolvable — pair with a sourcemap upload pipeline (Sentry, Datadog) if you need crash analysis
 
 ### Linker selection (faster builds)
 

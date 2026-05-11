@@ -43,52 +43,65 @@ Exceptions (very narrow):
 - A crate that genuinely owns FFI or memory layout primitives may relax to `#![deny(unsafe_code)]` and place every `unsafe` block behind a `// SAFETY:` comment that covers aliasing + lifetimes + invariants.
 - The pattern in `tokio/src/lib.rs:13` is `#![deny(unsafe_op_in_unsafe_fn)]` — even inside an `unsafe fn`, the `unsafe { … }` block must be explicit. Adopt this in any crate that legitimately uses `unsafe`.
 
-### Lock 4 — Deny warnings everywhere (config-driven, not CLI)
+### Lock 4 — Deny warnings as workspace-manifest policy (not CLI, not build flags)
 
-**Rule: `-D warnings` belongs in configuration files, not in CI command lines or shell aliases.** A CI workflow that passes `-- -D warnings` on the command line means developers building locally get a different policy than CI — every "passes locally, fails in CI" headache traces to this. The policy lives in `.cargo/config.toml` and `[workspace.lints]` so that every `cargo build`, `cargo check`, `cargo clippy`, IDE check, and CI job sees the same gate.
+**Rule: deny-warnings policy lives in `Cargo.toml`'s `[workspace.lints]` table.** This is the canonical, manifest-versioned, workspace-global place. It travels with the code, inherits to every crate member, and is visible to `cargo metadata`, crates.io, and reviewers reading the manifest.
+
+What the rule excludes:
+
+- **CI command lines** (`cargo clippy ... -- -D warnings`). Every "passes locally, fails in CI" headache traces to policy in shell scripts. Dev and CI must see the same gate.
+- **Shell aliases** (`alias ci-clippy = "clippy ... -- -D warnings"`). Same drift problem.
+- **`.cargo/config.toml [build] rustflags = ["-D", "warnings"]`** is a weaker fallback — not wrong, but `[workspace.lints]` supersedes it (priority is clearer, expressivity is higher, inheritance is automatic, future toolchains keep working).
 
 CI scripts and aliases run plain commands:
 
 ```yaml
-# Right — policy is in config; CI is the trigger:
+# Right — policy is in [workspace.lints]; CI is just the trigger:
 - run: cargo clippy --workspace --all-targets --all-features --locked
 
 # Wrong — duplicates policy on the command line; dev and CI drift:
 - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 ```
 
-Two complementary enforcement paths — **use both**:
-
-**Path A — workspace lints.** Used by `cargo`, `rust-analyzer`, `reth`. Centralizes per-lint policy in `Cargo.toml`, supports per-crate opt-out:
+**Path A — workspace lints (canonical).** Used by `cargo`, `rust-analyzer`, `reth`. Centralizes per-lint policy in `Cargo.toml`, supports per-crate opt-out:
 
 ```toml
 # workspace root Cargo.toml
 [workspace.lints.rust]
-unsafe_code              = "forbid"
-unused_must_use          = "deny"
-unsafe_op_in_unsafe_fn   = "deny"
+# Deny every warn-by-default lint, now and forever — `warnings` is rustc's built-in
+# group covering current + future warn-level lints. priority -2 lets named lints
+# below override (demote noisy ones to warn/allow at default priority 0).
+warnings    = { level = "deny", priority = -2 }
+unsafe_code = "forbid"
+# Opt-in lints (allow-by-default in rustc; we want them on):
 missing_debug_implementations = "warn"
-missing_docs             = "warn"
-unreachable_pub          = "warn"
-rust_2018_idioms         = { level = "deny", priority = -1 }
+missing_docs                  = "warn"
+unreachable_pub               = "warn"
+elided_lifetimes_in_paths     = "warn"
 
+# Clippy ships sensible defaults: correctness=deny, perf/suspicious/style/complexity=warn.
+# We list only deviations from those defaults — restating defaults is noise.
 [workspace.lints.clippy]
-correctness              = { level = "deny",  priority = -1 }
-perf                     = { level = "deny",  priority = -1 }
-complexity               = { level = "warn",  priority = -1 }
-suspicious               = { level = "warn",  priority = -1 }
-style                    = { level = "warn",  priority = -1 }
-pedantic                 = { level = "warn",  priority = -1 }
-# Promoted to deny in runtime crates:
-unwrap_used              = "deny"
-expect_used              = "deny"
-panic                    = "deny"
-todo                     = "warn"
-dbg_macro                = "deny"
-print_stdout             = "deny"
-print_stderr             = "deny"
-disallowed_methods       = "deny"
-disallowed_types         = "deny"
+# Promote allow-by-default groups to warn:
+pedantic = { level = "warn", priority = -1 }
+nursery  = { level = "warn", priority = -1 }
+cargo    = { level = "warn", priority = -1 }
+# Tighten individual lints (Lock 6 — no panic in runtime):
+unwrap_used        = "deny"
+expect_used        = "deny"
+panic              = "deny"
+todo               = "warn"
+dbg_macro          = "deny"
+# Relax inside CLI output module(s) only via #![allow(...)] on that boundary:
+print_stdout       = "deny"
+print_stderr       = "deny"
+disallowed_methods = "deny"
+disallowed_types   = "deny"
+# Pedantic lints with poor signal-to-noise:
+module_name_repetitions = "allow"
+must_use_candidate      = "allow"
+missing_errors_doc      = "allow"
+missing_panics_doc      = "allow"
 ```
 
 Each crate opts in:
@@ -97,34 +110,31 @@ Each crate opts in:
 workspace = true
 ```
 
-Lint table priorities matter: `priority = -1` lets you mass-`deny` a clippy group, then upgrade individual lints to `deny` (or downgrade noisy ones to `allow`) on top.
+Priority rules in brief: lower number is broader. `priority = -2` (the `warnings` group) is the outermost; `priority = -1` (other groups like clippy `pedantic`) wins over it; explicit named lints at default `priority = 0` win over groups. This lets one named `allow` punch through `warnings = deny` cleanly.
 
-**Path B — build flags.** Used by `vector` in `.cargo/config.toml:9-15`. This is the only way to deny **future toolchain warnings** that don't yet exist in `[workspace.lints]`:
+Path A above already covers future toolchain warnings via the `warnings` group — no rustflags fallback is needed for that case. The `warnings` group is rustc's built-in name for "every lint currently emitting at warn level", so when a new stable adds a warn-by-default lint, your `[workspace.lints.rust] warnings = "deny"` automatically catches it.
+
+**Path B — build flags (alternative, not preferred).** `vector` uses `.cargo/config.toml:9-15` for historical reasons (pre-`[workspace.lints]` adoption). Documented here for legacy / migration cases only:
 
 ```toml
-# .cargo/config.toml — applies to every build (dev, CI, IDE check)
+# .cargo/config.toml — older pattern; prefer [workspace.lints] in new projects
 [target.'cfg(all())']
-rustflags = [
-    "-D", "warnings",
-    "-D", "clippy::print_stdout",
-    "-D", "clippy::print_stderr",
-    "-D", "clippy::dbg_macro",
-]
+rustflags = ["-D", "warnings"]
 ```
 
-**Use both** in new PMA projects: Path A catches the lints you have named opinions about; Path B catches everything else (including warnings added by future rustc releases). `reth` runs CI on **nightly** with `RUSTFLAGS: -D warnings` set at the workflow env level (`.github/workflows/lint.yml:60-69`) — same pattern, just env-scoped instead of file-scoped.
+Reach for this only when you cannot use `[workspace.lints]` (e.g. MSRV < 1.74) or need a build-flag scope (e.g. CI env-level override on nightly, as `reth` does via workflow `env: RUSTFLAGS: -D warnings`).
 
-**Dependency builds are safe under `-D warnings`.** Cargo automatically passes `--cap-lints=warn` (path deps) or `--cap-lints=allow` (registry / git deps) to non-local crates, so your strict policy applies to your own crates without breaking on transitive warnings. No extra config needed for this.
+**Dependency builds are safe under deny-warnings.** Cargo automatically passes `--cap-lints=warn` (path deps) or `--cap-lints=allow` (registry / git deps) to non-local crates, so your strict policy applies to your own crates without breaking on transitive warnings. No extra config needed.
 
-**Local opt-out for in-progress work.** A developer who needs to iterate on warning-emitting code locally can override per-run without changing the policy file:
+**Local opt-out for in-progress work.** A developer iterating on warning-emitting WIP code overrides per-run without changing the policy file:
 
 ```bash
-RUSTFLAGS="" cargo check          # bypass the workspace -D warnings just for this shell
+RUSTFLAGS="--cap-lints=warn" cargo check     # demote workspace lints for this shell
 # or per-call
-cargo clippy --workspace --cap-lints=warn
+cargo clippy --workspace -- --cap-lints=warn
 ```
 
-Policy stays in the repo; only the developer's local shell relaxes it for the WIP iteration. CI is unaffected.
+Policy stays in the repo; only the developer's shell relaxes it for WIP. CI is unaffected.
 
 ### Lock 5 — MSRV declared and verified
 
@@ -156,72 +166,18 @@ cargo shear (or machete) → typos → release build verification
 
 ## Known Trade-offs (When the Locks Backfire)
 
-A Hard Lock is the right **default**. It is not the right answer in every project. Each lock has known scenarios where applying it blindly causes real harm — performance cliffs, compliance failure, debug-blindness. The discharge mechanism is the same in every case: **a dated decision record under `docs/decisions/`** explaining why and when the exception sunsets. This section lists the scenarios so the decision record can be specific.
+A Hard Lock is the right **default**, not the answer for every project. The discharge mechanism is always the same: a dated decision record in `docs/decisions/` with a sunset condition. The table below tells each ADR what to be specific about.
 
-### Lock 1 (pure Rust ecosystem) backfires when…
-
-- **Numerical / ML / HPC workloads.** A pure-Rust BLAS/LAPACK port can be 5-10× slower than `intel-mkl-sys` or `openblas-sys` for matrix kernels. ONNX Runtime, candle's CUDA backend, and most ML inference paths cross C/C++ boundaries — refusing this delivers a benchmark loss, not a security win.
-- **Compression at scale.** `zstd` via `zstd-safe` (C bindings) is currently faster than the pure-Rust `ruzstd`. For ingestion pipelines processing TB/day, the difference is measurable in cluster cost.
-- **Build-time tools that use C executables.** `prost-build` invokes `protoc`; `tonic-build` invokes the same; `bindgen` invokes `clang`. These are build-time only and do not ship in the binary — Lock 1 is about runtime FFI, not build-time tools. Do not block these.
-- **SQLite, HSMs, hardware video codecs, OS audio APIs, kernel bypass NIC drivers.** Some interfaces have no pure-Rust equivalent at all.
-
-**Discharge:** add `// JUSTIFICATION: <reason + sunset condition>` next to the dependency in `Cargo.toml`. Add a `cargo deny` waiver. Re-evaluate when a viable pure-Rust alternative reaches feature parity.
-
-### Lock 2 (rustls only) backfires when…
-
-- **FIPS 140-3 compliance** is required (banking, US federal, healthcare). rustls's `ring` provider is not FIPS-validated. The pragmatic path is `aws-lc-rs` (rustls's other provider, FIPS-validated module available); but if the org requires the OpenSSL FIPS module specifically, `openssl` is unavoidable.
-- **PKCS#11 / HSM token integration.** `openssl-engine` has decades of HSM driver support; rustls PKCS#11 is still maturing.
-- **Legacy TLS 1.0 / 1.1 endpoints.** rustls intentionally drops these; `native-tls`/`openssl` keep them. If you must integrate with legacy banking or telco gear that has not deprecated TLS 1.1, you may need the C stack on that one egress path.
-- **Specific protocols** (FTPS, S/MIME, SMTP STARTTLS quirks) where library coverage is openssl-only.
-
-**Discharge:** scope the exception to the smallest possible boundary — one outbound client, not the whole process. Document the protocol/compliance reason. Pin versions; track the sunset (e.g. "remove when partner X completes TLS 1.2 migration").
-
-### Lock 3 (`#![forbid(unsafe_code)]`) backfires when…
-
-- **The crate genuinely owns FFI, memory layout, or hot SIMD.** A `bytemuck`-style zero-cost cast crate, an allocator, a lock-free data structure, an FFI shim — all need `unsafe`. Forbid is wrong; **`#![deny(unsafe_code)]` + `// SAFETY:` per block** is the correct posture.
-- **`std::hint::unreachable_unchecked()`** in proven-unreachable hot paths (rare, profile first).
-- **Cross-language interop crates** (`napi-rs` for Node addons, `pyo3` for Python extensions, `cxx` for C++ interop) cannot exist without `unsafe`.
-
-**Discharge:** the crate-level attribute is `#![deny(unsafe_code)]` not `#![forbid]`, and **every `unsafe` block carries a `// SAFETY:`** comment covering aliasing + lifetimes + invariants. Tokio's `#![deny(unsafe_op_in_unsafe_fn)]` (lib.rs:13) is the exemplar — even inside `unsafe fn`, the `unsafe { … }` block must be explicit.
-
-### Lock 4 (`-D warnings`) backfires when…
-
-- **A new stable Rust release adds a `warn`-by-default lint.** Every locked-down project that runs `cargo clippy -- -D warnings` on stable will brick CI on rustc release day, even with no code change.
-- **Transitive dependencies emit warnings you cannot fix.** `crate-foo` deprecates an item; downstream you can't patch it; CI fails.
-- **Doc-comment warnings on macro-generated code.** Some derive macros emit code that triggers `missing_docs` even with `#[allow(missing_docs)]` on the call site.
-
-**Discharge / mitigations (apply these and keep the lock):**
-
-- `RUSTFLAGS="--cap-lints=warn"` for **dependency builds** so transitive warnings never become errors. Stable convention; most production CIs have this.
-- Pin the toolchain version (`rust-toolchain.toml` or CI `dtolnay/rust-toolchain@1.85.0`) so a new `warn`-by-default lint does not surprise you mid-sprint.
-- Run a **separate "newer-stable" job** that builds with the just-released stable but is allowed to fail (does not block merges); fix lints on a real schedule.
-- For published library crates, `[build] rustflags = ["-D", "warnings"]` in `.cargo/config.toml` only affects local builds — downstream consumers don't inherit it. Safe to keep.
-
-### Lock 5 (MSRV declared + verified) backfires when…
-
-- **Transitive dep MSRV creep.** A `cargo update` brings in a crate whose newer version raised its MSRV; your verify job fails. Resolver cannot solve it because the offending crate doesn't declare MSRV.
-- **`cargo msrv verify` is slow on large workspaces** (10+ minutes on reth-scale repos).
-
-**Discharge:** pin the offending dep to a pre-creep version in `[workspace.dependencies]` until you do an intentional MSRV bump. Use `cargo hack check --rust-version` (faster) over `cargo msrv verify` on large monorepos. Never raise MSRV silently — always with a CHANGELOG entry.
-
-### Lock 6 (no `unwrap`/`expect`/`panic!`) backfires when…
-
-- **The expression is genuinely infallible.** `Regex::new(LITERAL_PATTERN).expect("static regex")` cannot fail; refusing `expect` here pushes panics into runtime indirection. Same for `Mutex` you fully own and never poison, or `OnceLock::get_or_init` after first-call.
-- **Crashing IS the correct response.** Encountering a corrupt internal data structure (e.g., an invariant the type system can't express was violated) means continuing produces bad output. A logged abort is better than silent corruption.
-
-**Discharge:** `expect("INVARIANT: <what holds>")` with the comment, not bare `unwrap()`. The `INVARIANT:` prefix is grep-able. Reviewers should still push back if the invariant could be encoded in a type — that's almost always the better path.
-
-### Lock 7 (edition 2024) backfires when…
-
-- **Brownfield migration with rough crate-graph compatibility.** Some ecosystem crates that haven't migrated to edition 2024 have name-resolution edge cases that surface as resolver errors during dep upgrades.
-- **Internal/private toolchains pinned older than 1.85.**
-
-**Discharge:** stage the migration crate-by-crate. Use `cargo fix --edition` for the mechanical part. Hold the rust-version pin one minor below the edition's stabilization release until the dep tree settles.
-
-### Lock 8 (quality gates green) — rarely backfires; the only gotchas:
-
-- `cargo deny advisories` runs against a live database; a new RUSTSEC published overnight can fail PRs that touched no advisory-affected code. **Mitigation:** run `cargo deny check advisories` on a **schedule** (nightly cron) separately from PR checks; PR checks run only `bans + licenses + sources`. Pattern verified at `cargo/.github/workflows/audit.yml:19-30` (matrix splits the two).
-- `cargo nextest` runs tests in parallel by default; tests that latently raced on a shared file/port pass under serial `cargo test` but fail under nextest. **Mitigation:** isolate per-test resources (tempdirs, ephemeral ports); use `[test-groups.serial] max-threads = 1` in `nextest.toml` for genuinely shared resources.
+| Lock | Backfires when… | Discharge |
+|---|---|---|
+| **1** pure-Rust ecosystem | ML/HPC (BLAS/LAPACK/ONNX/CUDA are 5-10× faster via C bindings); `zstd-safe` beats pure-Rust ports for TB/day pipelines; SQLite, HSMs, hardware codecs, OS audio have no pure-Rust equivalent. Build-time tools (`protoc`, `clang`, `bindgen`) are not Lock 1 violations — they don't ship in the binary. | `// JUSTIFICATION:` next to the dep + `cargo deny` waiver + sunset on parity check |
+| **2** rustls only | FIPS 140-3 (banking/federal/health) — `ring` is not FIPS-validated; PKCS#11 / HSM (openssl-engine maturity); TLS 1.0/1.1 legacy gear; FTPS/S/MIME openssl-only protocols. | Scope to **one** egress client, not the whole process. Prefer `aws-lc-rs` (FIPS-validated rustls provider) before reaching for openssl |
+| **3** `forbid(unsafe_code)` | Crates that own FFI, memory layout, SIMD, lock-free data structures, or cross-language interop (`pyo3`/`napi-rs`/`cxx`). | Relax to `#![deny(unsafe_code)]` + `// SAFETY:` per block. Tokio's `#![deny(unsafe_op_in_unsafe_fn)]` is the exemplar — explicit `unsafe { … }` even inside `unsafe fn` |
+| **4** deny warnings | New stable rustc adds a warn-by-default lint and breaks CI on release day; macro-generated code triggers `missing_docs` even with `#[allow]` at the call site. | Cargo auto-caps deps at `warn`/`allow` — no extra config. Pin toolchain version. Run a non-blocking "newer-stable" job to surface upcoming lints before they bite production |
+| **5** MSRV verified | Transitive dep MSRV creep on `cargo update`; `cargo msrv verify` is 10+ min on large monorepos. | Pin offenders in `[workspace.dependencies]` until a deliberate MSRV bump. Use `cargo hack check --rust-version` (faster) over `cargo msrv verify`. CHANGELOG every bump |
+| **6** no `unwrap`/`expect`/`panic!` | Genuinely infallible expressions (`Regex::new(LITERAL)`, `OnceLock::get` after init); crashing IS the right response to a violated type-system-inexpressible invariant. | `expect("INVARIANT: <what holds>")` — `INVARIANT:` is grep-able. Reviewers still push toward type-encoding when possible |
+| **7** edition 2024 | Brownfield deps that haven't migrated; private toolchains pinned older than 1.85. | Stage migration crate-by-crate. `cargo fix --edition` for the mechanical part. Hold `rust-version` one minor below the edition stabilization release until deps settle |
+| **8** quality gates green | `cargo deny advisories` against a live DB fails CI on a new RUSTSEC overnight; `nextest` parallel-by-default exposes latent races that `cargo test` hid. | Split advisories to a scheduled cron, run only `bans + licenses + sources` on PRs (cargo `audit.yml:19-30` pattern). Isolate per-test temp dirs / ephemeral ports; use `[test-groups.serial]` for genuinely shared resources |
 
 ## Other Strict Rules — When They Backfire
 
@@ -278,57 +234,49 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 
 | Category | Technology | Notes / Evidence |
 |---|---|---|
-| Toolchain | stable Rust, **edition 2024** | `rust-version` in workspace; `rust-toolchain.toml` optional (only `vector` of the 4 workspace standard-bearers uses it) |
-| Runtime | **Tokio** (multi-thread) | hand-built `Builder` is acceptable for tuning (`quickwit-cli/main.rs:43-53`) |
-| HTTP server | **Axum 0.8.x** + Hyper 1 + tower / tower-http | default for REST/JSON. For gRPC-heavy services, **Tonic** + warp/axum hybrid (quickwit pattern) is acceptable |
+| Toolchain | stable Rust, **edition 2024** | `rust-version` in workspace; `rust-toolchain.toml` optional (only vector uses it) |
+| Async runtime | **Tokio** (multi-thread) | hand-built `Builder` for tuning (`quickwit-cli/main.rs:43-53`) |
+| HTTP server | **Axum 0.8.x** + Hyper 1 + tower / tower-http | gRPC-heavy services: **Tonic** + warp/axum hybrid (quickwit) |
 | TLS | **rustls** (ring or aws-lc-rs provider) | install provider at startup (`quickwit-cli/main.rs:98`) |
-| Errors | **`thiserror` 2.x** per crate; **`anyhow`** at bin entry | universal across uv/ruff/quickwit (`thiserror = "2.0"`, `anyhow = "1.0"`). `eyre` is an acceptable swap for `anyhow` |
-| Logging | **`tracing` + `tracing-subscriber`** | JSON in prod, pretty in dev. `quickwit-cli/logger.rs` is the canonical multi-layer setup |
-| Lint policy | `[workspace.lints]` (Path A) **or** build rustflags (Path B) | see Lock 4 |
-| Test runner | **`cargo nextest`** | 5 of 10 standard-bearers (rust-analyzer, reth, vector, tokio, uv, ruff, quickwit). Doctest still runs via `cargo test --doc --workspace` |
+| Errors | **`thiserror` 2.x** per crate; **`anyhow`** (or `eyre`) at bin entry only | universal across uv/ruff/quickwit |
+| Logging | **`tracing` + `tracing-subscriber`** | JSON in prod, pretty in dev. `quickwit-cli/logger.rs` is canonical |
+| Lint policy | `[workspace.lints]` in `Cargo.toml` | Lock 4 |
+| Test runner | **`cargo nextest`** + `cargo test --doc` for doctests | 5 of 10 standard-bearers |
 | Secrets | **`secrecy`** + **`zeroize`** + **`subtle`** | wrap, redact, constant-time-compare |
-| Supply chain | **`cargo-deny`** + **`cargo-shear`** (preferred over `cargo-machete`) + **`typos`** | uv/ruff use `cargo-shear`; rust-analyzer uses `cargo-machete`; cargo/r-a/reth all run `crate-ci/typos` |
+| Supply chain | **`cargo-deny`** + **`cargo-shear`** + **`typos`** | uv/ruff use shear; r-a uses machete; cargo/r-a/reth all run typos |
 
 ### Default
 
 | Category | Technology | Notes |
 |---|---|---|
-| Workspace | multi-crate Cargo workspace; `resolver = "2"` (or `"3"` once stable in your toolchain) | `"2"` is what cargo / rust-analyzer / reth ship today |
-| Data access | **SQLx** (`default-features = false`, `features = ["runtime-tokio", "tls-rustls", ...]`) | the most balanced default; compile-time-checked queries. **Never** allow native-tls feature |
-| Alt data access | **SeaORM** | pick when ActiveRecord ergonomics dominate |
-| Alt data access | **`diesel-async` + `deadpool`** | pick when compile-time schema typing dominates |
-| Migrations | `sqlx migrate` / `sea-orm-migration` / `diesel migration` | tool matches ORM; commit migrations |
-| CLI parsing | **`clap` v4 (derive)** + **`clap_complete_command`** | derive used by uv/ruff; quickwit uses builder API for very large CLIs |
+| Workspace | virtual workspace; **`resolver = "3"`** (edition 2024 pairing) | `"2"` only when stuck on older Cargo |
+| Data access | **SQLx** (`default-features = false`, `tls-rustls-ring` feature) | compile-time-checked queries. **Never** native-tls. Alt: **SeaORM** (ActiveRecord) or **`diesel-async`** (compile-time schema) |
+| Migrations | `sqlx migrate` / `sea-orm-migration` / `diesel migration` | committed; CI runs against ephemeral DB |
+| CLI | **`clap` v4 derive** + **`clap_complete_command`** | quickwit uses builder API for very large CLIs |
 | Serialization | **`serde`** + `serde_with` | derive-based |
 | Validation | **`validator`** or **`garde`** | derive-based, post-deserialize |
-| Config layering | **`figment`** (TOML/YAML/Env/CLI) | quickwit rolls its own versioned config; figment is the default for new projects |
+| Config layering | **`figment`** (TOML/YAML + env + CLI) | quickwit rolls a versioned variant for >100-field configs |
 | HTTP client | **`reqwest`** with `default-features = false, features = ["rustls-tls", "json"]` | never `native-tls` |
-| Caching | **`moka`** (in-process, TTL + size bounds) | |
+| Caching | **`moka`** | in-process, TTL + size bounds |
 | Concurrency | `parking_lot`, `dashmap`, `arc-swap` | only when stdlib primitives don't fit |
-| Observability | **`opentelemetry-otlp`** (gRPC and/or HTTP-JSON) + `tracing-opentelemetry` + `metrics` or `prometheus` | quickwit uses `opentelemetry = 0.31`, `opentelemetry-otlp = 0.31`, `tracing-opentelemetry = 0.32` |
-| Runtime metrics | **`tokio-metrics`** | `quickwit-common/src/runtimes.rs` patterns; pair with `Prometheus` |
+| Observability | **`opentelemetry-otlp`** (gRPC + HTTP-JSON) + `tracing-opentelemetry` + `metrics` or `prometheus` | quickwit pins `opentelemetry = 0.31`, `tracing-opentelemetry = 0.32` |
+| Runtime metrics | **`tokio-metrics`** | quickwit's `scrape_tokio_runtime_metrics` pattern |
 | OpenAPI | **`utoipa`** | quickwit pattern; pin until v5 ecosystem stabilizes |
-| Snapshot tests | **`insta`** with `cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest` | ruff's exact CI line, `.github/workflows/ci.yaml:323` |
-| Property tests | **`proptest`** | quickwit uses it for invariants |
+| Snapshot tests | **`insta`** (`cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest`) | ruff's exact CI line |
+| Property tests | **`proptest`** | quickwit |
 | Bench | **`criterion`** (or **`divan`** for newer projects) | |
-| Allocator (binaries) | **`mimalloc`** on Windows + musl, **`tikv-jemallocator`** on glibc Linux/macOS | ruff's pattern extended for musl (`crates/ruff/src/main.rs:11-28`) |
-| Crash policy | **`rlimit::setrlimit(Resource::CORE, 0, 0)`** at the very top of `main`; `std::panic::set_hook` to emit JSON panic record then abort | core dumps leak secrets and user data in memory; suppress at the source. See `references/delivery.md` "Disable Core Dumps" |
-| Panic strategy | `panic = "abort"` in `[profile.dist]` only; `[profile.release]` keeps `unwind` so backtraces and `catch_unwind` still work | abort + suppressed core dump = process dies fast, panic record reaches stderr/log, no on-disk artifact |
-| Cross-compile target | **`*-unknown-linux-musl`** with `+crt-static` for distributable binaries | uv ships 4 musl targets; produces `FROM scratch`-ready images |
-| Cross-compile driver | **`cross`** (Docker-based, default) or **`cargo-zigbuild`** (no Docker) | uv uses `cross`; either is acceptable |
-| Release profile | dual-profile: `[profile.release]` (speed) + `[profile.dist]` (size) | follows the Rust Performance Book; uv/ruff use `cargo-dist` with size-tuned profile |
-| Release artifacts | **`cargo-dist`** for prebuilt binaries (uv + ruff in production) | release-plz is **not** validated against any of our 10 standard-bearers — adopt with caution |
-| Dev loop | **`bacon`** + **`just`** + **`cargo nextest`** | optional but reduces friction |
+| **Binary runtime hardening** | **`rlimit`** (suppress core dumps) + **`std::panic::set_hook`** (structured panic log) + **mimalloc** (Windows/musl) or **`tikv-jemallocator`** (glibc); `[profile.dist]` uses `panic = "abort"` while `[profile.release]` keeps `unwind` so backtraces work | see `delivery.md` "Disable Core Dumps" and `runtime-and-data.md` `main()` template |
+| **Release / distribution** | dual-profile `[profile.release]` + `[profile.dist]`; **`*-unknown-linux-musl` + `+crt-static`** for portable binaries; **`cross`** (Docker) or **`cargo-zigbuild`** (no Docker); **`cargo-dist`** for prebuilt artefacts | uv ships 4 musl targets; ruff uses cargo-dist 0.31 |
+| Dev loop | **`just`** as the canonical task runner (cross-project, low learning cost) + **`bacon`** for save-time checks + `cargo nextest` | xtask only when tasks need Rust code (codegen, complex release) |
 
 ### Forbidden / Discouraged
 
-- **`openssl`, `openssl-sys`, `native-tls`, `native-tls-sys`** — banned by `cargo-deny` (see `delivery.md`). reth's `deny.toml:35` is the canonical example.
-- **`git2`, `libgit2-sys`** — prefer `gix` (gitoxide) when feasible. cargo lists `git2` as a watch item.
-- **`dotenv`** (unmaintained) — use `dotenvy`.
-- **`async-trait`** macro — use native `async fn` in trait (stable since Rust 1.75) unless object-safety is required.
-- **`cargo-cranky`** — superseded by `[workspace.lints]`. **None** of the 10 standard-bearers use cargo-cranky.
-- **`once_cell::sync::Lazy`** in new code — prefer `std::sync::LazyLock` (vector's `clippy.toml:17-22` enforces this).
-- **`std::collections::HashMap`** in performance-sensitive paths — prefer `FxHashMap` (rust-analyzer's `clippy.toml:1-5` enforces this).
+Hard bans (enforced by `cargo-deny`):
+- **`openssl`, `openssl-sys`, `native-tls`, `native-tls-sys`** — use rustls (Lock 2). reth's `deny.toml:35` is canonical.
+- **`git2`, `libgit2-sys`** — prefer `gix` (gitoxide). cargo lists `git2` as a watch item.
+
+Patterns to avoid:
+- **`dotenv` (unmaintained) → `dotenvy`**; **`async-trait` macro → native `async fn` in trait** (Rust 1.75+, unless object-safety needed); **`once_cell::sync::Lazy` → `std::sync::LazyLock`** (Rust 1.80+); **`std::collections::HashMap` in hot paths → `FxHashMap`**.
 - **`std::sync::Mutex` held across `.await`** — use `tokio::sync::Mutex` or restructure to message passing.
 - **`unwrap()` / `expect()` / `panic!`** in runtime crates — see Lock 6.
 - **Crates with abandoned advisories** from `cargo-audit` — require an explicit waiver with sunset date.
