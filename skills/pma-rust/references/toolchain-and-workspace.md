@@ -68,7 +68,7 @@ default-members = ["crates/app"]   # OPTIONAL — only reth uses it (`Cargo.toml
 
 [workspace.package]
 edition      = "2024"
-rust-version = "1.85"              # MSRV; bump only in minor releases (Tokio policy)
+rust-version = "1.95.0"            # MSRV = latest stable; bump in minor releases only (see baseline.md Lock 5)
 license      = "Apache-2.0"
 repository   = "https://github.com/acme/acme"
 authors      = ["Acme Engineering"]
@@ -197,20 +197,20 @@ Two equally valid approaches, depending on project type.
 - uses: dtolnay/rust-toolchain@stable
 - uses: dtolnay/rust-toolchain@master
   with:
-    toolchain: "1.93"   # for MSRV verification job
+    toolchain: "1.95.0"   # for MSRV verification job — match workspace.package.rust-version
 ```
 
 ### Approach B — `rust-toolchain.toml` (vector pattern)
 
 ```toml
 [toolchain]
-channel    = "1.92"             # match MSRV exactly, or pin a sliding stable
+channel    = "1.95.0"           # match MSRV exactly, or pin a sliding stable
 components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
 profile    = "minimal"
 targets    = ["x86_64-unknown-linux-gnu"]
 ```
 
-Verified at `vector/rust-toolchain.toml`. Use when developer environments must be byte-for-byte reproducible (services with strict deployment pipelines).
+The `rust-toolchain.toml` mechanism is verified at `vector/rust-toolchain.toml` (vector itself pins `channel = "1.92"`; the `1.95.0` above is this skill's baseline, not vector's value). Use when developer environments must be byte-for-byte reproducible (services with strict deployment pipelines).
 
 ## `.cargo/config.toml`
 

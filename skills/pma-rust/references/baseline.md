@@ -153,10 +153,10 @@ Policy stays in the repo; only the developer's shell relaxes it for WIP. CI is u
 ```toml
 [workspace.package]
 edition      = "2024"
-rust-version = "1.85"   # bump deliberately; minor-version cadence; never in patch releases
+rust-version = "1.95.0"   # bump deliberately; minor-version cadence; never in patch releases
 ```
 
-Verify in CI with `cargo hack check --rust-version --workspace --ignore-private --locked` (cargo's pattern, `main.yml:320-323`) **or** `cargo msrv verify` (vector's pattern, `msrv.yml`). Tokio's policy: support at least 6 months of stable Rust, bump only in minor versions.
+Verify in CI with `cargo hack check --rust-version --workspace --ignore-private --locked` (cargo's pattern, `main.yml:320-323`) **or** `cargo msrv verify` (vector's pattern, `msrv.yml`). PMA baseline policy: track the **latest stable Rust** (currently `1.95.0`); bump the MSRV deliberately in a minor release, never in a patch release. (This intentionally does not adopt Tokio's "support ≥6 months of stable" lag — PMA-managed services build on a controlled, current toolchain rather than guaranteeing older-toolchain compatibility.)
 
 ### Lock 6 — No `unwrap` / `expect` / `panic!` in runtime paths
 
@@ -336,7 +336,7 @@ When pinning to a non-latest version, add a comment next to the `Cargo.toml` ent
 
 ```toml
 [dependencies]
-some-crate = "1.4"   # PINNED: 1.5 bumps MSRV to 1.86; revisit after toolchain bump
+some-crate = "1.4"   # PINNED: 1.5 bumps MSRV to 1.97; revisit after toolchain bump
 ```
 
 For MSRV-related downgrades, also note in `[workspace.package].rust-version` rationale or `docs/decisions/`.
