@@ -20,6 +20,7 @@ Keep this entry file small. Load only the references needed for the current turn
 7. Apply the Coding Principles below to every code change.
 8. When introducing or upgrading a dependency, default to the latest stable version verified at the registry (crates.io / npmjs.com / pkg.go.dev), not at a version that came from a tutorial, prior PR, or model recall. Pin to a non-latest version only with a recorded reason. See `references/workflow.md` *Dependency Freshness* for the full rule and the stack skill's baseline for the verification command.
 9. Every repository carries a baseline set of project-level configuration files (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, plus stack-pinned toolchain files). See `references/delivery.md` *Repository Hygiene*.
+10. Never hand-author or hand-edit database migration files. Migrations are produced by the project's migration tool / ORM (e.g. `sqlx migrate`, `sea-orm-migration`, `diesel migration`, Drizzle Kit, Prisma, Alembic) — change the model/schema, then let the tool emit the migration. Hand-written or restructured migrations desync from the tool's tracked state and break later auto-generated migrations. See `references/delivery.md` *Database Migrations*.
 
 ## Coding Principles
 
@@ -130,6 +131,7 @@ Choose references by intent:
 - Task or plan file creation: load `references/docs-and-tracking.md`.
 - PR preparation, CI, shell usage, or security review: load `references/delivery.md`.
 - Repository initialization or hygiene audit (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, toolchain pinning): load `references/delivery.md` *Repository Hygiene*.
+- Any database schema change or migration: load `references/delivery.md` *Database Migrations*.
 - Bootstrapping a new project, or auditing an existing project's `CLAUDE.md` / `AGENTS.md` injection: load `docs/project-injection.md`.
 - Introducing or upgrading a dependency: load `references/workflow.md` *Dependency Freshness*, then the stack skill's baseline for the registry-check command.
 - Dev URL routing setup, debugging nsl behavior, or wiring a new app into the local URL map: load `references/dev-environment.md`.
