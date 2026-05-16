@@ -24,7 +24,7 @@ Whenever a pure-Rust alternative exists, do **not** introduce a new dependency t
 
 | C-FFI dep | Pure-Rust alternative | Notes |
 |---|---|---|
-| `openssl`, `openssl-sys`, `native-tls` | **`rustls`** + `tokio-rustls` + `rustls-pemfile` + `rustls-platform-verifier` | reth bans `openssl` in `deny.toml:35`. Quickwit installs the rustls ring crypto provider at startup |
+| `openssl`, `openssl-sys`, `native-tls` | **`rustls`** + `tokio-rustls` + `rustls-pemfile` + `rustls-platform-verifier` | reth bans `openssl` in `deny.toml:35`. Install the rustls **`aws-lc-rs`** provider at startup (quickwit's own code uses the `ring` provider — see Lock 2 for why PMA standardizes on `aws-lc-rs`) |
 | `libgit2-sys`, `git2` | **`gix`** (gitoxide) | cargo's `audit.yml` lists `git2` as a watch item |
 | `libssh2-sys` | `russh` | |
 | `libpq-sys` (sync Postgres) | `tokio-postgres` / `sqlx-postgres` (rustls feature) | |
@@ -32,16 +32,21 @@ Whenever a pure-Rust alternative exists, do **not** introduce a new dependency t
 
 Unavoidable C deps (e.g. `libsqlite3-sys` via `rusqlite`, system `protobuf` for `prost-build`) require a `// JUSTIFICATION:` comment in the workspace `Cargo.toml` next to the dependency, plus a CI gate that pins their versions.
 
-### Lock 2 — rustls only, ring-provider explicit
+**Pre-sanctioned exception — the rustls crypto core.** rustls's default crypto provider, `aws-lc-rs` (wrapping AWS-LC, a vetted C/assembly fork of BoringSSL), is the *one* C/asm core that does **not** need a per-repo `// JUSTIFICATION:`. Rationale: there is no mature, audited, FIPS-capable pure-Rust crypto primitive library — the only alternative provider, `ring`, is itself C/assembly, so the choice is never "pure Rust vs C", it is "which vetted C crypto core". rustls itself (the TLS state machine, the part that historically caused OpenSSL CVEs) remains pure, memory-safe Rust. PMA standardizes on `aws-lc-rs` because it is the rustls 0.23 default, is actively maintained by AWS, and is the only provider with a FIPS 140-3 path (`fips` feature) — so a future compliance requirement does not force a provider swap. This carve-out covers `aws-lc-rs` / `aws-lc-sys` *only*; every other `*-sys` dep still needs its own justification.
+
+### Lock 2 — rustls only, `aws-lc-rs` provider explicit
 
 ```rust
-// In `main.rs`, before any TLS use:
-rustls::crypto::ring::default_provider()
+// In `main.rs`, before any TLS use (any code path that builds a
+// rustls ClientConfig/ServerConfig — directly or via reqwest/sqlx/tonic):
+rustls::crypto::aws_lc_rs::default_provider()
     .install_default()
     .expect("install rustls crypto provider");
 ```
 
-Pattern verified in `quickwit-cli/src/main.rs:98` (`install_default_crypto_ring_provider()`). Reject any PR that lets `default-features = true` re-enable `native-tls` on dependencies like `reqwest`, `sqlx`, `tonic`, `hyper-util`.
+`aws-lc-rs` is the rustls 0.23 default crypto feature, so plain `rustls = "0.23"` (default features) already compiles it in — do **not** set `default-features = false` to swap in `ring`. Calling `install_default()` early is still mandatory: rustls 0.23 panics on the first TLS use if no process-default provider is installed, and an explicit call removes the "two providers linked, ambiguous default" failure mode.
+
+The startup-install *pattern* is verified in `quickwit-cli/src/main.rs:98` — note quickwit calls `install_default_crypto_ring_provider()` (the **ring** provider); PMA deliberately diverges to `aws-lc-rs` for the FIPS path and default-alignment reasons in Lock 1's crypto-core carve-out. Reject any PR that lets `default-features = true` re-enable `native-tls` on dependencies like `reqwest`, `sqlx`, `tonic`, `hyper-util`.
 
 ### Lock 3 — `#![forbid(unsafe_code)]` at every crate root
 
@@ -183,7 +188,7 @@ A Hard Lock is the right **default**, not the answer for every project. The disc
 | Lock | Backfires when… | Discharge |
 |---|---|---|
 | **1** pure-Rust ecosystem | ML/HPC (BLAS/LAPACK/ONNX/CUDA are 5-10× faster via C bindings); `zstd-safe` beats pure-Rust ports for TB/day pipelines; SQLite, HSMs, hardware codecs, OS audio have no pure-Rust equivalent. Build-time tools (`protoc`, `clang`, `bindgen`) are not Lock 1 violations — they don't ship in the binary. | `// JUSTIFICATION:` next to the dep + `cargo deny` waiver + sunset on parity check |
-| **2** rustls only | FIPS 140-3 (banking/federal/health) — `ring` is not FIPS-validated; PKCS#11 / HSM (openssl-engine maturity); TLS 1.0/1.1 legacy gear; FTPS/S/MIME openssl-only protocols. | Scope to **one** egress client, not the whole process. Prefer `aws-lc-rs` (FIPS-validated rustls provider) before reaching for openssl |
+| **2** rustls only | FIPS 140-3 (banking/federal/health); PKCS#11 / HSM (openssl-engine maturity); TLS 1.0/1.1 legacy gear; FTPS/S/MIME openssl-only protocols. | FIPS needs **no** provider swap — enable the `aws-lc-rs` `fips` feature (uses `aws-lc-fips-sys`; requires CMake + Go at build time, see `toolchain-and-workspace.md` build section). Reach for openssl **only** for the genuinely rustls-shaped gaps (PKCS#11/HSM, legacy TLS, FTPS), scoped to **one** egress client, never the whole process |
 | **3** `forbid(unsafe_code)` | Crates that own FFI, memory layout, SIMD, lock-free data structures, or cross-language interop (`pyo3`/`napi-rs`/`cxx`). | Relax to `#![deny(unsafe_code)]` + `// SAFETY:` per block. Tokio's `#![deny(unsafe_op_in_unsafe_fn)]` is the exemplar — explicit `unsafe { … }` even inside `unsafe fn` |
 | **4** deny warnings | New stable rustc adds a warn-by-default lint and breaks CI on release day; macro-generated code triggers `missing_docs` even with `#[allow]` at the call site. | Cargo auto-caps deps at `warn`/`allow` — no extra config. Pin toolchain version. Run a non-blocking "newer-stable" job to surface upcoming lints before they bite production |
 | **5** MSRV verified | Transitive dep MSRV creep on `cargo update`; `cargo msrv verify` is 10+ min on large monorepos. | Pin offenders in `[workspace.dependencies]` until a deliberate MSRV bump. Use `cargo hack check --rust-version` (faster) over `cargo msrv verify`. CHANGELOG every bump |
@@ -211,31 +216,34 @@ These are not Hard Locks, but they appear elsewhere in the skill as strong defau
 ## Meta-rule: how to add an exception cleanly
 
 ```text
-docs/decisions/2026-05-10-allow-openssl-fips.md
+docs/decisions/2026-05-10-allow-openssl-pkcs11.md
 ```
 
 ```markdown
-# ADR: Allow openssl-fips for compliance integration
+# ADR: Allow openssl for the HSM/PKCS#11 signing path
 
 Status   : Accepted
 Date     : 2026-05-10
-Sunset   : 2027-06-30 (reassess when aws-lc-rs FIPS 140-3 cert lands)
+Sunset   : 2027-06-30 (reassess when rustls PKCS#11 support matures)
 Owner    : @platform-team
 
 ## Context
-Hard Lock 2 mandates rustls only. The federal payments integration requires FIPS 140-3
-validated TLS, which rustls's ring provider cannot provide today.
+Hard Lock 2 mandates rustls with the `aws-lc-rs` provider. FIPS 140-3 alone does **not**
+justify an exception — it is satisfied in-stack via the `aws-lc-rs` `fips` feature
+(`aws-lc-fips-sys`; CMake + Go at build time). The genuine gap is the regulator-mandated
+HSM: private keys never leave the device and must be used via PKCS#11, which rustls's
+`aws-lc-rs`/`ring` providers cannot drive today.
 
 ## Decision
-- Single egress client `crates/api/src/payments_client.rs` may use `openssl` 0.10
-  with the `vendored` feature.
-- All other code remains rustls-only.
+- Single egress client `crates/api/src/hsm_client.rs` may use `openssl` 0.10 with the
+  `vendored` feature for the PKCS#11 engine path only.
+- The rest of the process keeps rustls + `aws-lc-rs` (FIPS feature enabled).
 - `deny.toml` waives `openssl` only for that one path via a `[[bans.skip]]` entry.
 
 ## Consequences
-- Image size +5 MB.
-- Sunset hard-pinned: a renewal review at 2027-06-30 must either confirm rustls coverage
-  or re-justify with a new ADR.
+- Image size +5 MB; build now also needs the openssl C toolchain on that target.
+- Sunset hard-pinned: a renewal review at 2027-06-30 must either adopt a pure-rustls
+  PKCS#11 path or re-justify with a new ADR.
 ```
 
 This is the discharge contract. PMA `/pma` will accept the project even with the rustls lock relaxed if a matching ADR exists; without one, it blocks merge.
@@ -249,7 +257,7 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 | Toolchain | stable Rust, **edition 2024** | `rust-version` in workspace; `rust-toolchain.toml` optional (only vector uses it) |
 | Async runtime | **Tokio** (multi-thread) | hand-built `Builder` for tuning (`quickwit-cli/main.rs:43-53`) |
 | HTTP server | **Axum 0.8.x** + Hyper 1 + tower / tower-http | gRPC-heavy services: **Tonic** + warp/axum hybrid (quickwit) |
-| TLS | **rustls** (ring or aws-lc-rs provider) | install provider at startup (`quickwit-cli/main.rs:98`) |
+| TLS | **rustls** + **`aws-lc-rs`** provider (rustls 0.23 default) | `rustls::crypto::aws_lc_rs::default_provider().install_default()` early in `main`; startup-install pattern per `quickwit-cli/main.rs:98` (quickwit uses the ring provider) |
 | Errors | **`thiserror` 2.x** per crate; **`anyhow`** (or `eyre`) at bin entry only | universal across uv/ruff/quickwit |
 | Logging | **`tracing` + `tracing-subscriber`** | JSON in prod, pretty in dev. `quickwit-cli/logger.rs` is canonical |
 | Lint policy | `[workspace.lints]` in `Cargo.toml` | Lock 4 |
@@ -262,7 +270,7 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 | Category | Technology | Notes |
 |---|---|---|
 | Workspace | virtual workspace; **`resolver = "3"`** (edition 2024 pairing) | `"2"` only when stuck on older Cargo |
-| Data access | **SQLx** (`default-features = false`, `tls-rustls-ring` feature) | compile-time-checked queries. **Never** native-tls. Alt: **SeaORM** (ActiveRecord) or **`diesel-async`** (compile-time schema) |
+| Data access | **SQLx** (`default-features = false`, `tls-rustls-aws-lc-rs` feature) | compile-time-checked queries. **Never** native-tls. Alt: **SeaORM** (ActiveRecord) or **`diesel-async`** (compile-time schema) |
 | Migrations | `sqlx migrate` / `sea-orm-migration` / `diesel migration` | committed; CI runs against ephemeral DB |
 | CLI | **`clap` v4 derive** + **`clap_complete_command`** | quickwit uses builder API for very large CLIs |
 | Serialization | **`serde`** + `serde_with` | derive-based |

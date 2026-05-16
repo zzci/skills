@@ -18,7 +18,7 @@ This pack covers everything between "code compiles" and "shipped to prod": secre
 ### Threat surface to review
 
 - **TLS** — rustls only. Reject any direct or transitive `openssl` / `native-tls` (enforced via `cargo deny bans` — reth's `deny.toml:35` is the exemplar).
-- **Crypto provider** — `rustls::crypto::ring::default_provider().install_default()` at startup (quickwit's `main.rs:98` pattern). Without this, rustls 0.23 panics on first TLS use.
+- **Crypto provider** — `rustls::crypto::aws_lc_rs::default_provider().install_default()` early in `main` (startup-install timing per quickwit's `main.rs:98`, which itself installs the ring provider). Without this, rustls 0.23 panics on first TLS use. Build prerequisites for the `aws-lc-rs` C/asm core: see `toolchain-and-workspace.md` "Building the `aws-lc-rs` crypto provider".
 - **Outbound HTTP / SSRF** — validate destination hostnames; block link-local / loopback unless allow-listed; reuse `reqwest::Client`, never per-request.
 - **Secret comparison** — use `subtle::ConstantTimeEq` for tokens, HMACs, password digests.
 - **Cache correctness under contention** — `moka` over hand-rolled `Arc<Mutex<HashMap>>`; `arc-swap` for hot-reload of immutable config.

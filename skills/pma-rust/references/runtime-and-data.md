@@ -208,7 +208,7 @@ Three supported paths. Pick once per project, document in the README, do not mix
 ```toml
 sqlx = { workspace = true, default-features = false, features = [
     "runtime-tokio",
-    "tls-rustls-ring",      # rustls only — never tls-native-tls
+    "tls-rustls-aws-lc-rs", # rustls + aws-lc-rs — never tls-native-tls
     "postgres",
     "macros",
     "migrate",
@@ -499,7 +499,7 @@ async fn main() -> anyhow::Result<()> {
     install_panic_hook();
 
     // === 3. rustls crypto provider before any TLS use ===
-    rustls::crypto::ring::default_provider()
+    rustls::crypto::aws_lc_rs::default_provider()
         .install_default()
         .map_err(|e| anyhow::anyhow!("install rustls provider: {e:?}"))?;
 

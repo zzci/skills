@@ -15,8 +15,8 @@ These rules apply to **every** PMA-Rust project. They cannot be overridden by pr
 
 | # | Rule | Enforcement |
 |---|---|---|
-| 1 | **Pure Rust ecosystem first.** No new dependency may pull in OpenSSL, native-tls, libgit2-sys, or any other C-FFI binding when a pure-Rust alternative exists. | `cargo deny bans` + dependency review |
-| 2 | **rustls only** for TLS. `tokio-rustls` / `rustls-pemfile` / `rustls-platform-verifier` are the canonical stack. | `bans.deny = [openssl, openssl-sys, native-tls, native-tls-sys]` |
+| 1 | **Pure Rust ecosystem first.** No new dependency may pull in OpenSSL, native-tls, libgit2-sys, or any other C-FFI binding when a pure-Rust alternative exists. The one pre-sanctioned C/asm core is rustls's default `aws-lc-rs` crypto provider (no mature pure-Rust crypto exists; `ring` is equally non-pure). See `baseline.md` Lock 1/2. | `cargo deny bans` + dependency review |
+| 2 | **rustls only** for TLS, **`aws-lc-rs` crypto provider** (the rustls 0.23 default). `tokio-rustls` / `rustls-pemfile` / `rustls-platform-verifier` are the canonical stack; install the provider in `main()`. | `bans.deny = [openssl, openssl-sys, native-tls, native-tls-sys]` |
 | 3 | **`#![forbid(unsafe_code)]`** at every crate root (lib.rs / main.rs). Only data-crate or FFI-crate may relax to `deny`, with `// SAFETY:` comments on every `unsafe` block. | clippy + workspace lints |
 | 4 | **Deny warnings is workspace-manifest policy.** Set `[workspace.lints.rust] warnings = { level = "deny", priority = -2 }` (the rustc `warnings` lint-group; covers all current and future warn-by-default lints). Members inherit via `[lints] workspace = true`. CI runs `cargo clippy` with no `-- -D warnings` suffix — policy lives in `Cargo.toml`, versioned with code, inherited everywhere. | `[workspace.lints.rust]` |
 | 5 | **MSRV declared** in `[workspace.package].rust-version`. CI verifies via `cargo hack check --rust-version` or `cargo msrv verify`. | CI gate |
@@ -75,7 +75,7 @@ Before `/pma` accepts a Rust crate or service for production:
 - [ ] Every crate has `#![forbid(unsafe_code)]` (or documented exception)
 - [ ] CI runs: fmt + clippy with workspace deny-warnings policy + nextest + `--doc` test + cargo-deny + cargo-shear (or machete) + typos
 - [ ] No transitive `openssl` / `native-tls` (verified by `cargo deny bans`)
-- [ ] All TLS uses rustls; `install_default_crypto_provider()` called in `main`
+- [ ] All TLS uses rustls; `rustls::crypto::aws_lc_rs::default_provider().install_default()` called early in `main`
 - [ ] Tracing initialized with JSON formatter in prod; OTLP optional
 - [ ] `/healthz` (liveness) + `/readyz` (readiness) endpoints exist for services
 - [ ] Graceful shutdown wired via `axum::serve(...).with_graceful_shutdown(...)` + `CancellationToken` (or equivalent)

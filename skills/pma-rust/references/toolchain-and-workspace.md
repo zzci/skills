@@ -96,7 +96,7 @@ opentelemetry_sdk   = { version = "0.31", features = ["rt-tokio"] }
 clap        = { version = "4", features = ["derive", "env"] }
 clap_complete_command = "0.6"      # uv + ruff use this for shell completions
 figment     = { version = "0.10", features = ["toml", "env", "yaml"] }
-sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "macros", "migrate"] }
+sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "macros", "migrate"] }
 reqwest     = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 rustls      = "0.23"
 secrecy     = "0.10"
@@ -523,9 +523,31 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 Mirrors ruff's `crates/ruff/src/main.rs:11-28` allocator switching, extended for the musl case. **Library crates never install global allocators.**
 
-### TLS provider on musl
+### Building the `aws-lc-rs` crypto provider
 
-`rustls` works out of the box on musl with both providers (`ring` and `aws-lc-rs`). `aws-lc-rs` builds with `cmake` and may slow CI; `ring` is the simpler default. quickwit calls `install_default_crypto_ring_provider()` at startup — copy the pattern.
+PMA standardizes on the **`aws-lc-rs`** rustls provider (Lock 2). It wraps AWS-LC (C + per-arch assembly), so unlike a pure-Rust crate it has a real build step. The constraints below are the ones that actually break CI/cross builds — get them right once and the provider is invisible thereafter.
+
+**Default (non-FIPS) build — what is and isn't required:**
+
+| Tool | Needed for default `aws-lc-rs`? | Notes |
+|---|---|---|
+| C/C++ compiler (`cc`/`clang`) | **Yes** | Only hard requirement. Present in `rust:1.95.0`, `debian`, most CI images. Distroless/`scratch` runtime is fine — AWS-LC is statically compiled into the binary at build time, nothing is needed at runtime. |
+| CMake | **No** | Pre-generated build metadata ships with `aws-lc-sys`. CMake is required **only** for the `fips` feature. |
+| Go | **No** | Required **only** for the `fips` feature. |
+| `bindgen` / `libclang` | **No** | Pre-generated bindings ship for supported targets. Needed only if you opt into the `bindgen` or `legacy-des` feature, or build for a target without pre-generated bindings. |
+| NASM (Windows x86-64 only) | Conditional | The `prebuilt-nasm` feature (or env `AWS_LC_SYS_PREBUILT_NASM=1`) ships prebuilt objects so NASM is not needed; if NASM is on PATH it is used regardless. Irrelevant to Linux server targets. |
+
+So for the canonical Linux service target the only prerequisite beyond the Rust toolchain is a working C compiler — the old "aws-lc-rs needs cmake and slows CI" caveat no longer applies to default builds.
+
+**musl / static (`*-unknown-linux-musl` + `+crt-static`):** `aws-lc-rs` builds and statically links cleanly on musl. The build host needs the musl C cross toolchain (`musl-gcc`, i.e. `musl-tools` on Debian) and `CC_x86_64_unknown_linux_musl` / `AR_*` pointing at it. Using **`cross`** (the PMA default for cross/musl, see `delivery.md`) handles this automatically — its images already carry the musl C toolchain. `cargo-zigbuild` also works (`zig cc` as the cross C compiler).
+
+**Cross-compilation (e.g. building aarch64 on x86-64):** `aws-lc-sys` cross-compiles via the target C toolchain. Set per-target `CC_<target>` / `CXX_<target>` / `AR_<target>`, or just use **`cross`** so the correct C toolchain is selected per target. A missing/mismatched cross C compiler is the single most common `aws-lc-sys` build failure — the error surfaces as a `cc`/linker failure inside `aws-lc-sys`, not as a Rust error.
+
+**FIPS (`aws-lc-rs` `fips` feature → `aws-lc-fips-sys`):** only when a compliance requirement demands it (discharge via ADR, see `baseline.md` Lock 2 backfire row). Build now also needs **CMake** and **Go**, and on some targets `bindgen`/`libclang`. It is slower and not cross-friendly — run FIPS builds on a native runner per target, not under `cross`.
+
+**Dependency alignment:** `reqwest` (`rustls-tls` feature) and `sqlx` (`tls-rustls-aws-lc-rs` feature) both resolve to the same `aws-lc-rs` provider, so a single `install_default()` call covers every TLS path. Do **not** mix a `ring`-flavored feature on one dependency with `aws-lc-rs` on another — linking both providers makes the process default ambiguous and the explicit `install_default()` is what disambiguates it.
+
+quickwit installs the **ring** provider at startup (`install_default_crypto_ring_provider()`); reuse its *startup-install timing* pattern but with `rustls::crypto::aws_lc_rs::default_provider()` (see `baseline.md` Lock 2).
 
 ## Editor / IDE Convention
 
