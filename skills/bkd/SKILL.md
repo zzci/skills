@@ -73,6 +73,8 @@ Load only what the current task needs:
   Use for subtask self-review responsibilities, coordinator logs filter assessment, and signal classification.
 - `references/merge-strategy.md`
   Use for worktree branch merging, conflict resolution, post-merge verification, and cleanup after subtasks complete in worktree mode.
+- `references/three-tier-coordination.md`
+  Use for the L1/L2/L3 cron-driven autonomous coordination pattern: user-facing agent session (L1) reports to user only, BKD scheduling issue (L2) owns DAG decomposition + dispatch via 15-min self cron, short-lived subtasks (L3). Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.). Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
 
 ## Quick Routing
 
@@ -82,4 +84,5 @@ Choose references by intent:
 - Multi-subtask dispatch or orchestration: load `references/orchestration.md`.
 - Subtask quality assessment or code review: load `references/quality-review.md`.
 - Branch merging after worktree subtasks: load `references/merge-strategy.md`.
+- Long-running, cron-driven L1/L2/L3 autonomous coordination across heterogeneous engines: load `references/three-tier-coordination.md` (use instead of `orchestration.md` when the user wants the user-facing agent to only talk to the user while BKD self-drives dispatch via cron, and when L2/L3 may run on different engines than L1).
 - Full orchestration pipeline: load `references/orchestration.md`, then `references/quality-review.md`, then `references/merge-strategy.md` as each phase is reached.
