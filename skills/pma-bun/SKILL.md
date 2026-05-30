@@ -1,6 +1,6 @@
 ---
 name: pma-bun
-description: Bun implementation guide for PMA-managed backend services. Defaults to a single-API-project layout; promotes to a Bun monorepo only when multiple deployable apps or shared packages exist. Covers API modules under `src/modules`, strict linting with ESLint + @antfu/eslint-config, Drizzle over SQLite-first storage, OpenAPIHono on top of `Bun.serve()`, validated env config, nsl-based dev URL routing (paired with `pma-web`), standalone binary compilation with embedded assets and migrations, and CI quality gates.
+description: Bun implementation guide for PMA-managed backend services. Defaults to a single-API-project layout; promotes to a Bun monorepo only when multiple deployable apps or shared packages exist. Covers API modules under `src/modules`, strict linting with ESLint + @antfu/eslint-config, Drizzle over SQLite-first storage, OpenAPIHono on top of `Bun.serve()`, validated env config, nsl-based dev URL routing (paired with `pma-web`), standalone binary compilation with embedded assets and migrations, and CI quality gates. Use when implementing, scaffolding, or reviewing a Bun/Hono backend or internal tool in a PMA repo.
 ---
 
 # Bun Project Implementation Guide
