@@ -154,4 +154,4 @@ For operating BKD kanban boards via REST API:
 | [pma-d2](skills/pma-d2/) | D2 diagram author — generate source-controlled `.d2` architecture, workflow, sequence, and ERD diagrams rendered by the official D2 toolchain |
 | [pma-draw](skills/pma-draw/) | ReactFlow diagram creator — generate `.rfd.json` diagrams using predefined semantic node types, edge presets, layouts, and pma-viewer compatibility |
 | [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, L1/L2/L3 three-tier coordination, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
-| [gitea](skills/gitea/) | gitea-mcp operator — full parameter/payload reference for all 53 gitea-mcp MCP tools (repos, files, issues, PRs, releases, labels, milestones, actions, packages, wiki, search) plus server setup and forced non-GitHub→Gitea routing |
+| [gitea](skills/gitea/) | Gitea REST API operator — curl-based `/api/v1` reference for repos, files, issues, PRs, releases, labels, milestones, actions, packages, wiki, search, server setup, and forced non-GitHub to Gitea routing |

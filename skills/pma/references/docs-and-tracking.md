@@ -25,8 +25,8 @@ docs/
 
 Use these format references:
 
-- [task-format.md](/app/zzci/skills/skills/pma/docs/task-format.md)
-- [plan-format.md](/app/zzci/skills/skills/pma/docs/plan-format.md)
+- [task-format.md](../docs/task-format.md)
+- [plan-format.md](../docs/plan-format.md)
 
 ## Documentation Rules
 
@@ -58,11 +58,11 @@ Recommended tags:
 
 The project's `AGENTS.md` (with `CLAUDE.md` symlinked to it) only carries **project-personalized** facts — which stack skills apply, language/runtime choice, quality-gate command, link to local divergences. Skill rules are not duplicated into the project file; they are loaded from `/pma` and the stack skills on demand.
 
-See [project-injection.md](/app/zzci/skills/skills/pma/docs/project-injection.md) for the canonical template, the anti-patterns to avoid, and the full initialization checklist.
+See [project-injection.md](../docs/project-injection.md) for the canonical template, the anti-patterns to avoid, and the full initialization checklist.
 
 Minimum on first use in a project:
 
-1. Create `AGENTS.md` with the *Project Development* template from [project-injection.md](/app/zzci/skills/skills/pma/docs/project-injection.md), then `ln -s AGENTS.md CLAUDE.md` so the two cannot drift.
+1. Create `AGENTS.md` with the *Project Development* template from [project-injection.md](../docs/project-injection.md), then `ln -s AGENTS.md CLAUDE.md` so the two cannot drift.
 2. Initialize `docs/task/index.md` and `docs/plan/index.md` per the canonical formats.
 3. Initialize `docs/architecture.md` and `docs/changelog.md` in English unless the user explicitly requests Chinese.
 4. Apply *Repository Hygiene* (`/pma references/delivery.md`) — `.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, plus the stack-pinned toolchain file.

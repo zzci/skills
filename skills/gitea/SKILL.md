@@ -1,6 +1,6 @@
 ---
 name: gitea
-description: Operate a Gitea instance via its REST API at /api/v1/... with curl. FORCED ROUTING — use this skill for ANY repository whose git remote host is NOT github.com, and for every internal repository: assume Gitea first, probe /api/v1/version, then call the REST endpoints directly.
+description: "Operate a Gitea instance via its REST API at /api/v1/... with curl. FORCED ROUTING — use this skill for any repository whose git remote host is not github.com: derive the candidate HTTPS base URL from the remote host, probe /api/v1/version, then call the REST endpoints directly."
 ---
 
 # Gitea (REST API)
@@ -13,7 +13,7 @@ Keep this entry file small. Load only the reference pack the current turn needs.
 
 ## Always-On Rules
 
-0. **Forced forge routing.** Before any forge work, run `git remote get-url origin`. If the host is `github.com`, this skill does not apply — use `gh`. Otherwise (any other host, or any internal repository) assume Gitea and drive ALL forge operations through the REST API documented here. Probe with `curl -fsS --max-time 5 "$GITEA_URL/api/v1/version"`; treat the host as Gitea only if HTTP 200 with a JSON `version` field comes back.
+0. **Forced forge routing.** Before any forge work, run `git remote get-url origin` and parse the host. If the host is `github.com`, this skill does not apply — use `gh`, including for internal GitHub organizations. For any other host, treat it as a Gitea candidate: derive `https://<host>` as the probe base URL, run `curl -fsS --max-time 5 "https://<host>/api/v1/version"`, and use this skill only if HTTP 200 returns JSON with a `version` field. If the probe fails or times out, ask the user; do not guess another forge.
 1. **Resolve `$GITEA_URL` + `$GITEA_TOKEN` from named env pairs, not from the user.** Each instance is exported as `GITEA_<ALIAS>_URL` + `GITEA_<ALIAS>_TOKEN` (e.g. `GITEA_ORGA_URL` + `GITEA_ORGA_TOKEN`). Call `gitea_auto` (defined in [setup.md](references/setup.md#instance-selection-multi-gitea)) to auto-pick the pair whose URL host matches the current repo's `origin`; falls back to the unaliased `GITEA_URL`/`GITEA_TOKEN`, then to gitea-mcp legacy `GITEA_HOST`/`GITEA_ACCESS_TOKEN`, then asks the user. `$GITEA_URL` is always the base URL **without** the `/api` suffix.
 2. Send `Authorization: token $GITEA_TOKEN` on every request. Never put the token in the query string (`?token=`) — it would be logged.
 3. Prefer `curl -s` piped to `jq` so results are easy to inspect. Always include `-o /dev/null -w '%{http_code}\n'` (or `--fail-with-body`) when verifying success on write/delete calls — Gitea returns success bodies on 2xx and a `{ "message": "...", "url": "..." }` error envelope on 4xx/5xx.

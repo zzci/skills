@@ -185,7 +185,7 @@ gitea DELETE /repos/foo/bar/releases/42
 ### Properties
 
 - Method and path are positional; everything after is passed through to curl unchanged (`-d`, `-F`, `--data-binary`, extra `-H`, `--cacert`, etc.).
-- The default `Content-Type: application/json` is appended last and curl honors duplicate headers using the **last** one — so adding `-H 'Content-Type: multipart/form-data'` cleanly overrides it for multipart uploads.
+- The helper always sends `Content-Type: application/json`. For multipart uploads, use raw `curl` with `-F` so curl can generate the multipart boundary.
 - Success bodies are pretty-printed via `jq`; empty 204 bodies are silently fine.
 - HTTP 4xx/5xx: the function writes `HTTP <code> for <method> <path>` + the `{message, url}` envelope to **stderr** and returns 1. Combine with `||` for failure handling, or capture stdout for the success payload.
 - Body capture for multi-step flows:
@@ -223,7 +223,10 @@ Never echo `$GITEA_TOKEN` to stdout. Mask in any logging.
 
 ## Probing the instance
 
-Confirm an unknown host is actually Gitea before driving any operation:
+Confirm an unknown non-`github.com` host is actually Gitea before driving any
+operation. For git remotes, discard SSH ports and construct the probe URL as
+`https://<host>/api/v1/version`; a custom web port cannot be inferred from an
+SSH remote and must be known separately.
 
 ```bash
 curl -fsS --max-time 5 "$GITEA_URL/api/v1/version" | jq

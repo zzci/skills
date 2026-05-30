@@ -215,10 +215,10 @@ Body fields: `tag_name`, `target_commitish`, `name`, `body`, `draft`, `prereleas
 ### Release attachments
 
 - **List**: `gitea GET /repos/{owner}/{repo}/releases/{id}/assets`
-- **Upload** (multipart — overrides the default JSON Content-Type):
+- **Upload** (multipart — use raw `curl` so it can set the multipart boundary):
   ```bash
-  gitea POST '/repos/{owner}/{repo}/releases/{id}/assets?name=app.tar.gz' \
-    -H 'Content-Type: multipart/form-data' \
+  curl -sS "${AUTH[@]}" \
+    "$GITEA_URL/api/v1/repos/{owner}/{repo}/releases/{id}/assets?name=app.tar.gz" \
     -F 'attachment=@./app.tar.gz'
   ```
 - **Delete**: `gitea DELETE /repos/{owner}/{repo}/releases/{id}/assets/{aid}` · **DESTRUCTIVE**
