@@ -348,7 +348,7 @@ curl -s -X POST "$BKD_URL/cron" \
     "config": {
       "projectId": "{projectId}",
       "issueId": "'"$L2_ID"'",
-      "prompt": "L2 wake (campaignId={campaignId}). One round per the bootstrap dispatch prompt: pull latest [L2-plan-snapshot] + BKD states (no source re-read), check capacity, dispatch eligible L3s, evaluate completions (green/yellow/red), merge greens into bkd/'"$L2_ID"' in dep order (NEVER main), escalate yellows/blocks to L1, emit fresh [dag-state]. End turn; next cron in 15 min."
+      "prompt": "L2 wake (campaignId={campaignId}). Run one Steady-State round per your dispatch prompt, then end turn."
     }
   }' | jq
 ```
