@@ -87,7 +87,10 @@ L1 (current agent session, any engine)
 
 L2 (one dispatch issue per independent task; useWorktree: true)
   - runs in its own worktree on branch bkd/{L2_ID}
-  - first wake: decompose goal into L3 DAG, write a plan snapshot to its own log
+  - NEVER writes code itself — every implementation unit (even 1-line)
+    becomes its own L3 BKD issue; L2 only orchestrates
+  - first wake: decompose goal into L3 DAG, CREATE THE L3 BKD ISSUES,
+    write a plan snapshot to its own log (snapshot with 0 L3 ids = invalid)
   - subsequent wakes: read snapshot + BKD state; no source re-reads
   - 15min self cron drives the dispatch loop
   - merges L3 branches into bkd/{L2_ID} (NOT main); main is human-only
@@ -258,7 +261,7 @@ L2_ID=$(echo "$L2" | jq -r '.data.id')
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$L2_ID/follow-up" \
   -H 'Content-Type: application/json' \
   -d '{
-    "prompt": "## Role\nYou are the L2 dispatch issue in a three-tier BKD coordination pattern. Your job is to decompose, dispatch, monitor, evaluate, and merge L3 subtasks INTO YOUR OWN WORKTREE BRANCH (bkd/'"$L2_ID"'). Stay in BKD statusId=working. Drive yourself via a 15-minute issue-follow-up cron. Never use sleep.\n\n## Worktree Discipline (HARD RULE)\nYou run in your own worktree on branch bkd/'"$L2_ID"' (created by BKD because useWorktree=true). All file edits, merges, build/test runs happen here. NEVER cd, switch, or write to the main worktree. NEVER `git checkout main` or `git merge` into main. The main tree is read-only across the whole three-tier pattern; whether bkd/'"$L2_ID"' eventually merges into main is a human decision made AFTER you terminate.\n\n## Required BKD References\nIf your engine can load repository skills or files, load bkd plus references/three-tier-coordination.md, references/rest-api.md, references/quality-review.md, and references/merge-strategy.md before decomposing. If it cannot, follow the HTTP API and the rules in this prompt.\n\n## Campaign\ncampaignId: {campaignId}\nUse this campaignId in every L3 title, tag, and follow-up.\n\n## DAG State Rules\nBKD statusId values are only todo|working|review|done. Treat planned/dispatched/green/merged/blocked as your own DAG states only; never PATCH an issue to merged or blocked. Emit a [dag-state campaignId={campaignId}] block at the end of every turn with id/title/mode/deps/state/retries for every subtask.\n\n## Context Discipline\nThe first wake does the full decomposition and writes a one-shot [L2-plan-snapshot v1 campaignId={campaignId}] block as a tagged assistant message. EVERY subsequent wake reads that snapshot (via logs/filter/types/assistant-message) plus BKD issue states — DO NOT re-read source files. If scope genuinely changes (L1 follow-up brings new requirements), emit a [L2-plan-snapshot v2 ...] block superseding the previous one, then resume snapshot-only wakes.\n\n## Goal\n{full goal description}\n\n## Acceptance Criteria\n- {criterion 1}\n- {criterion 2}\n\n## Scope\n- In scope: {paths/modules}\n- Out of scope: {paths/modules}\n\n## L1 Report API\nWhen you need to escalate (yellow/blocked/done), use:\nPOST '"$BKD_URL"'/projects/{projectId}/issues/'"$L1_SESSION_ID"'/follow-up\n\n## Bootstrap\n1. Register a 15-minute cron of action issue-follow-up targeting yourself ('"$L2_ID"').\n2. Decompose the goal into L3 subtasks. Build a dependency DAG using subtask issue ids. Do not parallelize everything. Every L3 will use useWorktree=true because main is read-only.\n3. Write the [L2-plan-snapshot v1 campaignId={campaignId}] block (DAG + per-L3 self-contained spec referencing file paths only).\n4. End this turn with an initial [dag-state campaignId={campaignId}] block. The cron will wake you to start dispatching."
+    "prompt": "## Role\nYou are the L2 dispatch issue (campaignId={campaignId}) in a three-tier BKD pattern. Decompose the goal into L3 BKD issues, dispatch, monitor, evaluate, and merge their branches into bkd/'"$L2_ID"'. Stay in BKD statusId=working. A 15-min self-cron drives you; never sleep.\n\n## Hard Rules\n- **Never write source files.** Every implementation unit — even 1-line tweaks, doc-only edits, config changes — becomes an L3 BKD issue and is implemented in that L3's worktree. You only run git (merge / revert / commit / stash) and build/test commands. No $EDITOR, sed -i, cat >, echo >, tee, or any other source-editing tool. No size exception.\n- **Never touch main.** Your worktree is bkd/'"$L2_ID"'; L3 branches merge here, not into main. The user merges bkd/'"$L2_ID"' → main themselves after you terminate.\n\n## Goal\n{full goal description}\n\n## Acceptance Criteria\n- {criterion 1}\n- {criterion 2}\n\n## Scope\n- In: {paths/modules}\n- Out: {paths/modules}\n\n## End-of-Turn Markers (emit BOTH every turn)\n- `[L2-plan-snapshot vN campaignId={campaignId}]` — DAG + per-L3 self-contained spec (file paths only, no inline content). Bump N only on real scope changes.\n- `[dag-state campaignId={campaignId}]` — per subtask: id / title / deps / state ∈ {planned, dispatched, green, merged, blocked} / retries. These DAG states are L2-internal; BKD statusId stays in {todo|working|review|done} — never PATCH to merged or blocked.\n\n## Bootstrap (THIS turn)\n1. Register the 15-min cron: name `l2-dispatch-'"$L2_ID"'`, action `issue-follow-up`, target self.\n2. Decompose AND CREATE each L3 as a BKD issue: `POST /projects/{projectId}/issues` with `useWorktree:true`, tags `[\"l3\",\"campaign:{campaignId}\"]`. Mental decomposition is invalid — the snapshot must reference real issue ids. No minimum task size: 1-line work still gets its own L3.\n3. Emit `[L2-plan-snapshot v1 ...]` (with the issue ids just created) + `[dag-state ...]`. End turn.\n\n## Steady-State Wakes (driven by cron)\nPull latest snapshot via `logs/filter/types/assistant-message/turn/last5` (DO NOT re-read source). Pull BKD issue states. ONE decision round per wake: capacity check → dispatch eligible L3s (upstream deps merged) → evaluate completions via logs/filter (green/yellow/red, see quality-review.md) → merge greens in dep order (`git merge bkd/{L3_ID} --no-ff`; on build/test failure `git revert -m 1 HEAD --no-edit` + return L3 to working) → escalate yellows/blocks to L1. Emit fresh `[dag-state]`. End turn.\n\n## Reports & Escalations (to L1)\nPOST '"$BKD_URL"'/projects/{projectId}/issues/'"$L1_SESSION_ID"'/follow-up — progress rollups after each batch; yellow = needs user decision; blocked = retries exceeded; final \"branch bkd/'"$L2_ID"' ready\" on termination.\n\n## References (engine permitting)\nLoad `bkd` skill + references/{three-tier-coordination, rest-api, quality-review, merge-strategy}.md."
   }' | jq
 
 curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$L2_ID" \
@@ -292,64 +295,41 @@ decision round**, then ends the turn. **No `sleep`, ever. Never touch main.**
 
 ### L2 Responsibilities
 
-- **Operate inside the L2 worktree only.** All git commands (`status`, `merge`,
-  `revert`, `commit`, `stash`) run from `<WORKTREE_BASE>/{projectId}/{L2_ID}/`.
-  **Never** `cd` to the main worktree, `git checkout main`, or `git merge`
-  anything into main. Main is human-territory; the user merges `bkd/{L2_ID}`
-  into main themselves after termination.
-- On bootstrap, register the 15-minute self cron (`issue-follow-up` targeting
-  itself) as the loop engine, then perform the **one-shot decomposition**:
-  read the source files needed to decompose, build the DAG, draft each L3
-  spec, and write a `[L2-plan-snapshot vN campaignId={campaignId}]`
-  assistant-message block. **All subsequent wakes read this snapshot instead
-  of re-reading source.**
-- **On subsequent wakes**: pull the latest plan snapshot via `logs/filter
-  /types/assistant-message/turn/lastN` (small N — usually 5 is enough to find
-  the snapshot), pull current BKD issue states, decide, act, end turn.
-- **Before every dispatch**: check `/processes/capacity`. If
-  `availableSlots == 0`, skip this round; wait for the next cron.
-- **Dispatch eligibility**: a subtask may be dispatched only when **all its
-  upstream dependencies have L2-internal DAG state `merged`**. Same-stage
-  subtasks may run in parallel subject to capacity and file-overlap constraints.
-- **L3 mode is always `useWorktree: true`** under this pattern, because main
-  is read-only — `useWorktree: false` would write to main and violate the
-  hard rule. The simple/worktree mode-selection table from `orchestration.md`
-  does NOT apply here.
-- **Create L3**: `todo` (with `useWorktree: true`) -> follow-up (self-contained
-  spec referencing file paths only, acceptance criteria, mandatory self-review
-  block, full report API path, campaignId) -> move to `working`.
-- **Monitoring per subtask** (do not batch — evaluate each completion immediately):
-  - Use `logs/filter` to read `error-message`, `assistant-message/turn/last`,
-    `tool-use/turn/last3`, and execution scale.
-  - Classify result as green / yellow / red (see `quality-review.md`).
-  - **green** -> proceed to merge phase.
-  - **red** -> follow-up the subtask with the issue, move it back to `working`
-    for rework. Retry limit: `N = 2` by default; on exceeding, set the
-    L2-internal DAG state to `blocked` and follow-up L1. Do not PATCH BKD
-    `statusId` to `blocked`.
-  - **yellow** -> follow-up L1 for a human decision. Do not guess.
-- **Merge phase (into `bkd/{L2_ID}`, not main):**
-  1. `cd <WORKTREE_BASE>/{projectId}/{L2_ID}/` and confirm
-     `git branch --show-current` == `bkd/{L2_ID}`. If not, abort and escalate
-     to L1 — something has shoved the L2 worktree into the wrong branch.
-  2. Ensure `git status` is clean (commit or stash L2-side work).
-  3. Record `MERGE_BASE=$(git rev-parse HEAD)` for post-merge diffing.
-  4. Merge in dependency order: `git merge bkd/{L3_ID} --no-ff -m "L2 merge:
-     {L3 title} (bkd/{L3_ID}) [{campaignId}]"`. On conflict: `git merge
-     --abort` and escalate to L1.
-  5. Run build/test after each merge. On failure: `git revert -m 1 HEAD
-     --no-edit`, follow-up the L3 with the error, set L3 BKD status back to
-     `working` with the rework prompt.
-  6. On success, set L2-internal DAG state of that L3 to `merged`. Leave the
-     L3 BKD issue in `review` (do NOT move to `done` — `done` triggers
-     worktree auto-cleanup and is human-only).
-- After each batch, follow-up L1 with a progress rollup that includes
-  `bkd/{L2_ID}` as the branch the user will eventually review.
-- **Termination**: when every subtask has L2-internal DAG state `merged` or
-  `blocked`, nothing is `todo`/`working`, and no pending evaluations/merges
-  remain, enter the idle countdown (see [Idle Termination Countdown](#idle-termination-countdown)).
-  On the 3rd consecutive idle wake:
-  1. Follow-up L1 with "campaign {campaignId} complete; branch `bkd/{L2_ID}`
+**Hard rules (no exceptions):**
+
+- **No source edits.** Every implementation unit (even 1-line) becomes an L3 BKD issue. L2's only file writes are git operations on L3 branches (`merge`/`revert`/`commit -m`/`stash`) plus build/test commands. No `$EDITOR`, `sed -i`, `cat > file`, `echo >`, `tee`, or any source-editing tool.
+- **Main is read-only.** All work happens in worktree `<WORKTREE_BASE>/{projectId}/{L2_ID}/` on branch `bkd/{L2_ID}`. Never `cd` to main, `git checkout main`, or `git merge` into main. The user merges `bkd/{L2_ID}` → main after L2 terminates.
+- **L3 mode is always `useWorktree: true`** (any `useWorktree: false` would write to main and break the rule above). The simple/worktree mode-selection table from `orchestration.md` does NOT apply here.
+
+**Bootstrap (first wake, single turn):**
+
+1. Register the 15-min self cron (`issue-follow-up` targeting self).
+2. Read whatever source is needed for decomposition, then **create** each L3 as a real BKD issue (`POST /issues` with `useWorktree:true` + campaign tag) — mental decomposition is invalid; a snapshot with zero L3 ids fails validation.
+3. Emit `[L2-plan-snapshot v1 campaignId={campaignId}]` (DAG + per-L3 self-contained spec referencing file paths only) and `[dag-state ...]`. End turn.
+
+**Steady-state wake (one decision round per cron fire):**
+
+1. Pull latest snapshot via `logs/filter/types/assistant-message/turn/last5` and BKD issue states. DO NOT re-read source.
+2. Check `/processes/capacity`; `availableSlots == 0` → skip this round.
+3. Dispatch eligible L3s (upstream deps in DAG state `merged`); same-stage L3s parallel subject to capacity + file-overlap.
+4. Evaluate completions immediately (do not batch) via `logs/filter` — classify green/yellow/red per `quality-review.md`:
+   - **green** → merge phase.
+   - **red** → follow-up the L3 with the issue, move BKD status back to `working`. Retry ≤ `N=2`; on exceed, set L2-internal DAG state `blocked` + follow-up L1.
+   - **yellow** → follow-up L1 for a human decision; do not guess.
+5. Emit fresh `[dag-state ...]`. End turn.
+
+**Merge phase (into `bkd/{L2_ID}`, never main):**
+
+1. Confirm `git branch --show-current` == `bkd/{L2_ID}`; if not, abort and escalate to L1.
+2. Ensure clean tree (commit or stash any L2-side state), record `MERGE_BASE=$(git rev-parse HEAD)`.
+3. `git merge bkd/{L3_ID} --no-ff -m "L2 merge: {L3 title} (bkd/{L3_ID}) [{campaignId}]"`. On conflict → `git merge --abort` + escalate to L1.
+4. Build/test after each merge. On failure → `git revert -m 1 HEAD --no-edit`, follow-up the L3 with the error, return BKD status to `working`.
+5. On success, set the L3's L2-internal DAG state to `merged`. Leave its BKD status in `review` — `done` is human-only and triggers worktree auto-cleanup.
+6. After each batch, follow-up L1 with a progress rollup referencing branch `bkd/{L2_ID}`.
+
+**Termination** — when every L3 has DAG state `merged` or `blocked`, no `todo`/`working` remains, and no evaluation/merge is pending, enter the idle countdown (see [Idle Termination Countdown](#idle-termination-countdown)). On the 3rd consecutive idle wake:
+
+1. Follow-up L1 with "campaign {campaignId} complete; branch `bkd/{L2_ID}`
      ready for user review and merge into main. Please verify per docs and
      move issues to `done` to trigger worktree auto-cleanup".
   2. Delete the L2 self-cron (`l2-dispatch-{L2_ID}`).
@@ -368,7 +348,7 @@ curl -s -X POST "$BKD_URL/cron" \
     "config": {
       "projectId": "{projectId}",
       "issueId": "'"$L2_ID"'",
-      "prompt": "L2 dispatch wake-up for campaignId={campaignId}. Run one round: (0) confirm you are in worktree '"$L2_ID"' on branch bkd/'"$L2_ID"' (NEVER touch main), (1) read latest [L2-plan-snapshot] via logs/filter — do NOT re-read source, (2) check capacity, (3) dispatch eligible subtasks (always useWorktree=true), (4) evaluate any completed subtasks (green/yellow/red), (5) merge greens into bkd/'"$L2_ID"' in dependency order (NOT main), (6) escalate yellows/blocks to L1, (7) end with an updated [dag-state campaignId={campaignId}] block. End the turn; the next cron fires in 15 minutes."
+      "prompt": "L2 wake (campaignId={campaignId}). One round per the bootstrap dispatch prompt: pull latest [L2-plan-snapshot] + BKD states (no source re-read), check capacity, dispatch eligible L3s, evaluate completions (green/yellow/red), merge greens into bkd/'"$L2_ID"' in dep order (NEVER main), escalate yellows/blocks to L1, emit fresh [dag-state]. End turn; next cron in 15 min."
     }
   }' | jq
 ```
@@ -530,106 +510,56 @@ snapshot field — fix the snapshot, not the wake.
 
 ## Idle Termination Countdown
 
-Both L1 and L2 cron loops self-terminate after **3 consecutive idle wakes**.
-No external state store is required — the count lives in the issue's own log.
+L1 and L2 cron loops self-terminate after **3 consecutive idle wakes**. No external state store — the count lives in the tier's own assistant-message log.
 
-### Idle Definition
+### Idle definition
 
-A wake is **idle** when, after running its normal decision round, the tier
-finds nothing actionable:
+A wake is **idle** when, after the normal decision round, the tier has no actionable work left:
 
-- **L2 idle**: zero subtasks in BKD `todo` or `working`, no pending
-  green/yellow/red evaluation, no pending merges, no pending escalations, and
-  every subtask has L2-internal DAG state `merged` or `blocked`.
-- **L1 idle**: **every** owned L2 is in `review`, every campaign subtask
-  across all owned campaigns is in BKD `review` with L2-internal DAG state
-  `merged` or `blocked`, no yellow/blocked escalation queued from any L2, no
-  user input waiting. If L1 owns even one in-flight L2, L1 is NOT idle.
+- **L2 idle**: no L3 in BKD `todo`/`working`; no pending evaluation, merge, or escalation; every L3 has L2-internal DAG state `merged` or `blocked`.
+- **L1 idle**: every owned L2 is in `review` with all its L3s in `review` (DAG `merged`/`blocked`); no escalation queued; no user input waiting. One in-flight L2 → L1 not idle.
 
-Any non-idle action (dispatch, evaluate, merge, escalate, report progress to
-user) **resets the counter to 0** for that tier.
+Any actionable step this wake (dispatch / evaluate / merge / escalate / progress report to user) resets the counter to 0 — do NOT emit `[idle-tick]`; the next idle wake starts at 1.
 
-### Counting Mechanism
+### Counting
 
-At the end of each idle wake, emit a final assistant message containing a
-recognizable marker on its own line:
+End each idle wake with this marker as the FINAL assistant message (one line, on its own):
 
 ```
 [idle-tick N/3]
 ```
 
-Where `N` is the count produced by this wake. To compute `N`, the tier reads
-its own last 3 assistant-message turns via `logs/filter` and counts only the
-consecutive idle markers at the end of that turn list. Non-idle assistant
-messages break the streak.
+Compute `N` by counting the trailing consecutive `[idle-tick` markers in the last 3 assistant turns — any non-idle turn in between breaks the streak:
 
 ```bash
-# Count the trailing consecutive idle-tick markers in the last 3 assistant
-# turns (run by L1 or L2 against its own issue id). Assumes the API returns the
-# last3 turn slice in chronological order.
 PRIOR=$(curl -s "$BKD_URL/projects/{projectId}/issues/{selfIssueId}/logs/filter/types/assistant-message/turn/last3" \
-  | jq '[.data[].content] | reverse | reduce .[] as $content ({n:0, stop:false}; if .stop then . elif (($content // "") | contains("[idle-tick")) then .n += 1 else .stop = true end) | .n')
+  | jq '[.data[].content] | reverse | reduce .[] as $c ({n:0,stop:false}; if .stop then . elif (($c // "") | contains("[idle-tick")) then .n += 1 else .stop = true end) | .n')
 N=$((PRIOR + 1))
 ```
 
-If the immediately previous assistant turn lacks `[idle-tick`, the streak is
-broken; treat this wake as `N=1` and start over. Do not count older idle markers
-that are separated from the latest turn by non-idle activity.
+### Termination action (`N == 3`)
 
-### Termination Action (N == 3)
+Both tiers follow the same 4-step pattern:
 
-When this wake would be the 3rd consecutive idle tick:
+1. **Final outbound message.** L2 → follow-up L1 (template below). L1 → final user report (assistant message in this turn).
+2. **Delete own cron.** L2 → `DELETE /cron/l2-dispatch-$L2_ID`. L1 → `DELETE /cron/l1-progress-$L1_SESSION_ID`, plus defensively `DELETE` any owned L2 crons.
+3. **L2 only**: `PATCH` self issue to `review`. (L1 leaves its session issue untouched.)
+4. Emit `[idle-tick 3/3 -> {L1|L2} terminated]` and end turn.
 
-**L2 (idle for 3 rounds):**
+L2's final follow-up payload:
 
-```bash
-# 1. Final escalation to L1
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$L1_SESSION_ID/follow-up" \
-  -H 'Content-Type: application/json' \
-  -d '{"prompt": "[L2 terminating campaignId='"$CAMPAIGN_ID"'] All subtasks done; nothing to dispatch for 3 consecutive rounds. Branch bkd/'"$L2_ID"' ready for user review/merge into main. Please verify per docs and move issues to done to trigger worktree auto-cleanup."}' | jq
-
-# 2. Delete L2 self-cron
-curl -s -X DELETE "$BKD_URL/cron/l2-dispatch-$L2_ID" | jq
-
-# 3. Move L2 to review
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$L2_ID" \
-  -H 'Content-Type: application/json' \
-  -d '{"statusId":"review"}' | jq
-
-# 4. Emit the terminal marker, then end turn
-echo "[idle-tick 3/3 -> L2 terminated]"
-```
-
-**L1 (idle for 3 rounds):**
-
-```bash
-# 1. Produce final report to user (assistant message in this turn)
-
-# 2. Delete L1 cron
-curl -s -X DELETE "$BKD_URL/cron/l1-progress-$L1_SESSION_ID" | jq
-
-# 3. (Defensive) Ensure L2 cron is also gone; safe to call even if already deleted
-curl -s -X DELETE "$BKD_URL/cron/l2-dispatch-$L2_ID" | jq
-
-# 4. Emit the terminal marker, then end turn
-echo "[idle-tick 3/3 -> L1 terminated]"
+```text
+[L2 terminating campaignId=$CAMPAIGN_ID] All subtasks done; nothing to dispatch for 3 rounds.
+Branch bkd/$L2_ID ready for user review/merge into main.
+Please verify per docs and move issues to done to trigger worktree auto-cleanup.
 ```
 
 ### Rules
 
-- **Reset on activity**: any non-idle action this wake (even a single subtask
-  dispatched or evaluated) makes the wake non-idle. Do NOT emit `[idle-tick]`;
-  the next idle wake will start counting from 1.
-- **Marker must be the last assistant message of the turn** so `logs/filter
-  /turn/lastN` reliably picks it up.
-- **3 wakes ~= 45 min for L2, 3 hours for L1.** If you need a different window,
-  adjust the cron interval, not the countdown — keep the countdown at 3 so the
-  termination logic stays uniform.
-- **User explicit stop overrides countdown** — delete crons immediately, do not
-  wait for 3 idle ticks.
-- **Restart safety**: if L1/L2 is restarted (new process), the new run reads
-  the same last-3 turns and continues the count — restarts do not reset the
-  streak, only new actionable work does.
+- Marker MUST be the **final** assistant message of the turn — `logs/filter/turn/lastN` keys on it.
+- 3 wakes ≈ 45 min for L2, 3 h for L1. To change the window, adjust the **cron interval**, not the count (kept at 3 so termination logic stays uniform).
+- User explicit stop bypasses the countdown — delete crons immediately.
+- Restart-safe: a new process reads the same trailing markers and continues the streak; restart alone does not reset it.
 
 ## Exceptions and Escalation
 
@@ -681,3 +611,10 @@ echo "[idle-tick 3/3 -> L1 terminated]"
     wake-up: it may report, never dispatch. After L2 finishes, L1 hands the
     result back to the user for acceptance — L1 does not close the loop
     silently.
+14. **L2 never implements — all work goes through L3** - L2 only decomposes,
+    dispatches, monitors, evaluates, and merges. EVERY implementation unit,
+    no matter how trivial (one-line tweaks, doc-only edits, config changes),
+    becomes its own L3 BKD issue with its own worktree. L2 may run `git
+    merge`/`revert`/`commit`/`stash` and build/test commands, but never edits
+    source files. A plan-snapshot with zero L3 issue ids is invalid. See
+    L2 Responsibilities for the full rule.
