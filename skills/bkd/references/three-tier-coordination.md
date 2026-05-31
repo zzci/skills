@@ -281,7 +281,7 @@ curl -s -X POST "$BKD_URL/cron" \
     "config": {
       "projectId": "{projectId}",
       "issueId": "'"$L1_SESSION_ID"'",
-      "prompt": "Hourly L1 wake-up. For each campaignId you own, query progress of its L2 and L3 subtasks (via campaign-tag filter), summarize for the user, and surface any pending yellow/blocked escalations. Do NOT auto-dispatch: if an escalation needs a re-dispatch or scope tweak, present the proposed action to the user and wait for explicit confirmation before sending the follow-up to L2. Main tree is read-only — do not edit any files. End the turn; the next cron will wake you in 60 minutes."
+      "prompt": "Hourly L1 wake. Report campaign progress per your L1 instructions, then end turn. Never auto-dispatch."
     }
   }' | jq
 ```
