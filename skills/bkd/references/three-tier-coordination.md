@@ -197,10 +197,10 @@ engine identity does not matter; only BKD HTTP semantics do.
     `campaignId` and its own worktree. One independent task = one L2.
   - **Continuation** of an in-flight L2 (same scope, additional requirement,
     scope tweak, bug found during review) -> do not create a new one. If the L2
-    is mid-turn, `POST /issues/{L2_ID}/cancel` first and wait for it to stop,
-    then send the follow-up so L2 starts a clean turn that folds the change
-    into its plan snapshot and DAG (see the cancel-before-follow-up rule in
-    [Loop Engine](#loop-engine)).
+    is mid-turn, run terminate → follow-up → start (`POST /issues/{L2_ID}/terminate`,
+    wait, then follow-up, then `PATCH {statusId:"working"}`) so L2 picks up the
+    change on a clean turn and folds it into its plan snapshot and DAG (see the
+    rule in [Loop Engine](#loop-engine)).
   - **Unsure** -> ask the user. Never silently fold unrelated work into an
     existing L2 (it breaks the worktree's scope and the DAG).
 - **User confirmation gate (HARD RULE — no exceptions).** L1 may NOT create an
@@ -333,7 +333,7 @@ decision round**, then ends the turn. **No `sleep`, ever. Never touch main.**
 3. Dispatch eligible L3s (upstream deps in DAG state `merged`); same-stage L3s parallel subject to capacity + file-overlap.
 4. Evaluate completions immediately (do not batch) via `logs/filter` — classify green/yellow/red using the logs-filter assessment in `quality-review.md` (ignore that file's pma-cr self-review section; this pattern relies on the L3's project checks instead):
    - **green** → merge phase.
-   - **red** → if the L3 is still running, `POST /issues/{L3_ID}/cancel` first and wait for it to stop; then follow-up the L3 with the issue and move BKD status back to `working`. Retry ≤ `N=2`; on exceed, set L2-internal DAG state `blocked` + follow-up L1.
+   - **red** → if the L3 is still running, `POST /issues/{L3_ID}/terminate` first and wait for it to stop; then follow-up the L3 with the issue and `PATCH {statusId:"working"}` to start a fresh turn (terminate → follow-up → start). Retry ≤ `N=2`; on exceed, set L2-internal DAG state `blocked` + follow-up L1.
    - **yellow** → follow-up L1 for a human decision; do not guess.
 5. Emit fresh `[dag-state ...]`. End turn.
 
@@ -456,15 +456,19 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
 - **Never** use `sleep`. **Never** poll inside a turn.
 - `follow-up` to a `working` + idle issue triggers its next turn immediately.
 - If the process has exited, follow-up auto-restarts a new process.
-- **Cancel-before-follow-up for a changed requirement (HARD RULE).** If a
+- **Terminate → follow-up → start for a changed requirement (HARD RULE).** If a
   target issue is still actively running (`working`, mid-turn) and you need to
   change what it is doing — rework, new requirement, scope change, abort the
-  current direction — send `POST /issues/{id}/cancel` FIRST, wait for it to
-  stop, THEN send the follow-up. A follow-up to a busy issue is merely queued
-  behind the in-flight turn, so it lands after work you already meant to
-  discard. Cancel stops that turn so the follow-up starts a clean one. (A
-  plain progress-neutral follow-up to an *idle* `working` issue needs no
-  cancel — that path already triggers immediately.)
+  current direction — do NOT just follow-up (that queues behind the in-flight,
+  now-discarded turn). Instead:
+  1. `POST /issues/{id}/terminate` — force-kill the running turn; wait for it
+     to stop.
+  2. `POST /issues/{id}/follow-up` — send the new/changed requirement (queued
+     while the issue is stopped).
+  3. `PATCH /issues/{id} {statusId:"working"}` — start a fresh turn that picks
+     up the queued follow-up.
+  (A plain progress-neutral follow-up to an *idle* `working` issue needs none
+  of this — that path triggers immediately.)
 
 ## Context Discipline (lightweight wake-ups)
 
@@ -495,8 +499,8 @@ rules keep wakes O(1) in cost regardless of campaign size.
    missing, this is a bug — escalate to L1 (`yellow`).
 
 3. **Snapshot supersedes, not appends.** A scope change arrives as a fresh
-   turn (L1 cancels the L2 before sending it, so it is never queued behind
-   stale work). L2 re-runs the read-source step **once**, emits
+   turn (L1 terminates the L2, then follow-up + start, so it is never queued
+   behind stale work). L2 re-runs the read-source step **once**, emits
    `[L2-plan-snapshot v2 ...]` superseding v1, and goes back to snapshot-only
    wakes. Each superseding-snapshot emission is itself a "non-idle action"
    that resets the idle counter.
@@ -592,9 +596,10 @@ Branch bkd/$L2_ID ready for L1 review and merge into main.
 - Subtask failure / timeout / red: retry up to `N` (default 2). On exceed:
   set L2-internal DAG state `blocked` and follow-up L1.
 - Changed requirement / rework / scope change for a still-running issue:
-  cancel it first (`POST /issues/{id}/cancel`), wait for it to stop, then
-  follow-up — never follow-up a busy issue with a changed requirement (it
-  queues behind the discarded turn). See [Loop Engine](#loop-engine).
+  terminate → follow-up → start (`POST /issues/{id}/terminate`, wait, follow-up,
+  then `PATCH {statusId:"working"}`) — never follow-up a busy issue with a
+  changed requirement (it queues behind the discarded turn). See
+  [Loop Engine](#loop-engine).
 - Merge conflict, ambiguous acceptance criteria, or scope changes: L2 does not
   guess. Set L2-internal DAG state `blocked` or classify the result as `yellow`
   and escalate to L1. L1 aggregates and asks the user.
@@ -648,9 +653,11 @@ Branch bkd/$L2_ID ready for L1 review and merge into main.
     merge`/`revert`/`commit`/`stash` and build/test commands, but never edits
     source files. A plan-snapshot with zero L3 issue ids is invalid. See
     L2 Responsibilities for the full rule.
-15. **Cancel before a changed-requirement follow-up** - to rework, redirect, or
-    re-scope an issue that is still actively running, `POST /issues/{id}/cancel`
-    and wait for it to stop BEFORE sending the follow-up. A follow-up to a busy
-    issue queues behind the in-flight (now-discarded) turn instead of replacing
-    it. Applies to L2→L3 rework and L1→L2 scope changes alike. See
+15. **Terminate → follow-up → start for a changed requirement** - to rework,
+    redirect, or re-scope an issue that is still actively running, do all three
+    in order: `POST /issues/{id}/terminate` (force-kill, wait for stop) →
+    `POST /issues/{id}/follow-up` (queue the change) →
+    `PATCH /issues/{id} {statusId:"working"}` (fresh turn). A bare follow-up to
+    a busy issue queues behind the in-flight (now-discarded) turn instead of
+    replacing it. Applies to L2→L3 rework and L1→L2 scope changes alike. See
     [Loop Engine](#loop-engine).

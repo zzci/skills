@@ -192,11 +192,31 @@ Behavior:
 - `working` during an active turn: queued, processed after current turn ends
 - `working` when idle: immediate, triggers next turn
 
-### Restart or cancel
+### Restart, cancel, or terminate
 
 ```bash
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/restart" | jq
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | jq
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | jq
+```
+
+- `cancel`: graceful stop of the current execution.
+- `terminate`: force-kill the running process. After a terminate the issue is
+  no longer executing — re-trigger it by moving it back to `working`
+  (`PATCH {statusId:"working"}`).
+
+To redirect a busy issue to a changed requirement, the reliable sequence is
+**terminate → follow-up → start**:
+
+```bash
+# 1. Force-kill the in-flight turn
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | jq
+# 2. Send the new requirement (queued while stopped)
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
+  -H 'Content-Type: application/json' -d '{"prompt":"<new requirement>"}' | jq
+# 3. Start a fresh turn
+curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
+  -H 'Content-Type: application/json' -d '{"statusId":"working"}' | jq
 ```
 
 ## Issue Changes
