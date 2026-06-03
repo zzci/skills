@@ -487,7 +487,7 @@ Both invoke `cargo` with the right linker/sysroot pair; both honor your `[profil
 
 ```dockerfile
 # === Build stage (shared across all runtime variants) ===
-FROM rust:1.95.0 AS chef
+FROM rust:1.96.0 AS chef
 RUN cargo install cargo-chef --locked
 WORKDIR /src
 
@@ -663,7 +663,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
-        with: { toolchain: "1.95.0" }     # match workspace.package.rust-version
+        with: { toolchain: "1.96.0" }     # match workspace.package.rust-version
       - uses: taiki-e/install-action@v2
         with: { tool: cargo-hack }
       - run: cargo hack check --rust-version --workspace --ignore-private --locked
