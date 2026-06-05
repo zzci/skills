@@ -6,6 +6,7 @@ operational examples.
 ## Table of Contents
 
 - [Setup](#setup)
+- [Sending Request Bodies Safely](#sending-request-bodies-safely)
 - [Health and Status](#health-and-status)
 - [Engines](#engines)
 - [Processes and Capacity](#processes-and-capacity)
@@ -29,6 +30,44 @@ BKD responses use one of these envelopes:
 
 - Success: `{ "success": true, "data": ... }`
 - Failure: `{ "success": false, "error": "..." }`
+
+## Sending Request Bodies Safely
+
+Issue prompts and other free-form text contain quotes, `$`, backticks, and
+newlines that get mangled when inlined into `-d '{...}'` (shell quoting and JSON
+escaping fight each other). **Never inline free-form text.** Write the text to a
+temp file verbatim, build the JSON body with `jq` (it escapes correctly), and
+POST the file with `--data-binary @file`:
+
+```bash
+# 1. Write the prompt as plain text — no escaping needed
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Implement the change described above.
+"Quotes", $vars, `backticks`, and multiple lines are all safe here.
+PROMPT
+
+# 2. Assemble a valid JSON body from the text file
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
+
+# 3. POST the file — never an inline -d string
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
+  -H 'Content-Type: application/json' \
+  --data-binary @/tmp/bkd-body.json | jq
+```
+
+Add more fields with extra `jq` args (`--rawfile` for file-sourced text, `--arg`
+for short strings, `--argjson` for booleans/objects):
+
+```bash
+jq -n --rawfile prompt /tmp/bkd-prompt.txt \
+      --arg engine "claude-code" --arg model "claude-sonnet-4-6" \
+  '{engineType: $engine, prompt: $prompt, model: $model}' > /tmp/bkd-body.json
+```
+
+Fixed-value bodies with no free-form text (e.g. `{"statusId":"working"}`,
+`{"id":"abc","sortOrder":"a5"}`) are safe to inline with `-d`. The examples below
+use inline `-d` only for such fixed payloads; apply the file pattern above
+whenever a body carries a prompt, title, description, or any user-supplied text.
 
 ## Health and Status
 
@@ -101,14 +140,12 @@ curl -s "$BKD_URL/projects/{projectId}" | jq
 ### Create project
 
 ```bash
+jq -n --arg name "my-project" --arg desc "Optional description" \
+      --arg dir "/path/to/workspace" --arg repo "https://github.com/example/repo" \
+  '{name: $name, description: $desc, directory: $dir, repositoryUrl: $repo}' > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/projects" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "name": "my-project",
-    "description": "Optional description",
-    "directory": "/path/to/workspace",
-    "repositoryUrl": "https://github.com/example/repo"
-  }' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 ```
 
 Useful fields (only `name` is required):
@@ -147,13 +184,11 @@ All issue routes are project-scoped:
 Prefer the safe flow: create in `todo`, then follow up, then move to `working`.
 
 ```bash
+jq -n --arg title "fix auth bug" --argjson useWorktree true \
+  '{title: $title, statusId: "todo", useWorktree: $useWorktree}' > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "title": "fix auth bug",
-    "statusId": "todo",
-    "useWorktree": true
-  }' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 ```
 
 Useful fields:
@@ -239,13 +274,15 @@ specifically need that. Unlike the status trigger, `execute` **requires**
 `engineType` and `prompt`:
 
 ```bash
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Implement the change described above.
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt \
+      --arg engine "claude-code" --arg model "claude-sonnet-4-6" \
+  '{engineType: $engine, prompt: $prompt, model: $model}' > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/execute" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "engineType": "claude-code",
-    "prompt": "Implement the change described above.",
-    "model": "claude-sonnet-4-6"
-  }' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 # -> { executionId, issueId, messageId, queued }
 ```
 
@@ -254,11 +291,13 @@ Discover valid `engineType`/`model` values via [`/engines/available`](#engines).
 ### Follow-up issue
 
 ```bash
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Also fix the logout flow and add tests.
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "Also fix the logout flow and add tests."
-  }' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 ```
 
 Fields:
@@ -436,19 +475,16 @@ Required config: `projectId`, `issueId`, `prompt`
 Optional config: `engineType`, `model`
 
 ```bash
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Run the nightly maintenance task and report the result.
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt \
+  '{name: "nightly-issue-execute", cron: "@daily", action: "issue-execute",
+    config: {projectId: "my-project", issueId: "abc12345", prompt: $prompt, engineType: "claude-code"}}' \
+  > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "name": "nightly-issue-execute",
-    "cron": "@daily",
-    "action": "issue-execute",
-    "config": {
-      "projectId": "my-project",
-      "issueId": "abc12345",
-      "prompt": "Run the nightly maintenance task and report the result.",
-      "engineType": "claude-code"
-    }
-  }' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 ```
 
 #### `issue-follow-up`
@@ -457,18 +493,16 @@ Required config: `projectId`, `issueId`, `prompt`
 Optional config: `model`
 
 ```bash
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Post a status check-in and ask for the next step.
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt \
+  '{name: "morning-follow-up", cron: "@hourly", action: "issue-follow-up",
+    config: {projectId: "my-project", issueId: "abc12345", prompt: $prompt}}' \
+  > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "name": "morning-follow-up",
-    "cron": "@hourly",
-    "action": "issue-follow-up",
-    "config": {
-      "projectId": "my-project",
-      "issueId": "abc12345",
-      "prompt": "Post a status check-in and ask for the next step."
-    }
-  }' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 ```
 
 #### `issue-close`

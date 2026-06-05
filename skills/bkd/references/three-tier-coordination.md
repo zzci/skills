@@ -270,6 +270,31 @@ engine identity does not matter; only BKD HTTP semantics do.
     consecutive idle wake, produce the final report to the user, delete the
     L1 cron, and exit. L2 crons should already be gone.
 
+### Sending Prompts (Rule 10 — never inline)
+
+The `"prompt": "..."` blocks below (L2 dispatch, L1/L2 wake crons, L3 subtask)
+are shown inline **for readability only**. These prompts contain quotes, `$`,
+backticks, and newlines — inlining them into `-d '{...}'` corrupts the payload.
+Render each prompt to a temp file, wrap it with `jq`, and POST the file. For a
+templated prompt, use a **quoted** heredoc (keeps `$`, backticks, and quotes
+literal) and substitute only the real variables:
+
+```bash
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+## Role
+You are the L2 dispatch issue ... merge into bkd/__L2_ID__ ...
+POST __BKD_URL__/projects/{projectId}/issues/__L1_ID__/follow-up ...
+PROMPT
+sed -i "s|__L2_ID__|$L2_ID|g; s|__BKD_URL__|$BKD_URL|g; s|__L1_ID__|$L1_SESSION_ID|g" /tmp/bkd-prompt.txt
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$L2_ID/follow-up" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json | jq
+```
+
+Cron-config prompts (the wake jobs) follow the same idea — build the whole body
+with `jq --rawfile prompt ... '{name:..., config:{..., prompt:$prompt}}'`. Full
+pattern: `rest-api.md` → [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).
+
 ### Creating the L2 Dispatch Issue
 
 ```bash

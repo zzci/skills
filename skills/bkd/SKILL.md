@@ -21,6 +21,7 @@ Keep this entry file small. Load only the references needed for the current turn
 7. Treat project and issue deletions as soft-delete unless the API says otherwise.
 8. Expect all responses to use `{ success, data }` or `{ success, error }`.
 9. Never use `sleep` to wait for subtasks or long-running operations. Create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, then let the current turn end.
+10. Never inline free-form text (prompts, descriptions) into `-d '{...}'` — quotes, `$`, backticks, and newlines get mangled by shell + JSON escaping. Write the text to a temp file, build the body with `jq`, and POST it with `--data-binary @file`. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely). Fixed-value bodies (e.g. `{"statusId":"working"}`) are safe to inline.
 
 ## Core Workflow
 
@@ -40,10 +41,14 @@ ISSUE=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
   -d '{"title":"short title","statusId":"todo"}')
 ISSUE_ID=$(echo "$ISSUE" | jq -r '.data.id')
 
-# 2. Send details
+# 2. Send details — write the prompt to a file, never inline (Rule 10)
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+full implementation details
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID/follow-up" \
   -H 'Content-Type: application/json' \
-  -d '{"prompt":"full implementation details"}' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 
 # 3. Start execution
 curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID" \
