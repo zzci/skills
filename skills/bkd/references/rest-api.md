@@ -6,8 +6,9 @@ operational examples.
 ## Table of Contents
 
 - [Setup](#setup)
-- [Health](#health)
-- [Capacity Check](#capacity-check)
+- [Health and Status](#health-and-status)
+- [Engines](#engines)
+- [Processes and Capacity](#processes-and-capacity)
 - [Projects](#projects)
 - [Issues](#issues)
 - [Issue Execution](#issue-execution)
@@ -15,6 +16,7 @@ operational examples.
 - [Issue Logs](#issue-logs)
 - [Worktrees](#worktrees)
 - [Cron Jobs](#cron-jobs)
+- [Other Endpoint Groups](#other-endpoint-groups)
 
 
 ## Setup
@@ -28,18 +30,36 @@ BKD responses use one of these envelopes:
 - Success: `{ "success": true, "data": ... }`
 - Failure: `{ "success": false, "error": "..." }`
 
-## Health
+## Health and Status
 
 ```bash
-curl -s "$BKD_URL/health" | jq
+curl -s "$BKD_URL/health" | jq    # { status, version, commit, db, timestamp }
+curl -s "$BKD_URL/status" | jq    # detailed server status
 ```
 
-## Capacity Check
+## Engines
 
-Use this before starting more issue executions.
+An engine (`claude-code`, `codex`, `gemini`, ...) is the CLI that executes an
+issue. `POST .../execute` requires an `engineType`, so use these to discover what
+is installed and which models are available before dispatching.
 
 ```bash
-curl -s "$BKD_URL/processes/capacity" | jq
+# Detected engines + their models (installed, version, authStatus)
+curl -s "$BKD_URL/engines/available" | jq
+
+# Per-engine model list, profiles, and current engine settings
+curl -s "$BKD_URL/engines/{engineType}/models" | jq
+curl -s "$BKD_URL/engines/profiles" | jq
+curl -s "$BKD_URL/engines/settings" | jq
+```
+
+## Processes and Capacity
+
+Check capacity before starting more issue executions.
+
+```bash
+curl -s "$BKD_URL/processes/capacity" | jq   # capacity summary (below)
+curl -s "$BKD_URL/processes" | jq            # list active engine processes
 ```
 
 Response fields:
@@ -51,6 +71,18 @@ Response fields:
 - `maxConcurrent`
 - `availableSlots`
 - `canStartNewExecution`
+
+Force-terminate the engine process for one issue:
+
+```bash
+curl -s -X POST "$BKD_URL/processes/{issueId}/terminate" | jq
+```
+
+This is the process-monitor (project-agnostic) route. It is **equivalent** to the
+project-scoped [`POST .../issues/{issueId}/terminate`](#restart-cancel-terminate-or-clear-session)
+— both force-kill the same process and return `{ issueId, status: "terminated" }`.
+In orchestration, prefer the project-scoped command since you already hold the
+`projectId`; reach for this one from a global "what's running" view.
 
 ## Projects
 
@@ -79,7 +111,7 @@ curl -s -X POST "$BKD_URL/projects" \
   }' | jq
 ```
 
-Useful fields:
+Useful fields (only `name` is required):
 
 - `name`
 - `alias`
@@ -88,6 +120,21 @@ Useful fields:
 - `repositoryUrl`
 - `systemPrompt`
 - `envVars`
+- `defaultEngine`
+- `defaultModel`
+
+### Lifecycle
+
+```bash
+curl -s -X POST "$BKD_URL/projects/{projectId}/archive" | jq
+curl -s -X POST "$BKD_URL/projects/{projectId}/unarchive" | jq
+curl -s -X DELETE "$BKD_URL/projects/{projectId}" | jq   # soft-delete
+
+# Reorder a project in the board
+curl -s -X PATCH "$BKD_URL/projects/sort" \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"{projectId}","sortOrder":"a5"}' | jq
+```
 
 ## Issues
 
@@ -144,6 +191,24 @@ Common fields:
 - `isPinned`
 - `sortOrder`
 
+### Bulk update
+
+Update many issues in one call — handy for moving a batch of subtasks at once.
+Each entry needs `id`; `statusId` and `sortOrder` are optional (max 1000).
+
+```bash
+curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/bulk" \
+  -H 'Content-Type: application/json' \
+  -d '{"updates":[{"id":"abc12345","statusId":"working"},
+                  {"id":"def67890","statusId":"review"}]}' | jq
+```
+
+### Duplicate issue
+
+```bash
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/duplicate" | jq
+```
+
 ### Delete issue
 
 ```bash
@@ -166,6 +231,26 @@ Recommended sequence:
 2. Send details with `follow-up`
 3. Move the issue to `working`
 
+**Do not use `/execute` as the normal execution trigger — move the issue to
+`working` instead.** The status change is the trigger used throughout this
+skill. `execute` is a lower-level primitive that starts a turn in one call,
+pinning the engine/model/prompt at start time; reach for it only when you
+specifically need that. Unlike the status trigger, `execute` **requires**
+`engineType` and `prompt`:
+
+```bash
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/execute" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "engineType": "claude-code",
+    "prompt": "Implement the change described above.",
+    "model": "claude-sonnet-4-6"
+  }' | jq
+# -> { executionId, issueId, messageId, queued }
+```
+
+Discover valid `engineType`/`model` values via [`/engines/available`](#engines).
+
 ### Follow-up issue
 
 ```bash
@@ -178,33 +263,40 @@ curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
 
 Fields:
 
-- `prompt`
+- `prompt` (required)
 - `model`
-- `permissionMode`
-- `busyAction`
-- `meta`
+- `permissionMode`: `auto | supervised | plan`
+- `busyAction`: `queue | cancel`
 - `displayPrompt`
 
-Behavior:
+Behavior (by current `statusId`):
 
-- `todo` or `done`: queued, waits for status change
-- `review`: queued, waits for status change
-- `working` during an active turn: queued, processed after current turn ends
-- `working` when idle: immediate, triggers next turn
+- `todo` or `done`: queued, waits for the issue to move to `working`
+- `working` during an active turn (or with messages already queued): queued,
+  processed after the current turn ends
+- `working` when idle: immediate, triggers the next turn
+- `review`: immediate — the issue is auto-moved to `working` and a turn starts.
+  A bare follow-up to a `review` issue is therefore enough to begin rework; no
+  separate `PATCH {statusId:"working"}` is needed.
 
-### Restart, cancel, or terminate
+### Restart, cancel, terminate, or clear session
 
 ```bash
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/restart" | jq
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | jq
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | jq
+curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/clear-session" | jq
 ```
 
+- `restart`: re-run a failed session.
 - `cancel`: graceful stop of the current execution. The default way to halt a
   running turn.
 - `terminate`: force-kill the running process. Use only when `cancel` does not
   stop a hung / unresponsive turn. After a terminate the issue is no longer
   executing — re-trigger it by moving it back to `working`.
+- `clear-session`: drop the engine's external session id so the next run starts
+  a fresh conversation instead of resuming. Use when the prior context is stale
+  or corrupted.
 
 To redirect a busy issue to a changed requirement, the reliable sequence is
 **stop → follow-up → start** (cancel first; terminate only if it hangs):
@@ -267,7 +359,15 @@ Available entry types: `user-message` `assistant-message` `tool-use` `system-mes
 
 ## Worktrees
 
+### List worktrees
+
+```bash
+curl -s "$BKD_URL/projects/{projectId}/worktrees" | jq
+```
+
 ### Delete worktree
+
+Force-deletes the worktree for an issue (does not wait for the auto-clean cycle):
 
 ```bash
 curl -s -X DELETE "$BKD_URL/projects/{projectId}/worktrees/{issueId}" | jq
@@ -296,6 +396,17 @@ Useful query params:
 ```bash
 curl -s "$BKD_URL/cron/actions" | jq
 ```
+
+Builtin maintenance actions (no per-issue config):
+
+- `upload-cleanup` — remove uploaded files older than 7 days
+- `worktree-cleanup` — remove git worktrees for `done` issues older than 1 day
+- `log-cleanup` — trim cron job logs to the last 1000 per job
+- `issue-log-retention` — delete issue logs for `done` issues past the retention
+  period (default 30 days, configurable in app settings)
+
+Issue actions (`issue-execute`, `issue-follow-up`, `issue-close`,
+`issue-check-status`) are documented below.
 
 ### Create cron job
 
@@ -420,3 +531,15 @@ Supported query params:
 - `status=success|failed|running`
 - `cursor`
 - `limit`
+
+## Other Endpoint Groups
+
+Additional built-in endpoint groups outside the orchestration core:
+
+- **Notes** — scratch notes: `GET/POST /notes`, `PATCH/DELETE /notes/{noteId}`
+- **Settings** — `server-info`, `max-concurrent-executions`, `log-page-size`,
+  `workspace-path`, `write-filter-rules` under `/settings/...`
+- **Webhooks** — `/settings/webhooks` CRUD, `/test`, and `/deliveries`
+- **Slash commands** — `GET /projects/{projectId}/issues/{issueId}/slash-commands`,
+  `GET /settings/slash-commands`
+- **Events (SSE)** — server-sent event stream for real-time board updates
