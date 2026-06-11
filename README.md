@@ -22,6 +22,7 @@ npx skills add zzci/skills --skill pma-bun --global
 npx skills add zzci/skills --skill pma-mem --global
 npx skills add zzci/skills --skill pma-d2 --global
 npx skills add zzci/skills --skill pma-draw --global
+npx skills add zzci/skills --skill pma-design --global
 npx skills add zzci/skills --skill bkd --global
 npx skills add zzci/skills --skill gitea --global
 ```
@@ -42,6 +43,7 @@ npx skills add zzci/skills --skill pma-bun
 npx skills add zzci/skills --skill pma-mem
 npx skills add zzci/skills --skill pma-d2
 npx skills add zzci/skills --skill pma-draw
+npx skills add zzci/skills --skill pma-design
 npx skills add zzci/skills --skill bkd
 npx skills add zzci/skills --skill gitea
 
@@ -126,6 +128,17 @@ For Bun backend and full-stack projects:
 7. Standardize on OpenAPIHono on top of `Bun.serve()`, with `app.ts` / `index.ts` / `dev.ts` split by runtime role.
 8. Use a dedicated compile pipeline when shipping standalone binaries with embedded assets or migrations.
 
+## Add PMA-Design
+
+For HTML design artifacts (mockups, prototypes, wireframes, decks, design systems):
+
+1. Use `/pma-design` as a standalone skill — it does not require the `/pma` workflow.
+2. Output lives under `designs/<project>/` as self-contained HTML (React 18 + Babel multi-file prototypes), with React/Babel referenced locally from `designs/_vendor/`.
+3. Clarifying questions are asked as numbered lists in chat (structured ask tools are disabled).
+4. Preview is served with `nsl serve --list --name <project>-designs designs` inside a tmux session; deliverables are reviewed over `http://<name>.localhost/...`, never `file://`.
+5. Design systems are authored or consumed via the bundled compiler/importer scripts (`agents/*.mjs`), bound per project through `_ds/<slug>/` and `_d_meta.json`.
+6. Harness-specific preview/screenshot/verification tools are resolved from `references/claude.md` (Claude Code) or `references/codex.md` (Codex Agent).
+
 ## Add BKD
 
 For operating BKD kanban boards via REST API:
@@ -153,5 +166,6 @@ For operating BKD kanban boards via REST API:
 | [pma-mem](skills/pma-mem/) | Knowledge management — capture, classify, search, and sync project knowledge through a Memos backend |
 | [pma-d2](skills/pma-d2/) | D2 diagram author — generate source-controlled `.d2` architecture, workflow, sequence, and ERD diagrams rendered by the official D2 toolchain |
 | [pma-draw](skills/pma-draw/) | ReactFlow diagram creator — generate `.rfd.json` diagrams using predefined semantic node types, edge presets, layouts, and pma-viewer compatibility |
+| [pma-design](skills/pma-design/) | Design artifact creator — self-contained HTML mockups, interactive prototypes, wireframes, decks, and design-system authoring/consumption with nsl-served tmux previews and local vendor React/Babel runtime |
 | [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, L1/L2/L3 three-tier coordination, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
 | [gitea](skills/gitea/) | Gitea REST API operator — curl-based `/api/v1` reference for repos, files, issues, PRs, releases, labels, milestones, actions, packages, wiki, search, server setup, and forced non-GitHub to Gitea routing |
