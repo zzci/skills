@@ -31,10 +31,10 @@ Don't maintain an index file — discovery is always this glob, on demand.
 
 ### 2. Ask where to save and which system(s) to use
 
-Before building, confirm with a concise numbered question list in chat (structured ask tools like `AskUserQuestion` are disabled — post the list and wait for the user's reply):
+Before building, confirm with the user (if a structured ask tool such as `AskUserQuestion` is available in your tool list, use it; otherwise ask as a concise numbered list in chat and wait for the reply):
 
 1. **Where to save** — default `designs/<descriptive-slug>/`; allow a custom location.
-2. **Which design system(s)** — list what discovery found as options so the user can pick **none** (free design), **one**, or **several**. With several selected, the **first selection** is the primary by default; confirm if they want a different primary.
+2. **Which design system(s)** — list what discovery found, **multiSelect** so the user can pick **none** (free design), **one**, or **several**. With several selected, the **first selection** is the primary by default; confirm if they want a different primary.
 3. **(Optional) A starting point** — if a chosen system exposes `startingPoints[]`, offer them as seeds; otherwise offer its `cards[]` as reference or let the user design from scratch.
 
 If the user picks no design system, skip the rest of this flow (steps 3–8) and design normally — no `_ds/` folder, `designSystems: []`, `primaryDesignSystem: null`. You **still** get a `_d_meta.json`: `record-asset.mjs` creates it (with `type`/`createdAt`/`updatedAt`) the first time you record a deliverable as an asset — see ["Recording deliverables as assets"](#recording-deliverables-as-assets) below.

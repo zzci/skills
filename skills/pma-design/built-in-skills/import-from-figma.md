@@ -38,6 +38,7 @@ Then use your harness's Ask tool to confirm with the user: which pages/frames ma
    - The SVG/PNG files beside each `.jsx` are **real extracted assets** — `cp` them out (or use materialize's `assets/` + `fig-assets.css`); never redraw an asset by hand.
    - The mounted `README.md` records the source `.fig` path and page scope — when you find an existing mount, read it first.
    - Authoring a design system and want a reference mount too? Mount **outside** the DS folder (e.g. `designs/_sources/<slug>-fig/`) — the compiler scans the whole tree and would otherwise bundle the mounted JSX.
+   - The mount is **disposable scaffolding**: once curation (Flow B) is done or the reference has served its purpose, delete the whole mount directory — nothing in the finished system may point into it. Re-create it any time with the same `mount` command, or re-emit one component/frame with `materialize <file.fig> --out <dir> --components <Name>`.
 2. **Read before you draw**: start with the mounted `README.md`/`METADATA.md`, then the frame JSX for the screens that matter. The JSX is the truth for geometry, colors, and text.
 3. **Materialize** real code when you need it in the project (guids come from `node-index.json` or the `// figma node:` comments):
    ```bash

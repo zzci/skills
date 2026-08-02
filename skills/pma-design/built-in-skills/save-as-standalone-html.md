@@ -2,100 +2,51 @@
 name: "save-as-standalone-html"
 description: "Save as standalone HTML\nSingle self-contained file that works offline"
 ---
-Export the current design as a single self-contained HTML file that works completely offline — no external dependencies.
+Export the current design as a single self-contained HTML file that works completely offline — no external dependencies, opens by double-click from `file://`.
 
 ## How it works
 
-There is a deterministic bundler (super_inline_html tool) that can inline resources referenced directly in HTML attributes — img src/srcset, source src/srcset, video/audio/track src, video poster, SVG `<image href>`/`<use href>`, link href (stylesheets, favicons), script src, CSS url() and @import, inline style attributes. However, it CANNOT discover resources that are only referenced as strings in JavaScript or JSX code — for example:
-- An image src set in React: `<img src={"./hero.png"} />`
-- A background URL in a styled-component: `background: url('./pattern.svg')`
-- A dynamically imported script
+There is **no hosted bundler tool in this environment**. You do the inlining yourself with your normal file tools: read every resource the page references and embed it into one output file. A small Node one-liner per asset (base64 → data URI) keeps this mechanical.
 
-Your job is to prepare the HTML file so the bundler can capture everything, then run it.
+## Step 1: Inventory every dependency
 
-## Step 1: Make a copy of the HTML file and update code-referenced resources
+Copy the source HTML to the delivery name (a friendly human name, e.g. `My Deck.html`, in the project folder). Then read it — and every file it pulls in — and list ALL external references:
 
-Copy the current HTML file. Read it. Copy its dependencies. Look through ALL the code (inline scripts, imported JSX files, styled-components, etc) for any resource URL that is referenced as a string in code rather than as an HTML attribute. This includes:
-- Image URLs in React/JSX (`<img src={...} />`, `style={{ backgroundImage: ... }}`)
-- URLs in CSS-in-JS (styled-components, inline styles set via JS)
-- Script tags that import other scripts which themselves reference resources
-- Any fetch() or XMLHttpRequest calls that load assets
-- Audio/video sources set programmatically
+- `<script src=…>` — including the `_vendor/` React/ReactDOM/Babel runtime and any `<script type="text/babel" src="…jsx">` component files
+- `<link rel="stylesheet" href=…>` and CSS `@import`
+- `<img src>`/`srcset`, `<source>`, `<video>`/`<audio>`/`<track>` src, video `poster`, SVG `<image href>`/`<use href>`, favicons
+- CSS `url(…)` in stylesheets and inline `style` attributes
+- Resources referenced only as **strings in code**: `<img src={"./hero.png"} />`, `style={{ backgroundImage: … }}`, CSS-in-JS, `fetch()`/XHR of local data files, programmatically set audio/video sources
+- Web-font `<link>`s to font CDNs (either inline the font files as data URIs, or swap to a system stack and say so)
 
-Note: if you use the Anthropic API in the project, it will not work standalone. If this is core to the project, STOP and tell the user!
+Be thorough — missing even one resource means a broken image or missing asset in the final file.
 
-## Step 2: Add ext-resource-dependency meta tags
+Note: if the page calls a network API at runtime (e.g. a model API — see [claude-api-in-prototypes](claude-api-in-prototypes.md)), it cannot work fully offline. If that's core to the project, STOP and tell the user.
 
-For EACH resource found in step 1, add a `<meta>` tag in the `<head>`:
+## Step 2: Inline everything
 
-```html
-<meta name="ext-resource-dependency" content="<url>" data-resource-id="<id>" />
-```
+Work through the inventory:
 
-Where:
-- `content` is the URL of the resource (relative to the HTML file, or absolute)
-- `data-resource-id` is a short, unique identifier (e.g. "heroImage", "patternSvg")
+1. **Scripts**: replace each `<script src="…">` with an inline `<script>…</script>` containing the file's contents, **in the original load order** (React → ReactDOM → Babel → your `.jsx` files as inline `<script type="text/babel">` blocks). Escape any `</script>` sequence inside the embedded code.
+2. **Stylesheets**: replace each `<link rel="stylesheet">` / `@import` with an inline `<style>` block; then inline the `url(…)` references inside it.
+3. **Binary assets** (images, fonts, audio, video): replace each reference with a `data:<mime>;base64,…` URI. Generate with e.g.
+   ```bash
+   node -e 'const f=process.argv[1];console.log(`data:image/png;base64,${require("fs").readFileSync(f).toString("base64")}`)' hero.png
+   ```
+   For code-referenced assets, update the string in the code the same way.
+4. **Fetched data files**: embed the data as an inline `<script>` global (e.g. `window.__DATA = {…}`) and make the fetch fall back to it, or replace the fetch outright.
 
-Then update the code to reference `window.__resources[id]` instead of the hardcoded URL. At runtime in the bundled file, `window.__resources[id]` will contain a blob URL pointing to the inlined resource data.
+Keep large media in mind: a data-URI bundle grows ~33%; for video-heavy pages, warn the user about size before embedding.
 
-Example:
-```html
-<!-- In <head>: -->
-<meta name="ext-resource-dependency" content="./hero.png" data-resource-id="heroImg" />
-<meta name="ext-resource-dependency" content="./pattern.svg" data-resource-id="patternBg" />
+## Step 3: Verify offline
 
-<!-- In code, replace: -->
-<!-- <img src={"./hero.png"} /> -->
-<!-- with: -->
-<!-- <img src={window.__resources.heroImg} /> -->
-```
+Open the bundled file **from `file://`** (this is the one flow where `file://` is the point) with your harness's browser tooling — Claude Code: the `agent-browser` skill; Codex: the Browser plugin — and check:
 
-IMPORTANT:
-- The relative paths in `content` are relative to the HTML page itself
-- You must also do this for any external script tags that are imported and themselves reference resources — those scripts will be inlined by the bundler, but their resource references need to be lifted too
-- Be thorough! Missing even one resource means a broken image or missing asset in the final file
+- The console shows no errors and no network requests to missing local paths.
+- All images/fonts render (no broken-image icons, no fallback fonts where brand fonts were inlined).
 
-## Step 3: Create a thumbnail (REQUIRED — the bundler will reject the file without it)
+If anything is missing, fix the reference in the bundled file and re-check.
 
-Create a lightweight SVG thumbnail that acts as a splash screen while the bundled file unpacks. This SVG should be a simplified, representative preview of the design — e.g. the key shapes, layout silhouette, or a branded loading visual. It doesn't need to be pixel-perfect, just visually representative so the user sees something meaningful instantly. It will be displayed TINY so a simple glyph on a vibrant color BG is enough.
+## Step 4: Deliver
 
-Add it as a `<template>` tag in the source HTML:
-
-```html
-<template id="__bundler_thumbnail" data-bg-color="#0a5e3e">
-  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
-    <!-- Simplified icon -->
-  </svg>
-</template>
-```
-
-- Set `data-bg-color` to match the page's background color
-- The SVG should use `viewBox` for proper aspect-fit scaling
-- Keep it simple — this is just a loading placeholder, not a full reproduction
-- Use the design's actual colors so the transition feels seamless
-
-The bundler will extract this and display it fullscreen (aspect-fit with the background color) while unpacking assets, then replace it with the real page. It also remains visible as the permanent fallback when JavaScript is disabled.
-
-## Step 4: Run the bundler
-
-If you made changes in steps 1-3, save the modified HTML file first. Then (or if no changes were needed) call:
-
-```
-super_inline_html({ input_path: "<path-to-html>", output_path: "My Deck.html" })
-```
-
-Give the output file a friendly human name.
-
-## Step 5: Verify (internal check only)
-
-**Read the tool result first** — if any asset couldn't be resolved, super_inline_html lists it directly in its output ("N asset(s) could not be bundled: - asset not found: ./foo.png"). That's the authoritative miss list; fix those references and re-run before opening anything.
-
-Then preview the bundled output per your selected harness reference TO CHECK IT WORKS — this is a private verification step for YOU, not the delivery mechanism. Check the page's console/runtime logs for errors (JS exceptions, failed decodes). If there are issues, fix the source file and re-run.
-
-## Step 6: Present for download — MANDATORY
-
-You MUST deliver the final file using **present_fs_item_for_download** pointing directly at the inlined HTML output. This is the ONLY correct way to hand off a standalone export.
-
-- Do NOT use preview/show-file tools as the delivery step — those are preview tools, not download tools. The user cannot reliably save the standalone export from them.
-- Do NOT ask whether they want to download it — just call present_fs_item_for_download.
-- If you skip this step, the user has no way to get the file. This step is non-negotiable.
+Give the user the absolute path of the bundled file (and surface it with your harness's show-file capability if one is available). Say explicitly that it is fully self-contained and can be double-clicked, mailed, or dropped anywhere. Keep the original multi-file working version in the project — the bundle is a delivery artifact, not the editing source; re-run this export after further edits.

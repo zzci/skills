@@ -4,12 +4,16 @@ description: "Export as PPTX (screenshots)\nFlat images — pixel-perfect but no
 ---
 # Screenshot PPTX Export
 
-Export an HTML slide deck to a `.pptx` as full-bleed PNG images. Pixel-perfect, not editable. One `gen_pptx` tool call.
+> **Not the default** — use only when the user explicitly wants pixel-perfect, non-editable image slides; otherwise use [editable export](export-as-pptx-editable.md).
+
+Export an HTML slide deck to a `.pptx` as full-bleed PNG images. Pixel-perfect, not editable. One run of the bundled **gen-pptx CLI**.
+
+> **Precondition — decks only, not any HTML.** Same as editable export: this targets a *slide-structured deck* (one fixed-size slide per `selector`, navigable — `deck-stage` or the [make-a-deck](make-a-deck.md) format), **not** arbitrary HTML. For a non-deck page, rebuild it as a deck first or tell the user it isn't supported.
 
 ## Steps
 
 1. Surface/preview the deck per your selected harness reference.
-2. Call `gen_pptx`:
+2. Run the gen-pptx CLI: serve the deck over HTTP (the shared nsl `designs` server), write the inputs below (with `"mode": "screenshots"`) to a JSON file, then `node <skill>/agents/gen-pptx/dist/cli.mjs --url <servedDeckUrl> --config <jsonPath> --out designs/<project>`, and read `flags` from the printed JSON. Full invocation + one-time setup: your harness reference → "Exporting to PPTX".
 
 ```jsonc
 {
@@ -36,5 +40,7 @@ Export an HTML slide deck to a `.pptx` as full-bleed PNG images. Pixel-perfect, 
 ## Validation
 
 Same flags as editable mode, except `reset_selector_miss` and `slide_size_mismatch` won't fire — the iframe is locked to width × height instead of fiddling with the deck's wrapper. Watch for `duplicate_adjacent` (showJs didn't navigate).
+
+Screenshot mode exports flat images, so `data-anim` builds are NOT exported — slides are captured in their final layout, and the `animations_ignored_screenshots` flag reports any that were skipped. Use the [editable export](export-as-pptx-editable.md) to keep animations. When the flag fires, tell the user in plain language — e.g. "this export is pixel-perfect but static: the N slide builds don't play in it; I can re-export as editable PPTX to keep them as real PowerPoint animations" — and offer the editable export.
 
 Speaker notes from `#speaker-notes` are attached automatically. Page reloads after.

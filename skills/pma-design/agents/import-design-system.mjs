@@ -93,7 +93,7 @@ function cssAssetTargets(cssRel) {
     u = u.replace(/[?#].*$/, ''); // strip ?v=… / #iefix
     if (!u) continue;
     const relToDs = path.posix.normalize(path.posix.join(dir, u));
-    if (relToDs.startsWith('..')) continue; // outside the DS folder — skip
+    if (relToDs.startsWith('..') || path.posix.isAbsolute(relToDs)) continue; // outside the DS folder — skip
     out.push(relToDs);
   }
   return out;
@@ -201,6 +201,7 @@ const promptMd = renderDsPrompt({
   globalCssPaths: model.globalCssPaths,
   componentNames: model.components.map((c) => c.name),
   componentPrompts,
+  componentProps: model.components,
   readme: readmeContent,
   tokenNames: model.tokens.map((t) => t.name),
   sourcePath: entry.sourcePath,

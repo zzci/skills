@@ -4,7 +4,7 @@ description: "Full authoring flow for setting up or importing a design system �
 ---
 # Authoring a design system
 
-Use this guide when the user wants to **set up a design system**, **import an existing design system**, or **create a UI kit**. It is the long-form companion to [`create-design-system.md`](create-design-system.md) and [`design-components.md`](design-components.md); read those for the compact compiler/checker contract, this for the full craft flow.
+Use this guide when the user wants to **set up a design system**, **import an existing design system**, or **create a UI kit**. It is the **canonical** authoring doc — the compiler/checker contract and the full craft flow live here. [`create-design-system.md`](create-design-system.md) adds the component-inventory rules; [`design-components.md`](design-components.md) covers standalone `.dc.html` Design Components.
 
 ## This project is a design system
 
@@ -26,7 +26,7 @@ After compiling, validate with the **read-only design-system checker** — it re
 node <skill>/agents/check-design-system.mjs designs/<project>
 ```
 
-To run it as an isolated read-only subagent (recommended after a batch of edits), launch it with the prompt at [`../agents/design-system-checker.md`](../agents/design-system-checker.md) — see your harness reference (`references/<harness>.md`) for the exact launch tool (Claude → `Agent`; Codex → inline). Fix what it reports, recompile, and run again until clean. Wherever older instructions said "call `check_design_system`", they mean: recompile, then run this checker.
+To run it as an isolated read-only subagent (recommended after a batch of edits), launch it with the prompt at [`../agents/design-system-checker.md`](../agents/design-system-checker.md) — see your harness reference (`references/<harness>.md`) for the exact launch tool (Claude Code → `Agent`; Codex → inline). Fix what it reports, recompile, and run again until clean. Wherever older instructions said "call `check_design_system`", they mean: recompile, then run this checker.
 
 Once compiler + checker are clean, **build the single-file review page** — it compiles every `@dsCard` card, the Readme, and the starting points into one self-contained interactive `preview.html` in the design-system folder (open it directly in a browser to review everything at once):
 
@@ -75,7 +75,7 @@ To begin, create a todo list with the tasks below, then follow it:
 - **Explore, then update `readme.md` with a CONTENT FUNDAMENTALS section**: how is copy written? Tone, casing, "I" vs "you", emoji, the vibe? Include specific examples.
 - **Explore, then update `readme.md` with a VISUAL FOUNDATIONS section** covering the brand's visual motifs and foundations: colors, type, spacing, backgrounds (images? full-bleed? hand-drawn illustrations? repeating patterns/textures? gradients?), animation (easing? fades? bounces? none?), hover states (opacity, darker, lighter?), press states (color? shrink?), borders, inner/outer shadow systems, protection gradients vs capsules, layout rules (fixed elements), use of transparency and blur (when?), color vibe of imagery (warm? cool? b&w? grain?), corner radii, what cards look like (shadow, rounding, border), and whatever else you can think of. Answer ALL these questions.
 - **If you are missing font files**, find the nearest match on Google Fonts. Flag the substitution to the user and ask for updated font files. (The checker also flags `--fontFamily*` tokens that have no `@font-face`.)
-- **Create foundation specimen cards** (small HTML files) that populate the Design System tab — see "Foundation cards" below.
+- **Create foundation specimen cards** (small HTML files) that populate the compiled review page (`preview.html`) — see "Foundation cards" below.
 - **Copy logos, icons and other visual assets** into `assets/`, and update `readme.md` with an ICONOGRAPHY section — see "Iconography" below.
 - **Author the reusable components** — see "Components" below. Each directory's card HTML carries `<!-- @dsCard group="Components" … -->` on line 1.
 - **For each product** (e.g. app and website), create a UI kit in its own directory — see "UI kits" below. One todo item per product/surface.
@@ -85,15 +85,15 @@ To begin, create a todo list with the tasks below, then follow it:
 - **Create the `SKILL.md` file** (template below).
 - **Compile, run the checker until clean,** then preview a card or two over HTTP to confirm components render with no console errors (see your harness reference for preview tools).
 - **Build `preview.html`** as the last step — `node <skill>/agents/build-preview.mjs designs/<project>` compiles the whole system (Readme + every card) into one self-contained interactive `designs/<project>/preview.html`. Open/screenshot it to confirm cards mount with no `[ds-preview]` console errors, and point the user at it as the one file to review. See [`design-system-preview.md`](design-system-preview.md).
-- **You are done!** The Design System tab shows every registered card. Do NOT summarize your output; just mention CAVEATS (things you couldn't do or are unsure about) and end with a CLEAR, BOLD ASK for the user to help you ITERATE toward perfect.
+- **You are done!** The generated `preview.html` shows every registered card. Do NOT summarize your output; just mention CAVEATS (things you couldn't do or are unsure about) and end with a CLEAR, BOLD ASK for the user to help you ITERATE toward perfect.
 
 ## Foundation cards
 
-As you work, create foundation specimen cards (small HTML files) that populate the Design System tab. Target ~700×150px each (400px max) — err toward MORE small cards, not fewer dense ones. Split at the sub-concept level: separate cards for primary vs neutral vs semantic colors; display vs body vs mono type; spacing tokens vs a spacing-in-use example. A typical foundations set is 12–20+ cards.
+As you work, create foundation specimen cards (small HTML files) that populate the compiled review page (`preview.html`). Target ~700×150px each (400px max) — err toward MORE small cards, not fewer dense ones. Split at the sub-concept level: separate cards for primary vs neutral vs semantic colors; display vs body vs mono type; spacing tokens vs a spacing-in-use example. A typical foundations set is 12–20+ cards.
 
 Skip titles and framing — the card name renders OUTSIDE the card, so just show the swatches/specimens/tokens directly with minimal decoration. Each card links `styles.css` (relative path from wherever you put it) so it picks up the real tokens.
 
-Tag each card with `<!-- @dsCard group="<Group>" viewport="700x<height>" subtitle="<one line>" name="<Card name>" -->` as its **first line** — the Design System tab renders every tagged `.html` in the project, grouped verbatim by `group`. Suggested groups: "Type", "Colors", "Spacing", "Brand" — title-cased, consistent.
+Tag each card with `<!-- @dsCard group="<Group>" viewport="700x<height>" subtitle="<one line>" name="<Card name>" -->` as its **first line** — the compiler indexes every tagged `.html` in the project and `preview.html` renders them, grouped verbatim by `group`. Suggested groups: "Type", "Colors", "Spacing", "Brand" — title-cased, consistent.
 
 ## Iconography
 
@@ -105,15 +105,15 @@ Avoid reading SVGs — it's a waste of context. If you know their usage, just co
 
 ## Components
 
-- These are the brand's reusable UI primitives — Button, IconButton, Input, Select, Checkbox, Radio, Switch, Card, Badge, Tag, Avatar, Tabs, Dialog, Toast, Tooltip, etc. Group by concern (e.g. `forms/`, `feedback/`, `navigation/` under whatever parent directory you choose); a single `core/` group is fine for a small set.
+- These are the brand's reusable UI primitives — Button, IconButton, Input, Select, Checkbox, Radio, Switch, Card, Badge, Tag, Avatar, Tabs, Dialog, Toast, Tooltip, etc. **Which** components to build is governed by the inventory rules in [`create-design-system.md`](create-design-system.md) (a source-defined inventory wins; enumerate before you build). Group by concern (e.g. `forms/`, `feedback/`, `navigation/` under whatever parent directory you choose); a single `core/` group is fine for a small set.
 - Each component is one file `<Name>.jsx` (or `.tsx`) with `export function <Name>(props) {…}` — a named, PascalCase export; that name becomes the public API and the literal `export` keyword is **required** so the compiler picks it up. Keep them self-contained: import React only, reference styling via the CSS custom properties (no CSS-in-JS libs, no npm packages). Siblings may import each other with relative paths. (The compiler strips/rewrites these imports at bundle time; the globals it provides — `const React = window.React;`, `const { Icon } = window.<Namespace>;` — work too.)
 - In the same directory, write `<Name>.d.ts` with the props interface — the sibling `.d.ts` is what gives a component its props contract, adherence rules, and starting-point eligibility; a `.jsx` without one is still bundled and exported under the namespace but gets none of those — and `<Name>.prompt.md` (first line a one-sentence "what & when", then a small JSX usage example, then notable variants/props).
-- One **card HTML** per directory (name it whatever you like — e.g. `buttons.card.html`): first line is `<!-- @dsCard group="Components" viewport="700x<height>" name="<Directory label>" -->`. Link `styles.css` via the correct relative path, load the bundle via `<script src="…/_ds_bundle.js">` (relative path to project root), then mount with `const { <Name> } = window.<Namespace>` in a `<script type="text/babel">` block. Get the exact `<Namespace>` from `_ds_manifest.json` or the checker. Do **NOT** `<script src>` the `.jsx` directly — its `export` is unreachable from inline script. Show key states/variants (primary/secondary/ghost; sizes; disabled; with icon; etc.); make it dense and scannable, not a single default render.
+- One **card HTML** per directory (name it whatever you like — e.g. `buttons.card.html`): first line is `<!-- @dsCard group="Components" viewport="700x<height>" name="<Directory label>" -->`. Link `styles.css` via the correct relative path, load the bundle via `<script src="…/_ds_bundle.js">` (relative path to project root), then mount with `const { <Name> } = window.<Namespace>` in a `<script type="text/babel">` block. Get the exact `<Namespace>` from `_ds_manifest.json` or the checker. Do **NOT** `<script src>` the `.jsx` directly — its `export` is unreachable from inline script. Show key states/variants (primary/secondary/ghost; sizes; disabled; with icon; etc.); make it dense and scannable, not a single default render. In the `text/babel` block, never give a top-level binding a window-global name (`status`, `name`, `open`, `close`, `event`, `top`, `self`, `parent`, `length`, `origin`, `location`, `history`, `screen`, `scroll`, `stop`, `print`, `focus`, `blur`, `frames`, `closed`, `opener`) — Babel injects the transpiled code as a classic script where top-level `const`/`let` become `var`, so `const status = …` turns into a `window.status` write and the card dies with a pageerror the console may never surface. The checker flags these; pick a longer name (`statusBadge`).
 - Do NOT write `_ds_bundle.js`, `_ds_manifest.json`, `_adherence.oxlintrc.json`, or a barrel `index.js` — those are generated by the compiler.
 
 ## Starting points
 
-- Consuming projects show a "Starting Points" picker that lets users seed a new design with a component or screen from this system. Entries are **opt-in** via a tag — separate from `@dsCard` (which populates the Design System tab).
+- Starting points let consuming projects seed a new design with a component or screen from this system: they are indexed into `_ds_manifest.json` and offered to the user when a project binds the system (see [`use-design-system.md`](use-design-system.md)); `preview.html` also lists them. Entries are **opt-in** via a tag — separate from `@dsCard` (which populates the preview's card grid).
 - To mark a **component**: add `@startingPoint section="<group>" subtitle="<one line>" viewport="<WxH>"` to the JSDoc on its `<Name>.d.ts` props interface. The picker thumbnail is that directory's `@dsCard`-tagged HTML, so make sure it renders sensibly at the declared viewport.
 - To mark a **screen**: add `<!-- @startingPoint section="<group>" subtitle="<one line>" viewport="<WxH>" -->` as the first line of the HTML file. The screen itself is the thumbnail.
 - When the user says "create a starting point <X>" (or "add <X> as a starting point"), write an HTML file with the `<!-- @startingPoint section="…" -->` comment as its first line — any `.html` in the project with that tag is indexed. `ui_kits/<x>/index.html` is the conventional home but not required.
@@ -139,7 +139,7 @@ Avoid reading SVGs — it's a waste of context. If you know their usage, just co
 
 ## SKILL.md
 
-When you are done, make this folder cross-compatible with Agent Skills so the user can download it and use it in Claude Code (or Codex). Create a `SKILL.md` file like this:
+When you are done, make this folder cross-compatible with Agent Skills so the user can reuse it in Claude Code (or Codex). Create a `SKILL.md` file like this:
 
 ```
 ---
