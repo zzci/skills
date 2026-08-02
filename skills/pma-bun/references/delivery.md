@@ -10,11 +10,46 @@ When the repository ships a standalone binary:
 - keep compile-time file rewriting confined to dedicated scripts
 - write checksums or release metadata as part of the build output when distribution needs it
 
+### `scripts/compile.ts` skeleton
+
+```typescript
+// scripts/compile.ts — standalone binary with embedded SPA assets and migrations
+import { copyFileSync, writeFileSync } from "node:fs";
+import { $ } from "bun";
+
+const swaps = [
+  { module: "src/shared/static-assets.ts", generate: generateAssetMap },
+  { module: "src/db/embedded-migrations.ts", generate: generateMigrationMap },
+];
+
+function generateAssetMap(): string {
+  // walk web/dist, emit a module exporting { "/index.html": <bytes/base64>, ... }
+  return "/* generated */";
+}
+
+function generateMigrationMap(): string {
+  // read drizzle/*.sql in order, emit a module exporting [{ name, sql }, ...]
+  return "/* generated */";
+}
+
+await $`bun run --cwd web build`;                       // 1. build the SPA first
+for (const s of swaps) copyFileSync(s.module, `${s.module}.stub`); // 2. back up stubs
+try {
+  for (const s of swaps) writeFileSync(s.module, s.generate());    // 3. swap in generated maps
+  await $`bun build --compile src/index.ts --outfile dist/app`;    // 4. compile
+}
+finally {
+  for (const s of swaps) copyFileSync(`${s.module}.stub`, s.module); // 5. ALWAYS restore stubs
+}
+```
+
+The `finally` block is the load-bearing part: stubs must be restored even when the build fails or is interrupted, so the working tree never keeps generated content.
+
 ## Hooks And Tooling
 
-- keep lint and typecheck fast enough for frequent local runs
-- use post-tool or stop hooks only when the repository already standardizes on them
-- avoid hook logic that mutates code unpredictably
+- lint and typecheck must stay fast enough to run on every change (ESLint cache, incremental `tsc`); a gate slow enough that developers skip it locally is a bug
+- add repo-local hooks (pre-commit, post-tool) only when they run the same commands as the CI gates — no hook-only logic
+- hooks may apply deterministic formatting (`eslint --fix`) but must not otherwise rewrite code
 
 ## Security Patterns
 
@@ -81,9 +116,9 @@ Only relevant in the *Monorepo* layout (see `baseline.md`).
 
 ## Git Conventions
 
-- use English remote-visible metadata
-- use conventional commits
-- keep PR summaries short and test plans explicit
+- English for commit messages and all remote-visible metadata
+- conventional commits format
+- no AI-assistant or agent mentions in commit messages, PR text, or other remote-visible content
 
 ## API Review Checklist
 

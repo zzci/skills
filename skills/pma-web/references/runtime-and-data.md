@@ -93,7 +93,7 @@ export default defineConfig({
 
 Recommended rules:
 
-- enable `resolve.tsconfigPaths: true`
+- enable `resolve.tsconfigPaths: true` — built into Vite 8 (off by default, small perf cost); on older Vite versions use the `vite-tsconfig-paths` plugin instead
 - import `tanstackRouter` (lowercase) from `@tanstack/router-plugin/vite` and place it **before** `react()` in the `plugins` array; the previously-exported `TanStackRouterVite` symbol still works but is deprecated
 - pass `target: "react"` and `routesDirectory: "src/app/routes"`; enable `autoCodeSplitting: true` unless you have a reason not to
 - keep server host on `0.0.0.0`

@@ -82,6 +82,8 @@ The *UI library* row has no Alternative. Radix UI, MUI, Mantine, Chakra UI, Ant 
 
 The only allowed UI stack is **shadcn/ui (base-nova style) + `@base-ui/react`** primitives, on top of Tailwind CSS v4. This is a hard constraint, not a default.
 
+If this lock must be excepted, it requires an explicit user decision recorded in `docs/decisions/` (what, why, scope) — never a silent dependency add.
+
 ### Forbidden
 
 - **Radix UI** (`@radix-ui/*`). The shadcn `base-nova` style replaces Radix with Base UI primitives; do not mix in Radix packages, do not switch the shadcn style back to the Radix-based one.
@@ -113,7 +115,7 @@ See `/pma references/workflow.md` *Dependency Freshness* for the cross-stack rul
 
 ```bash
 # Latest stable version on npm
-bun pm view <pkg> version            # bun
+bun info <pkg> version               # bun (`bun pm view` in older Bun releases)
 npm view <pkg> version               # npm fallback
 
 # Find outdated packages in the current project
@@ -144,7 +146,7 @@ Every PMA-Web project should define:
 - `bun run lint`
 - `bun run typecheck`
 - `bun run build`
-- `bun run test`
+- `bun run test` — run coverage as part of the test gate (`vitest run --coverage`); target 80% or higher
 - accessibility review for changed UI
 - security review for changed auth, env usage, or unsafe rendering paths
 
@@ -267,7 +269,8 @@ Each PMA-Web app should expose at least:
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@nsio/nsl": "^0.1.4"

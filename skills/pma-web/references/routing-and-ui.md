@@ -33,9 +33,9 @@ RouterProvider
 
 ## Entry Point
 
-Baseline shape:
+Baseline shape (`main.tsx`):
 
-```typescript
+```tsx
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -44,17 +44,39 @@ import { routeTree } from "./app/routeTree.gen";
 import "./index.css";
 
 const router = createRouter({ routeTree });
+
+// Register router types for TanStack Router
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error("Root element #root not found");
+}
+
+createRoot(rootElement).render(
+  <StrictMode>
+    <Providers>
+      <RouterProvider router={router} />
+    </Providers>
+  </StrictMode>,
+);
 ```
 
 Requirements:
 
-- fail fast when `#root` is missing
-- register router types for TanStack Router
+- fail fast when `#root` is missing (the checked `getElementById` above)
+- register router types via the `declare module` block so `Link`, `useNavigate`, etc. are fully typed
 - keep global CSS imports at the entry boundary
 
 ## shadcn/ui
 
-Use shadcn as owned code, not copy-pasted snippets. shadcn/ui + `@base-ui/react` is the **only** allowed UI ecosystem in PMA-Web — no Radix, no MUI/Mantine/Chakra/AntD/Headless UI/Ariakit/NextUI/Park UI/etc. See *UI Library Policy* in `baseline.md` for the full constraint and rationale.
+Use shadcn as owned code, not copy-pasted snippets.
+
+The UI lock (shadcn/ui base-nova + `@base-ui/react` as the only allowed ecosystem) and the 4-step component sourcing order are canonical in `baseline.md` *UI Library Policy* — walk that sourcing list before writing any component.
 
 ### Required init choices
 
@@ -64,24 +86,13 @@ Use shadcn as owned code, not copy-pasted snippets. shadcn/ui + `@base-ui/react`
 - CSS variables: `yes`
 - aliases aligned to the actual folder layout
 
-### Component sourcing order
-
-Walk the list in order; stop at the first match. Do **not** skip ahead to hand-writing.
-
-1. existing project primitive under `src/shared/components/ui/` — reuse or extend it
-2. shadcn/ui registry — `bunx shadcn@latest add <name>`
-3. `@base-ui/react` primitive wrapped to match shadcn's API conventions and Tailwind classes, placed in `src/shared/components/ui/`
-4. hand-written from scratch — only after steps 1–3 cannot satisfy the need, and only after the proposal explicitly justifies it
-
-A PR that hand-writes a primitive with a shadcn or Base UI equivalent is a review blocker.
-
 ### Rules
 
 - generate shared primitives into `src/shared/components/ui/`; keep business components (forms, page composites) inside features
 - add new primitives through the shadcn CLI rather than copy-pasting from the docs, so `components.json` and aliases stay consistent
 - treat generated files as owned code — commit, edit, and refactor them freely
 - keep `components.json` consistent with repository aliases and Tailwind paths
-- if a feature truly needs something neither shadcn nor Base UI ships (virtualized grid, charts, …), bring in a **headless** non-component lib (`@tanstack/react-table`, `@tanstack/react-virtual`, `recharts`, …) and render it through shadcn-styled wrappers; introduce it via the proposal
+- headless-library exceptions (virtualized grids, tables, charts) follow the rules in `baseline.md` *UI Library Policy*
 
 ## Tailwind CSS v4
 

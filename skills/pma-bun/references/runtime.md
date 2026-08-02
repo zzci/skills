@@ -158,6 +158,6 @@ When the service uses local files, embedded SQLite, or singleton integrations:
 
 When using `bun build --compile`:
 
-- replace stub modules for embedded assets and migrations during build
+- replace stub modules for embedded assets and migrations during build — see the `scripts/compile.ts` skeleton in `delivery.md` *Compile Pipeline*
 - keep compiled-only logic isolated
 - document any feature gaps versus source-mode execution

@@ -1,6 +1,6 @@
 ---
 name: pma-bun
-description: Bun implementation guide for PMA-managed backend services. Defaults to a single-API-project layout; promotes to a Bun monorepo only when multiple deployable apps or shared packages exist. Covers API modules under `src/modules`, strict linting with ESLint + @antfu/eslint-config, Drizzle over SQLite-first storage, OpenAPIHono on top of `Bun.serve()`, validated env config, nsl-based dev URL routing (paired with `pma-web`), standalone binary compilation with embedded assets and migrations, and CI quality gates. Use when implementing, scaffolding, or reviewing a Bun/Hono backend or internal tool in a PMA repo.
+description: Bun implementation guide for PMA-managed backend services and internal tools. Covers project layout and monorepo promotion, required quality gates, SQLite-first data access with Drizzle, Hono HTTP serving, validated env config, nsl-based dev URL routing (paired with pma-web), and standalone binary compilation with embedded assets and migrations. Use when implementing, scaffolding, or reviewing a Bun/Hono backend or internal tool in a PMA repo.
 ---
 
 # Bun Project Implementation Guide
@@ -24,10 +24,12 @@ Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 
 ## Quick Routing
 
-- New project setup or repo restructuring (single API / API + sibling SPA / monorepo): `references/baseline.md`
-- `app.ts` / `index.ts` / optional `dev.ts`, OpenAPIHono, config, startup, graceful shutdown, logging, PID lock, Bun-specific nsl invocation: `references/runtime.md` (full nsl protocol → `/pma references/dev-environment.md`; multi-app workspace setup → `/pma docs/monorepo-example.md`)
-- Schema design, SQLite setup, migration embedding, repositories, test setup: `references/data-and-testing.md`
-- Compile pipeline, binary delivery, static assets, CI, Docker, PR readiness: `references/delivery.md`
+- New project setup or repo restructuring (single API / API + sibling SPA / monorepo) → `references/baseline.md`
+- runtime (`app.ts` / `index.ts` / optional `dev.ts`, OpenAPIHono, config, startup, graceful shutdown, logging, PID lock) → `references/runtime.md`
+- dev URL routing (nsl) → `references/runtime.md` (full protocol → `/pma references/dev-environment.md`; multi-app workspace setup → `/pma docs/monorepo-example.md`)
+- data access (schema design, SQLite setup, migration embedding, repositories) → `references/data-and-testing.md`
+- testing → `references/data-and-testing.md`
+- CI and delivery (compile pipeline, binary delivery, static assets, Docker, PR readiness) → `references/delivery.md`
 
 ## Reference Packs
 
@@ -39,5 +41,17 @@ Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
   Drizzle with SQLite-first storage, migration strategy, repository boundaries, and testing rules.
 - `references/delivery.md`
   Compile pipeline, security patterns, observability, CI pipeline, Docker, workspace rules, and Git conventions.
+
+## Acceptance Checklist
+
+Before merge:
+
+- [ ] `lint`, `typecheck`, `build` pass
+- [ ] `bun test` passes with coverage; target 80% or higher
+- [ ] env config validated by Zod at startup; no `Bun.env` reads in business logic
+- [ ] no Vite in the backend process (no `@hono/vite-dev-server`, no Vite middleware in `dev.ts`)
+- [ ] nsl dev routing works (`bunx nsl run -n <name>:/api -s -- bun --watch src/index.ts`); production bootstrap does not depend on nsl
+- [ ] migrations committed; embedded assets and migrations in sync with source behavior
+- [ ] compile pipeline restores stub modules, including on failed or interrupted runs
 
 If the repository intentionally diverges, keep the deviation explicit in the proposal and consistent across scripts, docs, and CI.

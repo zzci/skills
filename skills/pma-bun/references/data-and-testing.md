@@ -24,7 +24,7 @@ Rules:
 Default extracted pattern:
 
 - use Drizzle for schema and query composition
-- use a SQLite-capable client that still works with the repository's encryption or deployment needs
+- default to the libSQL client (`@libsql/client`) as the SQLite driver — it covers plain file DBs and at-rest encryption (`encryptionKey`) without a driver swap; if the repo standardizes on `bun:sqlite` instead, document that encryption is out of scope
 - expose a single `createDb()` path that configures pragmas, schema binding, and migration execution
 
 When compiled binaries are part of delivery:

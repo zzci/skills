@@ -1,6 +1,6 @@
 ---
 name: pma-web
-description: Frontend implementation guide for PMA-managed React 19 + TypeScript + Vite 8 SPA projects. Defaults to a single-app layout (the right choice for a Rust/Go service that ships a UI); promotes to a Bun monorepo only when multiple apps or shared packages exist. UI is hard-locked to shadcn/ui (base-nova) + `@base-ui/react` — Radix and other UI ecosystems (MUI / Mantine / Chakra / Ant Design / Headless UI / Ariakit / NextUI / …) are forbidden. Covers required quality gates, file-based type-safe routing with TanStack Router, state conventions (TanStack Query + Zustand), Tailwind CSS v4 patterns, Vitest 4 testing, dual-channel theming, i18n, nsl-based dev integration with backend services, and delivery rules for frontend applications. Use when implementing, scaffolding, or reviewing a React/Vite SPA or internal-tool frontend in a PMA repo.
+description: Frontend implementation guide for PMA-managed React + Vite SPA and internal-tool frontend projects. Covers required quality gates, file-based type-safe routing with TanStack Router, server state with TanStack Query, the shadcn/ui (base-nova) hard lock (other UI component ecosystems are forbidden), Tailwind theming, testing, i18n, nsl-based dev integration, and frontend delivery rules. Use when implementing, scaffolding, or reviewing a React/Vite SPA or internal-tool frontend in a PMA repo.
 ---
 
 # Web Frontend Implementation Guide
@@ -32,10 +32,12 @@ Not for SSR-first sites, content sites, or non-PMA projects.
 
 ## Quick Routing
 
-- New app setup or repo restructuring (single-app vs monorepo): `references/baseline.md`
-- Router, layouts, providers, entrypoint, shadcn, Tailwind, theme: `references/routing-and-ui.md`
-- HTTP client, query client, i18n, Vite config, frontend nsl invocation: `references/runtime-and-data.md` (full nsl protocol → `/pma references/dev-environment.md`)
-- Lint, typecheck, build, test, accessibility, UI security review: `references/review.md`
+- New app setup or repo restructuring (single-app vs monorepo) → `references/baseline.md`
+- Router, layouts, providers, entrypoint, shadcn, Tailwind, theme → `references/routing-and-ui.md`
+- runtime (HTTP client, query client, i18n, Vite config) → `references/runtime-and-data.md`
+- dev URL routing (nsl) → `references/runtime-and-data.md` (full protocol → `/pma references/dev-environment.md`)
+- testing → `references/review.md`
+- CI and delivery (lint, typecheck, build, accessibility, security review) → `references/review.md`
 
 ## Reference Packs
 
@@ -47,5 +49,17 @@ Not for SSR-first sites, content sites, or non-PMA projects.
   Query client, HTTP layer, state boundaries, i18n, Vite config, and the frontend-side nsl invocation. Full nsl protocol lives in `/pma references/dev-environment.md`.
 - `references/review.md`
   Verification gates and the accessibility and security review checklist for UI changes.
+
+## Acceptance Checklist
+
+Before merge:
+
+- [ ] `lint`, `typecheck`, `build` pass
+- [ ] tests pass with coverage; target 80% or higher
+- [ ] UI lock respected: no Radix or other component ecosystems (grep gate in `references/review.md`)
+- [ ] new components followed the sourcing order in `references/baseline.md` *UI Library Policy*
+- [ ] routing stays file-based under `src/app/routes/` with generated `routeTree.gen.ts`
+- [ ] theming stays dual-channel (`:root` / `.dark` variables + `@theme inline` mapping); no hardcoded colors in components
+- [ ] nsl dev routing works (`bun run dev` serves `<name>.localhost`; API reachable at `/api`)
 
 If the project intentionally diverges from these defaults, keep the divergence explicit in the proposal and match the repository's existing patterns consistently.

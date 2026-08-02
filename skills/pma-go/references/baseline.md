@@ -33,6 +33,7 @@ Goals:
 | Language | Go 1.26+ | latest stable |
 | Format | gofmt and goimports | enforced in CI |
 | Lint | golangci-lint v2 | includes revive, govet, errcheck, staticcheck |
+| Security scan | gosec | static security checks; runs as a required gate |
 | Errors | `fmt.Errorf` with `%w` | use `errors.Is` and `errors.As` |
 | Logging | slog | structured logging |
 | Modules | Go modules | commit `go.mod` and `go.sum` |
@@ -59,6 +60,7 @@ Goals:
 | RPC | connect-go plus buf | service-to-service RPC |
 | DI | google/wire | large dependency graph |
 | Release | GoReleaser | multi-platform release automation |
+| Vulnerability scan | govulncheck | known-CVE checks against the Go vuln DB in CI |
 
 ### Alternative
 
@@ -113,7 +115,7 @@ Every PMA-Go project should define:
 - `golangci-lint run`
 - `go vet ./...`
 - `go test ./...`
-- `go test -cover ./...`
+- `go test -cover ./...` — coverage runs as part of the test gate; target 80% or higher
 - `go build ./...`
 - `go mod tidy` with no diff
 - `gosec ./...`

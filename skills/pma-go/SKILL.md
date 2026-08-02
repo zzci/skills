@@ -24,10 +24,13 @@ Not for embedded targets, library-only modules without binaries, or non-PMA proj
 
 ## Quick Routing
 
-- New service or CLI setup: `references/baseline.md`
-- koanf config, env mapping, DB access, migrations, repository boundaries: `references/config-and-data.md`
-- HTTP server, response envelopes, auth middleware, slog, tracing, shutdown: `references/http-and-runtime.md`
-- quality gates, lint, tests, Taskfile, security checklist, CI, PR readiness: `references/delivery.md`
+- New service or CLI setup → `references/baseline.md`
+- config (koanf layering, env mapping, validation) → `references/config-and-data.md`
+- data access (sqlc + pgx, GORM, migrations, repository boundaries) → `references/config-and-data.md`
+- runtime (HTTP server, middleware, slog, tracing, shutdown) → `references/http-and-runtime.md`
+- dev URL routing (nsl) → `references/http-and-runtime.md` (full protocol → `/pma references/dev-environment.md`)
+- testing → `references/delivery.md`
+- CI and delivery (quality gates, lint, Taskfile, security checklist, PR readiness) → `references/delivery.md`
 
 ## Reference Packs
 
@@ -39,5 +42,17 @@ Not for embedded targets, library-only modules without binaries, or non-PMA proj
   Router structure, handler patterns, middleware, logging, observability, and graceful shutdown.
 - `references/delivery.md`
   Lint config, testing, task runner expectations, security checks, CI, and Git conventions.
+
+## Acceptance Checklist
+
+Before merge:
+
+- [ ] `goimports -l .` reports nothing; `golangci-lint run` and `go vet ./...` pass
+- [ ] `go test -cover ./...` passes; coverage target 80% or higher
+- [ ] `go build ./...` succeeds; `go mod tidy` leaves no diff
+- [ ] `gosec ./...` passes for changed code
+- [ ] config layered via koanf (defaults -> file -> env -> flags) and validated after load
+- [ ] graceful shutdown wired (`signal.NotifyContext` + `http.Server.Shutdown` with timeout)
+- [ ] nsl dev routing works when the service ships a UI (see `references/http-and-runtime.md`)
 
 If the repo already diverges from these defaults, make the divergence explicit and apply it consistently across code, docs, and CI.

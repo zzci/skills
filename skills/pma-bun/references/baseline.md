@@ -35,7 +35,7 @@ Goals:
 | Language | TypeScript 5.9+ | strict mode, `noUncheckedIndexedAccess` |
 | Package manager | bun | commit `bun.lock` |
 | Lint / format | ESLint + @antfu/eslint-config | no Prettier |
-| Validation | Zod 3 | API-boundary validation |
+| Validation | Zod 4 (current major) | API-boundary validation; the dependency-freshness procedure below applies |
 | Errors | typed error classes | `AppError` hierarchy at transport boundaries |
 | Test | bun:test | built-in runner |
 
@@ -82,7 +82,7 @@ See `/pma references/workflow.md` *Dependency Freshness* for the cross-stack rul
 
 ```bash
 # Latest stable version on npm
-bun pm view <pkg> version
+bun info <pkg> version               # (`bun pm view` in older Bun releases)
 
 # Find outdated packages in the current project
 bun outdated

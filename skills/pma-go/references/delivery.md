@@ -2,9 +2,43 @@
 
 ## Lint And Static Checks
 
-- use `.golangci.yml` for shared lint rules
-- keep the enabled set reviewable and non-redundant
-- fail on real issues, not style noise
+- use `.golangci.yml` for shared lint rules — start from the starter below
+- every linter added beyond the starter's `enable` list needs a one-line justification in the PR that adds it
+- fail on real issues, not style noise; suppress false positives with scoped exclusion rules, not by disabling the linter
+
+### `.golangci.yml` starter (golangci-lint v2)
+
+```yaml
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - revive
+    - gosec
+    - misspell
+    - ineffassign
+    - unused
+    - gocritic
+  exclusions:
+    generated: lax          # skip generated code (sqlc output, etc.)
+    rules:
+      - path: _test\.go     # relax security/error-check noise in tests only
+        linters: [gosec, errcheck]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+```
+
+Keep exclusions narrow and path-scoped; a repo-wide linter disable is a decision, not a convenience.
 
 ## Testing
 
@@ -15,15 +49,38 @@
 
 ## Task Runner
 
-Prefer `Taskfile.yml` for:
+Prefer `Taskfile.yml`, wiring the gate commands from `baseline.md` *Required Quality Gates*:
 
-- lint
-- test
-- build
-- generate
-- migrate
+```yaml
+version: "3"
 
-Keep task names predictable and aligned with CI.
+tasks:
+  fmt:
+    cmds: [goimports -l -w .]
+  lint:
+    cmds: [golangci-lint run]
+  vet:
+    cmds: [go vet ./...]
+  test:
+    cmds: [go test -cover ./...]
+  build:
+    cmds: [go build ./...]
+  tidy-check:
+    cmds:
+      - go mod tidy
+      - git diff --exit-code go.mod go.sum
+  check:
+    desc: run all gates in order
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: vet
+      - task: test
+      - task: build
+      - task: tidy-check
+```
+
+Add `generate` (sqlc) and `migrate` (goose) tasks when the project uses them. Keep task names predictable and aligned with CI.
 
 ## Security Patterns
 
@@ -56,9 +113,9 @@ Typical stages:
 
 ## Git Conventions
 
-- use English remote-visible metadata
-- use conventional commits
-- keep PR summaries and test plans explicit
+- English for commit messages and all remote-visible metadata
+- conventional commits format
+- no AI-assistant or agent mentions in commit messages, PR text, or other remote-visible content
 
 ## Review Focus
 

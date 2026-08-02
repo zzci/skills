@@ -22,6 +22,33 @@ Rules:
 - separate loading, validation, and defaulting concerns
 - document required env vars and defaults
 
+Load sketch matching the layering order:
+
+```go
+func Load(flags *pflag.FlagSet) (*Config, error) {
+    k := koanf.New(".")
+
+    // 1. defaults
+    _ = k.Load(structs.Provider(defaultConfig, "koanf"), nil)
+    // 2. config file (optional)
+    if err := k.Load(file.Provider("config.yaml"), yaml.Parser()); err != nil && !errors.Is(err, fs.ErrNotExist) {
+        return nil, fmt.Errorf("load config file: %w", err)
+    }
+    // 3. environment: APP_SERVER_PORT -> server.port
+    _ = k.Load(env.Provider("APP_", ".", func(s string) string {
+        return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(s, "APP_")), "_", ".")
+    }), nil)
+    // 4. CLI flags (highest precedence)
+    _ = k.Load(posflag.Provider(flags, ".", k), nil)
+
+    var cfg Config
+    if err := k.Unmarshal("", &cfg); err != nil {
+        return nil, fmt.Errorf("unmarshal config: %w", err)
+    }
+    return &cfg, cfg.Validate()
+}
+```
+
 ## Database Default: sqlc Plus pgx
 
 Prefer this when:

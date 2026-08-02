@@ -7,7 +7,7 @@ Before merge:
 - lint passes
 - typecheck passes
 - build passes
-- tests pass for the affected scope
+- tests pass for the affected scope, with coverage (target 80% or higher)
 - accessibility review completed for changed UI
 - security review completed for changed trust boundaries
 
@@ -36,9 +36,9 @@ For frontend changes, verify:
 
 For any UI-affecting change, verify:
 
-- no new dependency on Radix UI (`@radix-ui/*`) or any other component / primitive ecosystem (MUI, Mantine, Chakra, Ant Design, Headless UI, Ariakit, NextUI, Park UI, daisyUI, Flowbite, React Aria Components, …). Run `bun pm ls | grep -E '@radix-ui|@mui|@mantine|@chakra-ui|antd|@headlessui|@ariakit|@nextui|@park-ui'` (or equivalent) on diffs that touch `package.json`.
+- no new dependency on Radix UI (`@radix-ui/*`) or any other component / primitive ecosystem (see *UI Library Policy* in `baseline.md` for the forbidden list). Run `bun pm ls | grep -E '@radix-ui|@mui|@mantine|@chakra-ui|antd|@headlessui|@ariakit|@nextui|@park-ui'` (or equivalent) on diffs that touch `package.json`.
 - new primitives went through the *Component sourcing order* in `baseline.md` — check whether shadcn or `@base-ui/react` already ships the requested component before accepting a hand-written one
-- hand-written primitives, if present, are justified in the proposal and consume the same Tailwind tokens as shadcn (`bg-background`, `text-muted-foreground`, etc.); they do not introduce a parallel styling system
+- hand-written primitives, if present, are justified in the proposal and consume the same Tailwind tokens as shadcn (`bg-background`, `text-muted-foreground`, etc.)
 - shadcn `components.json` still declares `base-ui` as the component library (not the Radix-based option)
 
 ## Testing Guidance
@@ -46,6 +46,12 @@ For any UI-affecting change, verify:
 - keep unit and integration tests in Vitest
 - use Playwright only for critical flows that need browser coverage
 - prefer focused tests around changed behavior over broad snapshot churn
+
+## Git Conventions
+
+- English for commit messages and all remote-visible metadata
+- conventional commits format
+- no AI-assistant or agent mentions in commit messages, PR text, or other remote-visible content
 
 ## Generated And Owned Code
 
