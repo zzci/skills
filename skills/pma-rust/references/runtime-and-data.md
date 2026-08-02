@@ -14,6 +14,7 @@ This pack covers everything that runs at request time: errors, layered architect
 - [Graceful Shutdown](#graceful-shutdown)
 - [Background Tasks](#background-tasks)
 - [Health Endpoints](#health-endpoints)
+- [Dev URL Routing (nsl)](#dev-url-routing-nsl)
 - [Signal Handling Summary](#signal-handling-summary)
 
 ## Error Handling
@@ -392,8 +393,8 @@ use tower_http::{
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/healthz", get(health::live))
-        .route("/readyz",  get(health::ready))
+        .route("/livez",  get(health::live))
+        .route("/readyz", get(health::ready))
         .nest("/api/v1", api_v1::router())
         .with_state(state)
         .layer(
@@ -417,10 +418,12 @@ pub fn router(state: AppState) -> Router {
 
 // Functions returning routers DO NOT call `with_state` themselves —
 // see axum/src/docs/routing/with_state.md.
-fn api_v1::router() -> Router<AppState> {
-    Router::new()
-        .route("/users",      get(users::list).post(users::create))
-        .route("/users/{id}", get(users::get).delete(users::delete))
+mod api_v1 {
+    pub fn router() -> Router<AppState> {
+        Router::new()
+            .route("/users",      get(users::list).post(users::create))
+            .route("/users/{id}", get(users::get).delete(users::delete))
+    }
 }
 ```
 
@@ -574,7 +577,6 @@ Canonical pattern (`axum/examples/graceful-shutdown/src/main.rs:35-76`, plus off
 
 ```rust
 use std::time::Duration;
-use axum::http::StatusCode;
 use tokio::signal;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tower_http::timeout::TimeoutLayer;
@@ -589,7 +591,8 @@ pub async fn serve(state: AppState, http: HttpConfig) -> anyhow::Result<()> {
 
     let app = router(state).layer(
         // Pair TimeoutLayer with graceful_shutdown so requests don't hang forever.
-        TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(10)),
+        // (tower-http 0.6 API; times out with 408 Request Timeout.)
+        TimeoutLayer::new(Duration::from_secs(10)),
     );
 
     let listener = tokio::net::TcpListener::bind(http.addr).await?;
@@ -608,8 +611,11 @@ pub async fn serve(state: AppState, http: HttpConfig) -> anyhow::Result<()> {
         tracing::error!("background task drain timed out — forcing exit");
     }
 
-    // Flush telemetry before main returns.
-    opentelemetry::global::shutdown_tracer_provider();
+    // Telemetry flush: pinned opentelemetry 0.31 has no global shutdown free
+    // function (the 0.1x-era one was removed in the 0.2x line). Shutdown goes
+    // through the retained `SdkTracerProvider` handle — the `TelemetryGuards`
+    // returned by `telemetry::init` (see delivery.md's `TelemetryGuards::otlp`
+    // pattern) hold it and call `provider.shutdown()` when main drops them.
     Ok(())
 }
 
@@ -672,11 +678,21 @@ async fn ready(State(s): State<AppState>) -> Result<StatusCode, ApiError> {
 
 Both are unauthenticated, both return 200/503. Document them in OpenAPI via `utoipa` annotations when applicable.
 
+## Dev URL Routing (nsl)
+
+When the project ships a UI managed by `/pma-web`, run the backend dev server behind `nsl` so the SPA and API share `http://<name>.localhost`:
+
+```bash
+nsl run -n <name>:/api -s -- ./target/debug/<app> --port NSL_PORT
+```
+
+`nsl` injects the listen port via `NSL_PORT` and routes `/api` to the backend while the SPA dev server owns the rest of the host. See the `pma` skill's `references/dev-environment.md` for the full protocol.
+
 ## Signal Handling Summary
 
 - handle `SIGINT` and `SIGTERM` (Unix), `Ctrl-C` (cross-platform)
 - stop accepting new work first
 - drain in-flight requests via Axum graceful shutdown + `TimeoutLayer`
 - cancel background tasks via `CancellationToken`; wait via `TaskTracker`
-- flush telemetry (`opentelemetry::global::shutdown_tracer_provider()`) and close DB pools (`pool.close().await`)
+- flush telemetry via the retained `SdkTracerProvider` handle (`TelemetryGuards`, see `delivery.md`) and close DB pools (`pool.close().await`)
 - exit with a non-zero code only on actual failure

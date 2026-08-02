@@ -34,20 +34,22 @@ If a future change to this skill is not anchored in real code from a respected p
 
 ## Standard-Bearer Repositories
 
-The 10 projects clone-checked for this skill (paths refer to where they were cloned during research):
+The 10 projects clone-checked for this skill, and what each is mirrored for (key files verified in parentheses):
 
-| Project | Path used in research |
-|---|---|
-| `rust-lang/cargo` | `/tmp/pma-rust-research/cargo` |
-| `rust-lang/rust-analyzer` | `/tmp/pma-rust-research/rust-analyzer` |
-| `paradigmxyz/reth` | `/tmp/pma-rust-research/reth` |
-| `vectordotdev/vector` | `/tmp/pma-rust-research/vector` |
-| `tokio-rs/tokio` | `/tmp/pma-rust-research/tokio` |
-| `tokio-rs/axum` | `/tmp/pma-rust-research/axum` |
-| `linkerd/linkerd2-proxy` | `/tmp/pma-rust-research/linkerd2-proxy` |
-| `astral-sh/uv` | `/tmp/pma-rust-research/uv` |
-| `astral-sh/ruff` | `/tmp/pma-rust-research/ruff` |
-| `quickwit-oss/quickwit` | `/tmp/pma-rust-research/quickwit` |
+| Project | What we mirror | Verified file evidence |
+|---|---|---|
+| `rust-lang/cargo` | Workspace `[lints]`, `xtask-*` split crates, `crate-ci/typos`, `cargo-deny`, MSRV via `cargo hack` | `Cargo.toml`, `.cargo/config.toml`, `deny.toml`, `.github/workflows/main.yml` |
+| `rust-lang/rust-analyzer` | Large multi-crate workspace, single `xtask/` (`publish=false`), `cargo nextest`, `cargo machete` | `Cargo.toml`, `xtask/Cargo.toml`, `.github/workflows/ci.yaml` |
+| `paradigmxyz/reth` | `default-members`, extensive `[workspace.lints]`, `deny.toml` with hard `openssl` ban, `mold` + `sccache` + `Swatinem/rust-cache`, `cargo udeps`, `zepter` | `Cargo.toml`, `deny.toml`, `.github/workflows/lint.yml` |
+| `vectordotdev/vector` | `rust-toolchain.toml` pin, build-flag lint enforcement via `.cargo/config.toml` rustflags, `vdev` published xtask | `rust-toolchain.toml`, `.cargo/config.toml`, `vdev/` |
+| `tokio-rs/tokio` | Lib-level lint policy, MSRV policy, `cargo nextest` + separate `--doc`, loom + miri + cargo-fuzz | `tokio/src/lib.rs`, `CONTRIBUTING.md`, `.github/workflows/ci.yml` |
+| `tokio-rs/axum` | Axum 0.8 path syntax `/{id}`, `with_state`, `ServiceBuilder` middleware order, `tower::ServiceExt::oneshot` testing, `with_graceful_shutdown` | `examples/*/src/main.rs`, `axum/src/docs/routing/with_state.md` |
+| `linkerd/linkerd2-proxy` | Production tower stack: load-shed outside concurrency-limit, normalized middleware ordering | `linkerd/app/inbound/src/http/server.rs` |
+| `astral-sh/uv` | Thin bin (`crates/uv/src/bin/uv.rs`) + `uv-cli` crate split, `clap_complete_command`, `ArgAction::Count` for verbose/quiet, `cargo-dist`, `cargo-shear`, `insta` | `crates/uv-cli/src/lib.rs`, `release.yml` |
+| `astral-sh/ruff` | Single bin + custom panic hook, `cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest`, mimalloc/jemalloc allocator switching | `crates/ruff/src/{main,lib}.rs`, `.github/workflows/ci.yaml` |
+| `quickwit-oss/quickwit` | Hand-built tokio runtime + tokio-metrics, OTLP via `opentelemetry-otlp` 0.31 (gRPC + HTTP/JSON), `prometheus` const-label build_info, `utoipa` OpenAPI, `/livez` + `/readyz`, rustls `install_default_crypto_ring_provider()` | `quickwit-cli/src/{main,logger}.rs`, `quickwit-serve/src/{health_check_api,metrics_api,openapi}.rs` |
+
+Citations elsewhere in this file are written as `<repo>/<file>:<line>` relative to a fresh clone of each repo.
 
 To re-verify any claim:
 

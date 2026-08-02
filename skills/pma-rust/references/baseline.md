@@ -1,6 +1,6 @@
 # PMA-Rust Baseline
 
-This is the **acceptance baseline** every PMA-Rust project must meet. It is anchored to the standard-bearer projects listed in `SKILL.md` and the official Rust API Guidelines. Citations refer to file paths under `/tmp/pma-rust-research/` (verifiable via `references/evidence.md`).
+This is the **acceptance baseline** every PMA-Rust project must meet. It is anchored to the standard-bearer projects listed in `SKILL.md` and the official Rust API Guidelines. Citations refer to paths within the standard-bearer repos (clone them per `references/evidence.md` when verifying).
 
 ## Table of Contents
 
@@ -80,7 +80,7 @@ CI scripts and aliases run plain commands:
 - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 ```
 
-**Path A — workspace lints (canonical).** Used by `cargo`, `rust-analyzer`, `reth`. Centralizes per-lint policy in `Cargo.toml`, supports per-crate opt-out:
+**Path A — workspace lints (canonical).** Used by `cargo`, `rust-analyzer`, `reth`. Centralizes per-lint policy in `Cargo.toml`, supports per-crate opt-out. Opening shape:
 
 ```toml
 # workspace root Cargo.toml
@@ -90,35 +90,9 @@ CI scripts and aliases run plain commands:
 # below override (demote noisy ones to warn/allow at default priority 0).
 warnings    = { level = "deny", priority = -2 }
 unsafe_code = "forbid"
-# Opt-in lints (allow-by-default in rustc; we want them on):
-missing_debug_implementations = "warn"
-missing_docs                  = "warn"
-unreachable_pub               = "warn"
-elided_lifetimes_in_paths     = "warn"
-
-# Clippy ships sensible defaults: correctness=deny, perf/suspicious/style/complexity=warn.
-# We list only deviations from those defaults — restating defaults is noise.
-[workspace.lints.clippy]
-# Promote allow-by-default groups to warn:
-pedantic = { level = "warn", priority = -1 }
-nursery  = { level = "warn", priority = -1 }
-cargo    = { level = "warn", priority = -1 }
-# Tighten individual lints (Lock 6 — no panic in runtime):
-unwrap_used        = "deny"
-expect_used        = "deny"
-panic              = "deny"
-todo               = "warn"
-dbg_macro          = "deny"
-# Relax inside CLI output module(s) only via #![allow(...)] on that boundary:
-print_stdout       = "deny"
-print_stderr       = "deny"
-disallowed_methods = "deny"
-disallowed_types   = "deny"
-# Pedantic lints with poor signal-to-noise:
-module_name_repetitions = "allow"
-must_use_candidate      = "allow"
-missing_errors_doc      = "allow"
-missing_panics_doc      = "allow"
+# … opt-in rust lints, [workspace.lints.clippy] group promotions, Lock 6 denies,
+# and signal-to-noise allows — full canonical block in
+# `references/toolchain-and-workspace.md` "Workspace Cargo.toml".
 ```
 
 Each crate opts in:
@@ -161,7 +135,9 @@ edition      = "2024"
 rust-version = "1.96.0"   # bump deliberately; minor-version cadence; never in patch releases
 ```
 
-Verify in CI with `cargo hack check --rust-version --workspace --ignore-private --locked` (cargo's pattern, `main.yml:320-323`) **or** `cargo msrv verify` (vector's pattern, `msrv.yml`). PMA baseline policy: track the **latest stable Rust** (currently `1.96.0`); bump the MSRV deliberately in a minor release, never in a patch release. (This intentionally does not adopt Tokio's "support ≥6 months of stable" lag — PMA-managed services build on a controlled, current toolchain rather than guaranteeing older-toolchain compatibility.)
+**This Lock is the single source of truth for the baseline MSRV literal** — current baseline: `1.96.0` — update this one value on each stable release. Every other snippet in this skill writes `<MSRV>` (or "match the workspace `rust-version`") and points here.
+
+Verify in CI with `cargo hack check --rust-version --workspace --ignore-private --locked` (cargo's pattern, `main.yml:320-323`) **or** `cargo msrv verify` (vector's pattern, `msrv.yml`). PMA baseline policy: track the **latest stable Rust**; bump the MSRV deliberately in a minor release, never in a patch release. (This intentionally does not adopt Tokio's "support ≥6 months of stable" lag — PMA-managed services build on a controlled, current toolchain rather than guaranteeing older-toolchain compatibility.)
 
 ### Lock 6 — No `unwrap` / `expect` / `panic!` in runtime paths
 
@@ -178,7 +154,8 @@ See `references/delivery.md` for the full CI matrix. Summary:
 ```
 fmt → clippy with workspace deny-warnings policy → nextest run → cargo test --doc →
 cargo deny check (advisories + bans + licenses + sources) →
-cargo shear (or machete) → typos → release build verification
+cargo shear (or machete) → typos →
+MSRV check (cargo hack check --rust-version, per Lock 5) → release build verification
 ```
 
 ## Known Trade-offs (When the Locks Backfire)
@@ -257,7 +234,7 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 | Toolchain | stable Rust, **edition 2024** | `rust-version` in workspace; `rust-toolchain.toml` optional (only vector uses it) |
 | Async runtime | **Tokio** (multi-thread) | hand-built `Builder` for tuning (`quickwit-cli/main.rs:43-53`) |
 | HTTP server | **Axum 0.8.x** + Hyper 1 + tower / tower-http | gRPC-heavy services: **Tonic** + warp/axum hybrid (quickwit) |
-| TLS | **rustls** + **`aws-lc-rs`** provider (rustls 0.23 default) | `rustls::crypto::aws_lc_rs::default_provider().install_default()` early in `main`; startup-install pattern per `quickwit-cli/main.rs:98` (quickwit uses the ring provider) |
+| TLS | **rustls** + **`aws-lc-rs`** provider (rustls 0.23 default) | install the provider early in `main` (canonical snippet: Lock 2); startup-install pattern per `quickwit-cli/main.rs:98` (quickwit uses the ring provider) |
 | Errors | **`thiserror` 2.x** per crate; **`anyhow`** (or `eyre`) at bin entry only | universal across uv/ruff/quickwit |
 | Logging | **`tracing` + `tracing-subscriber`** | JSON in prod, pretty in dev. `quickwit-cli/logger.rs` is canonical |
 | Lint policy | `[workspace.lints]` in `Cargo.toml` | Lock 4 |

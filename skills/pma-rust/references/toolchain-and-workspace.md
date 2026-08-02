@@ -57,7 +57,7 @@ Layered ownership rules:
 
 ## Workspace `Cargo.toml`
 
-Skeleton (edition 2024, resolver `"2"`, workspace inheritance, lints):
+Skeleton (edition 2024, resolver `"3"` — the edition 2024 pairing; see `baseline.md` Tech Stack for why PMA deliberately uses `"3"` while `evidence.md` records upstream repos still on `"2"`; workspace inheritance, lints):
 
 ```toml
 [workspace]
@@ -68,7 +68,7 @@ default-members = ["crates/app"]   # OPTIONAL — only reth uses it (`Cargo.toml
 
 [workspace.package]
 edition      = "2024"
-rust-version = "1.96.0"            # MSRV = latest stable; bump in minor releases only (see baseline.md Lock 5)
+rust-version = "<MSRV>"            # current baseline literal lives in baseline.md Lock 5; bump in minor releases only
 license      = "Apache-2.0"
 repository   = "https://github.com/acme/acme"
 authors      = ["Acme Engineering"]
@@ -197,20 +197,20 @@ Two equally valid approaches, depending on project type.
 - uses: dtolnay/rust-toolchain@stable
 - uses: dtolnay/rust-toolchain@master
   with:
-    toolchain: "1.96.0"   # for MSRV verification job — match workspace.package.rust-version
+    toolchain: "<MSRV>"   # for MSRV verification job — match workspace.package.rust-version (baseline.md Lock 5)
 ```
 
 ### Approach B — `rust-toolchain.toml` (vector pattern)
 
 ```toml
 [toolchain]
-channel    = "1.96.0"           # match MSRV exactly, or pin a sliding stable
+channel    = "<MSRV>"           # match baseline.md Lock 5 / workspace.package.rust-version, or pin a sliding stable
 components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
 profile    = "minimal"
 targets    = ["x86_64-unknown-linux-gnu"]
 ```
 
-The `rust-toolchain.toml` mechanism is verified at `vector/rust-toolchain.toml` (vector itself pins `channel = "1.92"`; the `1.96.0` above is this skill's baseline, not vector's value). Use when developer environments must be byte-for-byte reproducible (services with strict deployment pipelines).
+The `rust-toolchain.toml` mechanism is verified at `vector/rust-toolchain.toml` (vector itself pins `channel = "1.92"`; substitute this skill's baseline MSRV from `baseline.md` Lock 5, not vector's value). Use when developer environments must be byte-for-byte reproducible (services with strict deployment pipelines).
 
 ## `.cargo/config.toml`
 
@@ -531,7 +531,7 @@ PMA standardizes on the **`aws-lc-rs`** rustls provider (Lock 2). It wraps AWS-L
 
 | Tool | Needed for default `aws-lc-rs`? | Notes |
 |---|---|---|
-| C/C++ compiler (`cc`/`clang`) | **Yes** | Only hard requirement. Present in `rust:1.96.0`, `debian`, most CI images. Distroless/`scratch` runtime is fine — AWS-LC is statically compiled into the binary at build time, nothing is needed at runtime. |
+| C/C++ compiler (`cc`/`clang`) | **Yes** | Only hard requirement. Present in the official `rust` images, `debian`, most CI images. Distroless/`scratch` runtime is fine — AWS-LC is statically compiled into the binary at build time, nothing is needed at runtime. |
 | CMake | **No** | Pre-generated build metadata ships with `aws-lc-sys`. CMake is required **only** for the `fips` feature. |
 | Go | **No** | Required **only** for the `fips` feature. |
 | `bindgen` / `libclang` | **No** | Pre-generated bindings ship for supported targets. Needed only if you opt into the `bindgen` or `legacy-des` feature, or build for a target without pre-generated bindings. |

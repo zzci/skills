@@ -18,7 +18,7 @@ This pack covers everything between "code compiles" and "shipped to prod": secre
 ### Threat surface to review
 
 - **TLS** — rustls only. Reject any direct or transitive `openssl` / `native-tls` (enforced via `cargo deny bans` — reth's `deny.toml:35` is the exemplar).
-- **Crypto provider** — `rustls::crypto::aws_lc_rs::default_provider().install_default()` early in `main` (startup-install timing per quickwit's `main.rs:98`, which itself installs the ring provider). Without this, rustls 0.23 panics on first TLS use. Build prerequisites for the `aws-lc-rs` C/asm core: see `toolchain-and-workspace.md` "Building the `aws-lc-rs` crypto provider".
+- **Crypto provider** — install the rustls `aws-lc-rs` provider early in `main`; canonical snippet and rationale in `baseline.md` Lock 2. Without this, rustls 0.23 panics on first TLS use. Build prerequisites for the `aws-lc-rs` C/asm core: see `toolchain-and-workspace.md` "Building the `aws-lc-rs` crypto provider".
 - **Outbound HTTP / SSRF** — validate destination hostnames; block link-local / loopback unless allow-listed; reuse `reqwest::Client`, never per-request.
 - **Secret comparison** — use `subtle::ConstantTimeEq` for tokens, HMACs, password digests.
 - **Cache correctness under contention** — `moka` over hand-rolled `Arc<Mutex<HashMap>>`; `arc-swap` for hot-reload of immutable config.
@@ -266,7 +266,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 ```
 
-`mimalloc` on Windows (better than the system allocator), `jemalloc` on Linux/macOS GNU. Skip on musl (jemalloc has known issues there). Library crates **never** install global allocators.
+`mimalloc` on Windows (better than the system allocator), `jemalloc` on glibc Linux/macOS. On musl targets use **`mimalloc`** as well — jemalloc has known issues on musl and musl's built-in allocator is slow on multi-threaded workloads; the canonical three-target snippet (Windows / glibc / musl) lives in `toolchain-and-workspace.md` "Allocator note for musl". Library crates **never** install global allocators.
 
 ## Testing
 
@@ -487,7 +487,8 @@ Both invoke `cargo` with the right linker/sysroot pair; both honor your `[profil
 
 ```dockerfile
 # === Build stage (shared across all runtime variants) ===
-FROM rust:1.96.0 AS chef
+FROM rust:<MSRV> AS chef
+# ^ pin to the workspace rust-version — literal lives in baseline.md Lock 5
 RUN cargo install cargo-chef --locked
 WORKDIR /src
 
@@ -593,7 +594,7 @@ Rules:
 
 ## CI Pipeline
 
-Mandatory stages, runnable as `cargo xtask ci` locally and in GitHub Actions / GitLab CI. **None of these carry `-- -D warnings` on the command line** — that policy is in `[workspace.lints.rust]` (see Lock 4). Plain commands keep dev and CI on the same gate:
+Mandatory stages, runnable as `just ci` locally and in GitHub Actions / GitLab CI. **None of these carry `-- -D warnings` on the command line** — that policy is in `[workspace.lints.rust]` (see Lock 4). Plain commands keep dev and CI on the same gate:
 
 ```text
 1. fmt           : cargo fmt --all -- --check
@@ -608,10 +609,13 @@ Mandatory stages, runnable as `cargo xtask ci` locally and in GitHub Actions / G
 8. supply-chain  : cargo deny check  +  cargo audit  +  cargo shear (or machete)  +  typos
 9. build-release : cargo build --workspace --release
 10. coverage     : cargo llvm-cov nextest --workspace --lcov --output-path lcov.info
-                   (when SLA requires)
+                   (enable per-project SLA; when enabled, target >=80% line coverage
+                   for production services)
 11. mutants      : cargo mutants --in-place --shard ${SHARD}/${TOTAL}
                    (gated on critical crates only)
 ```
+
+Lock mapping: stages 1, 2, 4, 5, 6, 8 are Lock 8's mandatory quality gates; stage 7 (msrv) is Lock 5's verification, included in Lock 8's gate list; stages 3 (doc-check) and 9 (build-release) are delivery hardening on top of the locks; stages 10-11 are optional, enabled per-project SLA.
 
 Caching — keep CI fast:
 
@@ -663,7 +667,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
-        with: { toolchain: "1.96.0" }     # match workspace.package.rust-version
+        with: { toolchain: "<MSRV>" }     # match workspace.package.rust-version (baseline.md Lock 5)
       - uses: taiki-e/install-action@v2
         with: { tool: cargo-hack }
       - run: cargo hack check --rust-version --workspace --ignore-private --locked
@@ -695,7 +699,7 @@ jobs:
 - conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`) — `release-plz` parses these for changelog and version bump
 - one logical change per PR; rebase rather than merge for linear history
 - PR description: what + why + a test plan with explicit checkboxes
-- never mention AI assistants, agent names, or model identifiers in remote-visible content (per global rules in `~/.claude/CLAUDE.md`)
+- never mention AI assistants, agent names, model identifiers, or AI collaborator attribution in commit messages, PR text, comments, or any other remote-visible content
 
 ## Review Focus
 

@@ -22,7 +22,7 @@ These rules apply to **every** PMA-Rust project. They cannot be overridden by pr
 | 5 | **MSRV declared** in `[workspace.package].rust-version`. CI verifies via `cargo hack check --rust-version` or `cargo msrv verify`. | CI gate |
 | 6 | **No `unwrap` / `expect` / `panic!` in runtime paths.** Allowed only in `#[cfg(test)]`, `xtask/`, `build.rs`. Enforced via clippy `unwrap_used = "deny"` / `panic = "deny"` in runtime crates. | workspace lints |
 | 7 | **edition 2024.** New crates and refactors must adopt edition 2024 unless an upstream dependency blocks. | `[workspace.package].edition` |
-| 8 | **Quality gates green** before merge: fmt + clippy + nextest + doctest + cargo-deny + cargo-shear + typos. Clippy invoked plainly — deny policy is in `[workspace.lints]`, not on the CLI. See `references/delivery.md`. | CI gate |
+| 8 | **Quality gates green** before merge: fmt + clippy + nextest + doctest + cargo-deny + cargo-shear + typos + MSRV check (`cargo hack check --rust-version` or `cargo msrv verify`, per Lock 5). Clippy invoked plainly — deny policy is in `[workspace.lints]`, not on the CLI. See `references/delivery.md`. | CI gate |
 
 Loosening any hard lock requires an explicit, dated decision record (Why? What's the sunset?). PMA `/pma` enforces this by refusing implementation approval when these gates are not configured.
 
@@ -30,22 +30,7 @@ Loosening any hard lock requires an explicit, dated decision record (Why? What's
 
 ## Standard-Bearer Anchors
 
-Every recommendation in the reference packs is grounded in these projects (all clone-verified, see `references/evidence.md` for file:line citations):
-
-| Project | What we mirror | Verified file evidence |
-|---|---|---|
-| `rust-lang/cargo` | Workspace `[lints]`, `xtask-*` split crates, `crate-ci/typos`, `cargo-deny`, MSRV via `cargo hack` | `Cargo.toml`, `.cargo/config.toml`, `deny.toml`, `.github/workflows/main.yml` |
-| `rust-lang/rust-analyzer` | Large multi-crate workspace, single `xtask/` (`publish=false`), `cargo nextest`, `cargo machete` | `Cargo.toml`, `xtask/Cargo.toml`, `.github/workflows/ci.yaml` |
-| `paradigmxyz/reth` | `default-members`, extensive `[workspace.lints]`, `deny.toml` with hard `openssl` ban, `mold` + `sccache` + `Swatinem/rust-cache`, `cargo udeps`, `zepter` | `Cargo.toml`, `deny.toml`, `.github/workflows/lint.yml` |
-| `vectordotdev/vector` | `rust-toolchain.toml` pin, build-flag lint enforcement via `.cargo/config.toml` rustflags, `vdev` published xtask | `rust-toolchain.toml`, `.cargo/config.toml`, `vdev/` |
-| `tokio-rs/tokio` | Lib-level lint policy, MSRV policy, `cargo nextest` + separate `--doc`, loom + miri + cargo-fuzz | `tokio/src/lib.rs`, `CONTRIBUTING.md`, `.github/workflows/ci.yml` |
-| `tokio-rs/axum` | Axum 0.8 path syntax `/{id}`, `with_state`, `ServiceBuilder` middleware order, `tower::ServiceExt::oneshot` testing, `with_graceful_shutdown` | `examples/*/src/main.rs`, `axum/src/docs/routing/with_state.md` |
-| `linkerd/linkerd2-proxy` | Production tower stack: load-shed outside concurrency-limit, normalized middleware ordering | `linkerd/app/inbound/src/http/server.rs` |
-| `astral-sh/uv` | Thin bin (`crates/uv/src/bin/uv.rs`) + `uv-cli` crate split, `clap_complete_command`, `ArgAction::Count` for verbose/quiet, `cargo-dist`, `cargo-shear`, `insta` | `crates/uv-cli/src/lib.rs`, `release.yml` |
-| `astral-sh/ruff` | Single bin + custom panic hook, `cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest`, mimalloc/jemalloc allocator switching | `crates/ruff/src/{main,lib}.rs`, `.github/workflows/ci.yaml` |
-| `quickwit-oss/quickwit` | Hand-built tokio runtime + tokio-metrics, OTLP via `opentelemetry-otlp` 0.31 (gRPC + HTTP/JSON), `prometheus` const-label build_info, `utoipa` OpenAPI, `/livez` + `/readyz`, rustls `install_default_crypto_ring_provider()` | `quickwit-cli/src/{main,logger}.rs`, `quickwit-serve/src/{health_check_api,metrics_api,openapi}.rs` |
-
-**`references/evidence.md`** lists the exact file:line references for every pattern in this skill.
+Every recommendation in the reference packs is grounded in 10 clone-verified standard-bearer projects (cargo, rust-analyzer, reth, vector, tokio, axum, linkerd2-proxy, uv, ruff, quickwit). The evidence anchors for every lock — what each project is mirrored for, plus exact file:line citations — live in `references/evidence.md`.
 
 ## Loading Order
 
@@ -73,11 +58,11 @@ Before `/pma` accepts a Rust crate or service for production:
 
 - [ ] Workspace declares `edition = "2024"` and `rust-version`
 - [ ] Every crate has `#![forbid(unsafe_code)]` (or documented exception)
-- [ ] CI runs: fmt + clippy with workspace deny-warnings policy + nextest + `--doc` test + cargo-deny + cargo-shear (or machete) + typos
+- [ ] CI runs: fmt + clippy with workspace deny-warnings policy + nextest + `--doc` test + cargo-deny + cargo-shear (or machete) + typos + MSRV check (`cargo hack check --rust-version` or `cargo msrv verify`)
 - [ ] No transitive `openssl` / `native-tls` (verified by `cargo deny bans`)
-- [ ] All TLS uses rustls; `rustls::crypto::aws_lc_rs::default_provider().install_default()` called early in `main`
+- [ ] All TLS uses rustls; the `aws-lc-rs` provider installed early in `main` (canonical snippet: `references/baseline.md` Lock 2)
 - [ ] Tracing initialized with JSON formatter in prod; OTLP optional
-- [ ] `/healthz` (liveness) + `/readyz` (readiness) endpoints exist for services
+- [ ] `/livez` (liveness) + `/readyz` (readiness) endpoints exist for services
 - [ ] Graceful shutdown wired via `axum::serve(...).with_graceful_shutdown(...)` + `CancellationToken` (or equivalent)
 - [ ] Secrets wrapped in `secrecy::Secret<T>`; never `Debug`-formatted
 - [ ] Config layered: defaults → file → env → CLI; validated post-merge
