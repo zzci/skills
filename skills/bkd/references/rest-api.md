@@ -35,7 +35,8 @@ BKD responses use one of these envelopes:
 
 Issue prompts and other free-form text contain quotes, `$`, backticks, and
 newlines that get mangled when inlined into `-d '{...}'` (shell quoting and JSON
-escaping fight each other). **Never inline free-form text.** Write the text to a
+escaping fight each other). **Never inline free-form text** — this is referred
+to throughout the skill as **the never-inline rule**. Write the text to a
 temp file verbatim, build the JSON body with `jq` (it escapes correctly), and
 POST the file with `--data-binary @file`:
 

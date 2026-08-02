@@ -62,17 +62,19 @@ curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/tool-use/turn/la
 ### 1.4 Check Execution Scale
 
 ```bash
-curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/user-message?limit=200" \
+curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/user-message" \
   | jq '.data | length'
 ```
 
+- Each turn starts with one `user-message`, so the entry count is a proxy for
+  total turn count
 - Total turns exceeding 2x estimated complexity = yellow
 
 ### 1.5 Signal Classification
 
 | Signal | Condition | Action |
 |--------|-----------|--------|
-| Red | Final output misses goal / blind retry / dangerous operations | Follow-up subtask with issue details, move back to `working` for rework |
+| Red | Final output misses goal / blind retry / dangerous operations | Follow-up subtask with issue details; the follow-up auto-moves the `review` issue back to `working` for rework |
 | Yellow | Errors recovered / excessive turns / out-of-scope file changes | Follow-up coordinator with report, wait for human decision |
 | Green | No red or yellow signals | Proceed to next phase (merge or done) |
 
@@ -80,10 +82,9 @@ curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/user-message?lim
 
 **Green (pass):** Proceed directly to next phase (merge or done). Do not follow-up the coordinator issue — the coordinator is already running this assessment inline, so sending a follow-up to itself would cause self-activation loops.
 
-**Red (rework):** (Rule 10 — the prompt is shown inline for readability; send it
-via a temp file: `jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' >
-/tmp/bkd-body.json`, then `curl --data-binary @/tmp/bkd-body.json`. See
-`rest-api.md` → [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).)
+**Red (rework):** (Never-inline rule — the prompt is shown inline for
+readability only; send it via a temp file. See `rest-api.md` →
+[Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).)
 
 ```bash
 curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
@@ -91,11 +92,11 @@ curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
   -d '{
     "prompt": "Quality assessment failed.\nRed signal: turn/last output is \"unable to install dependencies\", task incomplete.\nRequired: investigate root cause and re-execute. Do not blindly retry."
   }' | jq
-
-curl -s -X PATCH "$BKD_URL/projects/{pid}/issues/$SUB_ID" \
-  -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
 ```
+
+The subtask sits in `review` (autoMoveToReview), so this follow-up alone
+auto-moves it to `working` and starts the rework turn — do not send a separate
+`PATCH {statusId:"working"}`.
 
 ## 2. Subtask Self-Review (done by the subtask, not the coordinator)
 
@@ -127,13 +128,11 @@ curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
   -d '{
     "prompt": "Logs filter found issues missed by self-review.\n- Red signal: blind retry pattern in turn/last3\n- Out-of-scope file changes detected\nRequired: fix issues, re-run self-review, and report again."
   }' | jq
-
-curl -s -X PATCH "$BKD_URL/projects/{pid}/issues/$SUB_ID" \
-  -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
 ```
 
-After rework, the subtask re-enters the pipeline: self-review -> report -> coordinator assessment.
+The follow-up auto-moves the `review` issue back to `working`; no `PATCH` is
+needed. After rework, the subtask re-enters the pipeline: self-review -> report
+-> coordinator assessment.
 
 ## Key Rules
 

@@ -47,13 +47,9 @@ curl -s "$BKD_URL/processes/capacity" | jq
 - `availableSlots` is 0: wait, do not force-create tasks
 - Re-check capacity before each new subtask
 
-> **Rule 10 — never inline prompts.** The `"prompt": "..."` blocks below are
-> shown inline for readability only. When actually sending them, write the prompt
-> to a temp file and POST via `jq`: `jq -n --rawfile prompt /tmp/bkd-prompt.txt
-> '{prompt:$prompt}' > /tmp/bkd-body.json` then `curl --data-binary
-> @/tmp/bkd-body.json`. Inlining free-form text into `-d '{...}'` corrupts quotes,
-> `$`, backticks, and newlines. Full pattern + templated-var handling:
-> `rest-api.md` → [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).
+> **The never-inline rule.** The `"prompt": "..."` blocks below are shown inline
+> for readability only — send them via a temp file + `jq` + `--data-binary @file`.
+> See `rest-api.md` → [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).
 
 ## 2. Create Coordinator Issue
 
@@ -62,6 +58,7 @@ ORCH=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
   -H 'Content-Type: application/json' \
   -d '{"title":"[dispatch] task title","statusId":"todo"}')
 
+# Check .success before extracting the ID — see SKILL.md's error-envelope guard
 ORCH_ID=$(echo "$ORCH" | jq -r '.data.id')
 ```
 
@@ -131,12 +128,48 @@ The follow-up **must** include:
 - Self-review instruction: subtask must review its own code and fix issues before reporting
 - Completion report instruction with the full API path
 
+Build the prompt with the heredoc `__VAR__` + `sed` pattern (never nest curl
+commands or escaped JSON inside an inline `-d` string — that is exactly what
+the never-inline rule forbids):
+
 ```bash
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+## Requirements
+{detailed implementation spec}
+
+## Acceptance Criteria
+- {criterion 1}
+- {criterion 2}
+
+## Before Reporting: Self-Review (mandatory)
+
+After implementation is complete, you MUST:
+1. Review your own code changes against the acceptance criteria
+2. Run a code review over your changes (if your engine has a code-review
+   skill such as /pma-cr, use it)
+3. Fix all P0 and P1 issues found in the first round
+4. Only report to the coordinator after self-review and first-round fixes are done
+
+Include the review summary in your completion report.
+
+## After Self-Review: Report to Coordinator
+
+Send a follow-up report over the BKD HTTP API (if your engine has the bkd
+skill, it documents these endpoints):
+
+POST __BKD_URL__/projects/{projectId}/issues/__ORCH_ID__/follow-up
+Body JSON shape:
+{"prompt": "Subtask {id} ({title}) complete\nStatus: success|failure|partial\nChanged files: file1, file2, ...\nKey decisions: {description}\nSelf-review: passed|{issues found and fixed}\nRemaining issues: {if any}"}
+
+Strict requirements:
+- Must complete self-review and first-round fixes before reporting
+- Must use the /follow-up endpoint for all inter-issue communication
+PROMPT
+sed -i "s|__BKD_URL__|$BKD_URL|g; s|__ORCH_ID__|$ORCH_ID|g" /tmp/bkd-prompt.txt
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
 curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$SUB_ID/follow-up" \
   -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "## Requirements\n{detailed implementation spec}\n\n## Acceptance Criteria\n- {criterion 1}\n- {criterion 2}\n\n## Before Reporting: Self-Review (mandatory)\n\nAfter implementation is complete, you MUST:\n1. Review your own code changes against the acceptance criteria\n2. Run /pma-cr on your changes\n3. Fix all P0 and P1 issues found in the first round\n4. Only report to the coordinator after self-review and first-round fixes are done\n\nInclude the review summary in your completion report.\n\n## After Self-Review: Report to Coordinator\n\nUse BKD skill (/bkd) to send a follow-up report:\n\n```bash\ncurl -s -X POST \"$BKD_URL/projects/{projectId}/issues/'"$ORCH_ID"'/follow-up\" \\\n  -H '\''Content-Type: application/json'\'' \\\n  -d '\''{\n    \"prompt\": \"Subtask {id} ({title}) complete\\nStatus: success|failure|partial\\nChanged files: file1, file2, ...\\nKey decisions: {description}\\nSelf-review: passed|{issues found and fixed}\\nRemaining issues: {if any}\\nIssues: {if any}\"\n  }'\'' | jq\n```\n\nStrict requirements:\n- Must complete self-review and first-round fixes before reporting\n- Must use the /follow-up endpoint for all inter-issue communication\n- If unsure about usage, consult BKD skill references/rest-api.md"
-  }' | jq
+  --data-binary @/tmp/bkd-body.json | jq
 ```
 
 ### 4.3 Start Execution
@@ -193,7 +226,7 @@ curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$ORCH_ID/follow-up" \
 |--------------------|--------------------|
 | `working` and idle (between turns) | **Immediate**: triggers coordinator's next turn |
 | `working` and busy (turn in progress) | **Queued**: processed after current turn ends |
-| `review` | **Queued**: waits for status change |
+| `review` | **Immediate**: the issue is auto-moved to `working` and a turn starts |
 | `todo` or `done` | **Queued**: waits for status change |
 
 Key behaviors:
@@ -201,6 +234,8 @@ Key behaviors:
 - Follow-up **actively triggers** the coordinator to continue, not a passive log
 - Multiple queued follow-ups are **merged** and delivered together
 - If the coordinator process has exited, follow-up **auto-starts a new process**
+- A bare follow-up to a `review` issue is enough to begin rework; no separate
+  `PATCH {statusId:"working"}` is needed (see `rest-api.md` → Follow-up issue)
 
 ## 6. Final Confirmation
 
@@ -268,12 +303,12 @@ Subtask:      todo -> working -> self-review + fix -> review (auto) + report to 
 ## Key Constraints
 
 1. **Follow-up only** - use `POST /projects/{pid}/issues/{iid}/follow-up` for all inter-issue communication
-3. **Follow-up queue** - messages to `todo`/`done` issues are queued; `working` + idle = immediate; multiple queued messages are merged
-4. **Report instructions are mandatory** - subtask follow-up details must include the full report API path to prevent agents from using wrong endpoints
-5. **Capacity first** - check `/processes/capacity` before every new subtask
-6. **autoMoveToReview** - BKD auto-moves completed subtasks to `review`; do not manually change status
-7. **Subtask self-review is mandatory** - each subtask must run pma-cr on its own changes and fix P0/P1 issues before reporting to coordinator
-8. **Pipeline assessment** - coordinator assesses each subtask immediately on completion; do not wait for all subtasks
-9. **review != done** - `review` awaits human confirmation; only move to `done` after human approval
-10. **Soft delete** - project and issue deletions are soft-delete by default
-11. **No sleep** - never use `sleep` to wait for subtasks or long-running operations; create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, then let the current turn end. The cron follow-up will wake the coordinator when it fires.
+2. **Follow-up queue** - messages to `todo`/`done` issues are queued; `working` + idle = immediate; `review` = immediate (auto-moves to `working`); multiple queued messages are merged
+3. **Report instructions are mandatory** - subtask follow-up details must include the full report API path to prevent agents from using wrong endpoints
+4. **Capacity first** - check `/processes/capacity` before every new subtask
+5. **autoMoveToReview** - BKD auto-moves completed subtasks to `review`; do not manually change status
+6. **Subtask self-review is mandatory** - each subtask must run pma-cr on its own changes and fix P0/P1 issues before reporting to coordinator
+7. **Pipeline assessment** - coordinator assesses each subtask immediately on completion; do not wait for all subtasks
+8. **review != done** - `review` awaits human confirmation; only move to `done` after human approval
+9. **Soft delete** - project and issue deletions are soft-delete by default
+10. **No sleep** - never use `sleep` to wait for subtasks or long-running operations; create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, then let the current turn end. The cron follow-up will wake the coordinator when it fires.

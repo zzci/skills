@@ -32,6 +32,11 @@ Worktree path: `<WORKTREE_BASE>/<projectId>/<issueId>/`
 
 Base branch priority: `origin/main` > `origin/master` > `main` > `master`
 
+Branches are always cut from the base branch — in the three-tier pattern this
+means a dependent L3 dispatched after upstream work merged into `bkd/{L2_ID}`
+starts without that work; see `three-tier-coordination.md` for the mandatory
+upstream-sync step in the L3 spec.
+
 ## 1. Handle Main Branch State Before Merge
 
 The coordinator runs on the main branch, so there are usually uncommitted changes
@@ -153,11 +158,10 @@ Follow-up coordinator with report, escalate to human.
 git revert -m 1 HEAD --no-edit
 ```
 
-Follow-up the failing subtask with error details, move back to `working`
-(Rule 10 — send the prompt via a temp file, not inline: `jq -n --rawfile prompt
-/tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json`, then `curl
---data-binary @/tmp/bkd-body.json`; see `rest-api.md` →
-[Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely)):
+Follow-up the failing subtask with error details. The subtask sits in `review`,
+so the follow-up alone auto-moves it back to `working` — no separate `PATCH` is
+needed. (Never-inline rule — send the prompt via a temp file, not inline; see
+`rest-api.md` → [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).)
 
 ```bash
 curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
@@ -165,10 +169,6 @@ curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
   -d '{
     "prompt": "Post-merge build failed, reverted.\nError: {build/test error details}\nRequired: fix issues based on latest main branch and resubmit."
   }' | jq
-
-curl -s -X PATCH "$BKD_URL/projects/{pid}/issues/$SUB_ID" \
-  -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
 ```
 
 Reworked subtasks re-enter the pipeline from the completion report step.

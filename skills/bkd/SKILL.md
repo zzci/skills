@@ -1,6 +1,6 @@
 ---
 name: bkd
-description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity through a reachable BKD server.
+description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity, including three-tier L1/L2/L3 autonomous coordination and multi-subtask orchestration (trigger phrases like "use bkd to start coordination", "start BKD L1"). Requires a reachable BKD server ($BKD_URL).
 ---
 
 # BKD
@@ -21,7 +21,7 @@ Keep this entry file small. Load only the references needed for the current turn
 7. Treat project and issue deletions as soft-delete unless the API says otherwise.
 8. Expect all responses to use `{ success, data }` or `{ success, error }`.
 9. Never use `sleep` to wait for subtasks or long-running operations. Create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, then let the current turn end.
-10. Never inline free-form text (prompts, descriptions) into `-d '{...}'` — quotes, `$`, backticks, and newlines get mangled by shell + JSON escaping. Write the text to a temp file, build the body with `jq`, and POST it with `--data-binary @file`. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely). Fixed-value bodies (e.g. `{"statusId":"working"}`) are safe to inline.
+10. **The never-inline rule**: never inline free-form text (prompts, descriptions) into `-d '{...}'` — quotes, `$`, backticks, and newlines get mangled by shell + JSON escaping. Write the text to a temp file, build the body with `jq`, and POST it with `--data-binary @file`. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely). Fixed-value bodies (e.g. `{"statusId":"working"}`) are safe to inline.
 
 ## Core Workflow
 
@@ -39,9 +39,11 @@ full L1/L2/L3 rules in the prompt.
 ISSUE=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
   -H 'Content-Type: application/json' \
   -d '{"title":"short title","statusId":"todo"}')
+# Guard the envelope before extracting the ID
+echo "$ISSUE" | jq -e '.success' >/dev/null || { echo "BKD error: $(echo "$ISSUE" | jq -r '.error // "unknown"')" >&2; false; }
 ISSUE_ID=$(echo "$ISSUE" | jq -r '.data.id')
 
-# 2. Send details — write the prompt to a file, never inline (Rule 10)
+# 2. Send details — write the prompt to a file, never inline (the never-inline rule)
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
 full implementation details
 PROMPT
@@ -55,6 +57,10 @@ curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID" \
   -H 'Content-Type: application/json' \
   -d '{"statusId":"working"}' | jq
 ```
+
+Failed calls return `{ success: false, error }`, so apply the guard shown in
+step 1 after every BKD call before extracting IDs (or any other `.data` field);
+skipping it silently propagates `null` IDs.
 
 ### Quick Operations
 
