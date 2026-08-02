@@ -54,7 +54,7 @@ curl -fsS "$GITEA_URL/api/v1/version" | jq
 
 Use this as the Gitea-detection probe before any other operation.
 
-### Server settings (admin) · `GET /settings/api` · read-only
+### Server settings · `GET /settings/api` · read-only
 
 Pagination/limit defaults exposed by the server: useful when scripting bulk pulls.
 

@@ -26,7 +26,7 @@ Keep this entry file small. Load only the reference pack the current turn needs.
 
 ### Environment
 
-Credentials live in **named pairs** — `GITEA_<ALIAS>_URL` + `GITEA_<ALIAS>_TOKEN` — one pair per Gitea instance. `gitea_auto` matches the current repo's `origin` host to one of the URLs and loads that pair into `$GITEA_URL` + `$GITEA_TOKEN`. Full discovery order and inline helper code: [setup.md](references/setup.md#instance-selection-multi-gitea).
+Credentials live in **named pairs** — `GITEA_<ALIAS>_URL` + `GITEA_<ALIAS>_TOKEN` — one pair per Gitea instance. `gitea_auto` matches the current repo's `origin` host to one of the URLs and loads that pair into `$GITEA_URL` + `$GITEA_TOKEN`. Full discovery order and helper code: [setup.md](references/setup.md#instance-selection-multi-gitea).
 
 ```bash
 # Example user-side ~/.bashrc:
@@ -34,37 +34,27 @@ Credentials live in **named pairs** — `GITEA_<ALIAS>_URL` + `GITEA_<ALIAS>_TOK
 #   export GITEA_ORGB_URL=https://git.orgb.local  GITEA_ORGB_TOKEN=...
 #   export GITEA_URL=https://gitea.com            GITEA_TOKEN=...
 
-# Per-session bootstrap (define the helpers from setup.md or source them):
-gitea_list_aliases() { env | grep -oE '^GITEA_[A-Z0-9][A-Z0-9_]*_URL=' | sed -E 's/^GITEA_(.+)_URL=$/\1/' | sort -u; }
-gitea_use() { local a="$1" u="GITEA_${1}_URL" t="GITEA_${1}_TOKEN" f="GITEA_${1}_TOKEN_FILE"
-  [ -n "${!u:-}" ] || { echo "no $u" >&2; return 1; }
-  if   [ -n "${!t:-}" ];                   then GITEA_TOKEN="${!t}"
-  elif [ -n "${!f:-}" ] && [ -r "${!f}" ]; then GITEA_TOKEN="$(cat "${!f}")"
-  else echo "no $t or ${t}_FILE" >&2; return 1; fi
-  GITEA_URL="${!u}"; export GITEA_URL GITEA_TOKEN; }
-gitea_auto() { local src o h a u uh
-  if [ -n "${GITEA_URL:-}" ]; then src="$GITEA_URL"
-  else o=$(git remote get-url origin 2>/dev/null) || o=""; src="$o"; fi
-  case "$src" in
-    git@*:*)        h="${src#git@}";   h="${h%%:*}";;
-    ssh://*)        h="${src#ssh://}"; h="${h#*@}"; h="${h%%/*}"; h="${h%%:*}";;
-    http*://*)      h="${src#http*://}"; h="${h%%/*}"; h="${h%%:*}";;
-  esac
-  if [ -n "${h:-}" ]; then
-    for a in $(gitea_list_aliases); do
-      u="GITEA_${a}_URL"; uh="${!u#http*://}"; uh="${uh%%/*}"; uh="${uh%%:*}"
-      [ "$h" = "$uh" ] && { gitea_use "$a"; return 0; }
-    done
-  fi
-  [ -n "${GITEA_URL:-}" ] && [ -n "${GITEA_TOKEN:-}" ] && { export GITEA_URL GITEA_TOKEN; return 0; }
-  [ -n "${GITEA_HOST:-}" ] && [ -n "${GITEA_ACCESS_TOKEN:-}" ] && {
-    GITEA_URL="$GITEA_HOST"; GITEA_TOKEN="$GITEA_ACCESS_TOKEN"; export GITEA_URL GITEA_TOKEN; return 0; }
-  return 1; }
-
-gitea_auto || { echo "no Gitea credentials (set GITEA_<ALIAS>_URL + GITEA_<ALIAS>_TOKEN, or GITEA_URL + GITEA_TOKEN)" >&2; return 1; }
+# Per-session bootstrap (helpers from setup.md, e.g. sourced via /tmp/gitea-helpers.sh):
+gitea_auto || { echo "no Gitea credentials (set GITEA_<ALIAS>_URL + GITEA_<ALIAS>_TOKEN, or GITEA_URL + GITEA_TOKEN)" >&2; exit 1; }
 
 AUTH=(-H "Authorization: token $GITEA_TOKEN")
 JSON=(-H 'Content-Type: application/json')
+```
+
+Env-var contract:
+
+- `GITEA_<ALIAS>_URL` + `GITEA_<ALIAS>_TOKEN` — one named pair per instance. `<ALIAS>` is uppercase letters/digits/underscores; `GITEA_<ALIAS>_TOKEN_FILE` is accepted when `_TOKEN` is not exported.
+- `GITEA_URL` + `GITEA_TOKEN` — unaliased single-instance fallback. `$GITEA_URL` is the base URL **without** the `/api` suffix.
+- `GITEA_HOST` + `GITEA_ACCESS_TOKEN` — gitea-mcp legacy fallback.
+
+The helpers (`gitea_list_aliases`, `gitea_use`, `gitea_auto`) are defined **only** in [setup.md's "Instance selection" section](references/setup.md#instance-selection-multi-gitea) — copy them from there before use; do not re-derive them from memory. Host matching strips `:port`, so two aliases on the same host with different ports resolve arbitrarily — use `gitea_use <ALIAS>` explicitly in that case.
+
+> **Fresh-shell warning.** In agent environments, each command block runs in a new non-sourced shell — function definitions do NOT persist between blocks. Write the helper definitions (from setup.md) once to a temp file, e.g. `/tmp/gitea-helpers.sh`, then start every command block with `source /tmp/gitea-helpers.sh && gitea_auto`. Alternatively, prepend the definitions to every block.
+
+**Simple single-instance case** (only `GITEA_URL` + `GITEA_TOKEN` exported): skip the helpers entirely and call curl directly:
+
+```bash
+curl -s -H "Authorization: token $GITEA_TOKEN" "$GITEA_URL/api/v1/user" | jq
 ```
 
 Two usage patterns:
@@ -89,15 +79,15 @@ gitea DELETE /repos/foo/bar/releases/42                        # destructive
 ```
 
 The helper auto-injects `$GITEA_URL/api/v1`, the auth header, and
-`Content-Type: application/json`; surfaces HTTP 4xx/5xx with the
-`{message, url}` envelope on stderr and returns 1; pretty-prints success
-bodies via `jq`.
+`Content-Type: application/json`; surfaces curl transport failures and HTTP
+4xx/5xx (with the `{message, url}` envelope) on stderr and returns 1;
+pretty-prints success bodies via `jq`.
 
 ### Single issue create + comment (canonical write flow)
 
 ```bash
 ISSUE=$(gitea POST /repos/{owner}/{repo}/issues \
-          -d '{"title":"fix auth bug","body":"Steps to reproduce..."}') || return 1
+          -d '{"title":"fix auth bug","body":"Steps to reproduce..."}') || exit 1
 NUM=$(echo "$ISSUE" | jq -r '.number')
 
 gitea POST "/repos/{owner}/{repo}/issues/$NUM/comments" \
@@ -131,7 +121,4 @@ endpoint with method, path, key params, and a curl example.
 - "Who am I", search repos/users/issues, org list, notifications: `references/api-discovery.md`.
 - CI runs/workflows, secrets/variables, packages: `references/api-cicd.md`.
 
-## When to Use Another Forge
-
-- `git remote get-url origin` host is `github.com` -> use `gh` instead; this skill does not apply.
-- `/api/v1/version` probe fails -> the host is probably not a Gitea instance. Ask the user; do not guess another forge.
+Reminder (rule 0): `github.com` -> use `gh`; failed `/api/v1/version` probe -> ask the user, do not guess another forge.

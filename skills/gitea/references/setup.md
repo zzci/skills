@@ -31,7 +31,7 @@ export GITEA_ORGA_URL=https://git.orga.com     GITEA_ORGA_TOKEN="..."
 export GITEA_ORGB_URL=https://git.orgb.local   GITEA_ORGB_TOKEN="..."
 
 # Activate (auto-pick by current repo's origin, else fall back to GITEA_URL/GITEA_TOKEN):
-gitea_auto || { echo "no Gitea credentials in env" >&2; return 1; }
+gitea_auto || { echo "no Gitea credentials in env" >&2; exit 1; }
 
 AUTH=(-H "Authorization: token $GITEA_TOKEN")
 JSON=(-H 'Content-Type: application/json')
@@ -57,10 +57,11 @@ export GITEA_TOKEN="$(pass show gitea/public)"
 
 - Discovery regex: `^GITEA_[A-Z0-9][A-Z0-9_]*_URL=` — the captured middle group is the alias.
 - `_TOKEN_FILE` is accepted for any alias when `_TOKEN` is not exported directly.
+- Host matching in `gitea_auto` strips `:port` — two aliases on the same host with different ports (e.g. `git.orgb.local` vs `git.orgb.local:3000`) resolve arbitrarily; use `gitea_use <ALIAS>` explicitly in that case.
 
 ### Selection helpers
 
-Drop these into the shell once (also inlined in SKILL.md's `Environment` block):
+These are the **canonical definitions** — SKILL.md refers here rather than duplicating them. In non-persistent shells (each agent command block is a fresh shell), write them plus the `gitea` wrapper below to a temp file (e.g. `/tmp/gitea-helpers.sh`) once and `source` it at the top of every command block:
 
 ```bash
 # Print all aliases that have a GITEA_<ALIAS>_URL set, one per line.
@@ -150,20 +151,20 @@ gitea GET /user | jq '{login, full_name}'
 
 ## `gitea` helper function
 
-The `api-*.md` reference packs use a one-line `gitea` wrapper instead of repeating the full curl invocation. Define it once per shell:
+The `api-*.md` reference packs use a one-line `gitea` wrapper instead of repeating the full curl invocation. Define it in every shell that runs the examples (via the temp-file + `source` pattern above in non-persistent shells):
 
 ```bash
 gitea() {
   local method="$1" path="$2"; shift 2
   local url="${GITEA_URL}/api/v1${path}"
   local tmp; tmp=$(mktemp)
-  local http
+  local http rc
   http=$(curl -sS -o "$tmp" -w '%{http_code}' \
     -H "Authorization: token $GITEA_TOKEN" \
     -H 'Content-Type: application/json' \
-    -X "$method" "$@" "$url")
-  if [ "$http" -ge 400 ]; then
-    >&2 echo "HTTP $http for $method $path"
+    -X "$method" "$@" "$url"); rc=$?
+  if [ "$rc" -ne 0 ] || [ "$http" -lt 200 ] || [ "$http" -ge 400 ]; then
+    >&2 echo "HTTP $http (curl exit $rc) for $method $path"
     >&2 jq . "$tmp" 2>/dev/null || >&2 cat "$tmp"
     rm -f "$tmp"; return 1
   fi
@@ -187,20 +188,18 @@ gitea DELETE /repos/foo/bar/releases/42
 - Method and path are positional; everything after is passed through to curl unchanged (`-d`, `-F`, `--data-binary`, extra `-H`, `--cacert`, etc.).
 - The helper always sends `Content-Type: application/json`. For multipart uploads, use raw `curl` with `-F` so curl can generate the multipart boundary.
 - Success bodies are pretty-printed via `jq`; empty 204 bodies are silently fine.
-- HTTP 4xx/5xx: the function writes `HTTP <code> for <method> <path>` + the `{message, url}` envelope to **stderr** and returns 1. Combine with `||` for failure handling, or capture stdout for the success payload.
+- Failure: curl transport errors (connection refused, DNS failure — `%{http_code}` is `000`) and any HTTP status outside 200–399 write `HTTP <code> (curl exit <rc>) for <method> <path>` + the `{message, url}` envelope to **stderr** and return 1. Combine with `||` for failure handling, or capture stdout for the success payload.
 - Body capture for multi-step flows:
   ```bash
-  ISSUE=$(gitea POST /repos/foo/bar/issues -d '{"title":"new"}') || return 1
+  ISSUE=$(gitea POST /repos/foo/bar/issues -d '{"title":"new"}') || exit 1
   NUM=$(echo "$ISSUE" | jq -r '.number')
   ```
-- For **raw bodies** (downloading job logs, PR diffs, file content), use `--output -` and skip jq:
+- For **raw bodies** (downloading job logs, PR diffs, file content), skip the helper and use raw `curl`; raw text isn't valid JSON:
   ```bash
-  gitea GET /repos/foo/bar/pulls/3.diff --output - 2>/dev/null > pr.diff
-  # or skip the helper entirely; raw text isn't valid JSON.
   curl -sS "${AUTH[@]}" "$GITEA_URL/api/v1/repos/foo/bar/pulls/3.diff" > pr.diff
   ```
 
-When an example in the `api-*.md` packs uses `gitea ...`, it assumes this function and the resolved env are already in scope. Examples that drop to raw `curl` are doing so deliberately (multipart upload, base64-heavy payloads, HTTP-status capture, raw text response).
+When an example in the `api-*.md` packs uses `gitea ...`, it requires this function and the resolved env to be in scope — in a fresh (non-persistent) shell, `source /tmp/gitea-helpers.sh` and run `gitea_auto` at the top of the command block first. Examples that drop to raw `curl` are doing so deliberately (multipart upload, base64-heavy payloads, HTTP-status capture, raw text response).
 
 ## Authentication
 
