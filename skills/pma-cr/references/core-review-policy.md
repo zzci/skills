@@ -8,6 +8,7 @@ Use this file for all review modes and all stacks.
 - [Review Order](#review-order)
 - [Confidence Filter](#confidence-filter)
 - [Severity Guide](#severity-guide)
+- [Output Format](#output-format)
 - [Shared Heuristics](#shared-heuristics)
 - [Dead Code Guidance](#dead-code-guidance)
 - [Security Baseline](#security-baseline)
@@ -67,6 +68,64 @@ Escalate when:
 | HIGH | Likely bug or operational failure with meaningful impact |
 | MEDIUM | Real issue with bounded impact or lower probability |
 | LOW | Small maintainability or clarity issue with direct evidence |
+
+In repository audit mode, the `P0`-`P3` priority bands map to CRITICAL, HIGH, MEDIUM, and LOW respectively.
+
+## Output Format
+
+Canonical output templates for local diff review and PR review. The repository audit report skeleton lives in `repository-audit.md`.
+
+### Local Diff Findings
+
+Order findings by severity. Use this block for each finding:
+
+```text
+[HIGH] Missing timeout and abort handling on outbound HTTP request
+File: src/server/user-service.ts:48
+Issue: The new request path awaits an external API call without a timeout or AbortSignal. A slow upstream can pin the request handler and exhaust concurrency under load.
+Fix: Pass an AbortSignal or timeout budget and map timeout failures to a controlled error path.
+```
+
+End with:
+
+```markdown
+## Review Summary
+
+| Severity | Count | Status |
+|----------|-------|--------|
+| CRITICAL | 0     | pass   |
+| HIGH     | 1     | warn   |
+| MEDIUM   | 0     | info   |
+| LOW      | 0     | note   |
+
+Verdict: WARNING
+```
+
+### PR Review Comments
+
+Use a GitHub-comment-ready format. Link each finding with a permalink pinned to the full commit SHA:
+
+```markdown
+### Code review
+
+Found 2 issues:
+
+1. Missing schema validation on the new POST body allows malformed input to flow into database writes.
+
+https://github.com/owner/repo/blob/FULL_SHA/path/file.ts#L10-L28
+
+2. The new Rust async path performs blocking filesystem work directly on the runtime instead of offloading it.
+
+https://github.com/owner/repo/blob/FULL_SHA/path/lib.rs#L42-L67
+```
+
+If nothing meets the threshold:
+
+```markdown
+### Code review
+
+No high-confidence issues found.
+```
 
 ## Shared Heuristics
 

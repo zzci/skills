@@ -1,4 +1,4 @@
 interface:
   display_name: "PMA Code Review"
-  short_description: "Stack-aware code review for PMA projects"
-  default_prompt: "Use $pma-cr to review the current diff for correctness, security, and regressions."
+  short_description: "Stack-aware review for local diffs, PRs, and repository audits"
+  default_prompt: "Use $pma-cr to review a local diff or pull request, or run a repository-wide audit, with the right stack-specific rules."

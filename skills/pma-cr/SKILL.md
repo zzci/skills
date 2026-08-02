@@ -1,6 +1,6 @@
 ---
 name: pma-cr
-description: Stack-aware review for local diffs, pull requests, and repository-wide audits. Routes review across shared policy plus language packs for TypeScript frontend, TypeScript backend/Bun, Go, Rust, and Python. Use after implementation, before merge, or when auditing an existing codebase.
+description: "Code review: stack-aware review for local diffs, pull requests, and repository-wide audits. Routes review across shared policy plus language packs for TypeScript frontend, TypeScript backend/Bun, Go, Rust, and Python. Use after implementation, before merge, or when auditing an existing codebase."
 ---
 
 # PMA Code Review
@@ -51,10 +51,10 @@ Repository audit:
 
 ## Workflow
 
-1. Detect review mode:
-   - no argument: local diff review
-   - PR number or URL: PR review
-   - `audit`, `repo`, or `--repo`: repository audit
+1. Detect review mode, in this order:
+   - PR reference first: a bare PR number, or a URL containing `/pull/` or `/pulls/` -> PR review
+   - else `audit`, `repo`, or `--repo` as an exact standalone argument (never a substring of a word, path, or URL — `.../audit-service/pull/12` is a PR, not an audit) -> repository audit
+   - no argument -> local diff review
 2. Read `references/core-review-policy.md`.
 3. For repository audit, also read `references/repository-audit.md`.
 4. Detect stack from changed files and project manifests.
@@ -77,20 +77,13 @@ Use these heuristics:
 - **Rust**: `Cargo.toml`, `*.rs`
 - **Python**: `pyproject.toml`, `setup.py`, `requirements.txt`, `*.py`
 
+Next.js Route Handlers / Server Actions -> load both the TS frontend and TS backend packs.
+
 If the change spans multiple stacks, load all relevant packs and review each changed area against the correct pack.
 
 ## Review Priorities
 
-Always review in this order:
-
-1. Correctness and regressions
-2. Security and trust boundaries
-3. Data integrity and error handling
-4. Concurrency, cancellation, and resource lifetime
-5. Performance and scalability
-6. Maintainability and tests
-
-Do not spend review budget on stylistic nits unless they violate an explicit project rule.
+Review order and confidence filtering: see `references/core-review-policy.md`.
 
 ## Local Review Mode
 
@@ -110,7 +103,8 @@ Use PR mode for GitHub pull requests.
 - gather relevant `CLAUDE.md` / `AGENTS.md` guidance
 - review only changed behavior and nearby context, not unrelated legacy code
 - when useful, split the audit by concern or stack, then merge only high-confidence findings
-- post review to GitHub via `gh pr review` — request changes when issues found, approve when clean
+- present findings to the user first; post to GitHub via `gh pr review` only after the user confirms
+- default to `gh pr review --comment`; use `--approve` or `--request-changes` only when the user explicitly asks for them (note: `--approve` fails on your own PR)
 
 ## Repository Audit Mode
 
@@ -124,42 +118,19 @@ Use repository audit mode when the goal is to assess the current repository, not
 
 ## Output Rules
 
-Report findings only when they are strong enough to matter:
-
-- prioritize issues that can break behavior, security, correctness, or operations
-- skip issues that linters, compilers, or typecheckers already guarantee
-- skip unchanged legacy problems unless the change makes them worse or exposes them
-- consolidate repeated instances into one finding when the root cause is shared
-
-For local mode, output:
-
-- severity
-- file and line
-- issue
-- fix direction
-
-For PR mode, output concise review comments that can be posted directly.
-
-For repository audit mode, output:
-
-- findings grouped by `P0` to `P3`
-- affected areas
-- issue and impact
-- dead-code findings
-- dead-code removal candidates
-- needs runtime verification
-- coverage gaps
-- recommended next actions
+- What to report and what to skip (confidence filter): see `references/core-review-policy.md`.
+- Local diff and PR output templates: see the "Output Format" section of `references/core-review-policy.md`.
+- Repository audit report template: see the "Report Skeleton" section of `references/repository-audit.md`.
 
 ## Reference Packs
 
-- `references/core-review-policy.md`: confidence filter, severity policy, shared review heuristics
-- `references/repository-audit.md`: repository-wide audit workflow, hotspot selection, and report structure
+- `references/core-review-policy.md`: confidence filter, severity policy, output formats, shared review heuristics
+- `references/repository-audit.md`: repository-wide audit workflow, hotspot selection, and report skeleton
 - `references/typescript-frontend.md`: React / Next.js / Vite / browser UI review rules
 - `references/typescript-backend.md`: Node / Bun / API / validation / DB / async review rules
 - `references/go.md`: Go review rules around context, errors, concurrency, HTTP, and resource safety
 - `references/rust.md`: Rust review rules around panic boundaries, async blocking, unsafe, docs, and API contracts
 - `references/python.md`: Python review rules around validation, deserialization, async, type safety, and command injection
-- `agents/code-reviewer.md`: optional subagent prompt for isolated review passes when explicit parallel-agent validation is allowed
+- `agents/code-reviewer.md`: optional subagent prompt, used when the user has asked for a parallel or isolated review pass
 
 These packs intentionally hold the detailed rules so this file stays small and cheap to load.

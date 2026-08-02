@@ -133,6 +133,49 @@ Use repository audit output, not PR output.
 - `Coverage Gaps`
 - `Recommended Next Actions`
 
+### Report Skeleton
+
+Canonical report template:
+
+```markdown
+## Repository Audit Summary
+
+### P0
+
+1. Authentication bypass on admin write route in `src/server/admin.ts`.
+
+### P1
+
+1. Unbounded background goroutines in worker shutdown path across `internal/worker`.
+
+### P2
+
+1. Repository mixes privileged config loading and request parsing in the same package, making trust boundaries hard to enforce.
+
+### Coverage Gaps
+
+- No integration tests found for auth and migration flows.
+- CI does not appear to run a security-oriented gate.
+
+### Dead Code Findings
+
+- `legacy/webhook/handlers.ts` is no longer registered by any route or worker path but still contains live secret-handling code.
+
+### Dead Code Removal Candidates
+
+- `src/jobs/old-retry.ts` appears unused after the queue migration and should be removed if staging confirms no dynamic registration remains.
+
+### Needs Runtime Verification
+
+- `src/plugins/legacy.ts` looks orphaned statically, but plugin loading may still happen via deployment config. Confirm before deletion.
+
+### Recommended Next Actions
+
+1. Fix the P0 and P1 findings first.
+2. Add targeted tests around auth and worker shutdown.
+3. Separate privileged bootstrap/config code from request-facing handlers.
+```
+
 ## Noise Control
 
 Do not report:
