@@ -75,6 +75,19 @@ Before writing implementation code:
    - sync tool state if task tools exist
 4. Start implementation only after the claim is fully written.
 
+Conflict rule (the claim spans multiple writes and is not atomic):
+
+- The task index line edit (`[ ]` -> `[-]`) is the claim-deciding write. If the line no longer reads `[ ]` when you attempt the edit, someone else claimed it — do not proceed.
+- After writing the claim, re-read `docs/task/index.md` and the task detail file. If the recorded `owner` is not you, back off, revert any partial writes of yours, and pick another task.
+
+Unclaim (proposal rejected or work abandoned):
+
+- revert task index `[-] -> [ ]`
+- set task detail `status -> pending` and clear `owner`
+- append a note line explaining why the task was released
+
+Staleness heuristic: a `[-]` task whose owner session is gone and whose notes have not changed may be unclaimed by another agent after confirming with the user.
+
 On completion:
 
 - set task index `[-] -> [x]`
@@ -103,7 +116,7 @@ When introducing or upgrading a dependency, default to the **latest stable versi
 Before adding any new dependency or accepting any version number that came from somewhere other than the registry:
 
 1. **Verify the latest stable at the registry** (commands per stack — see the stack skill's baseline):
-   - crates.io / npmjs.com / pkg.go.dev are the sources of truth; the LLM is not.
+   - crates.io / npmjs.com / pkg.go.dev / PyPI are the sources of truth; the LLM is not.
 2. **Confirm current API and breaking changes via official docs.** Use Context7 (`mcp__plugin_context7_context7__query-docs`) or the vendor site for libraries you are not already using at the latest version. Training-data recall lags real releases — treat it as a hint, not a fact.
 3. **Pin to non-latest only with a recorded reason.** MSRV constraint, peer-dep incompatibility, blocked upstream — write the justification inline next to the dependency entry (`// PINNED: <reason> until <condition>`) or in `docs/decisions/`.
 4. **Separate routine version bumps from feature work.** A `chore(deps): bump X to Y` commit or PR is reviewable; bundling it into a feature diff hides regressions.

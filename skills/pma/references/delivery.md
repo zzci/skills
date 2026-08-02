@@ -101,7 +101,7 @@ Each PMA-managed repository should establish a baseline set of project-level con
 
 | File | When |
 |---|---|
-| `docs/changelog.md` | Once the project has releases or shipped behavior changes (Keep a Changelog format). |
+| `docs/changelog.md` | Once the project has releases or shipped behavior changes (timestamped work-log entries — see `docs-and-tracking.md` *Changelog Conventions*). |
 | `docs/decisions/` | Once any default has been relaxed (e.g. a Hard Lock exception) or a non-default design decision needs to outlive a PR description. |
 | `.github/CODEOWNERS` | Once review ownership is non-trivial (multiple maintainers or teams). |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Once the PR Summary / Test plan format below is used consistently. |
@@ -152,6 +152,7 @@ Before creating or updating a PR:
 1. Review the full diff from the branch point.
 2. Run code review focused on correctness, regressions, and missing tests.
 3. Run a security review.
+   - Stack-aware review is available via the `/pma-cr` skill: `/pma-cr` for the local diff, `/pma-cr <PR>` for a pull request.
 4. Ensure build passes.
 5. Ensure lint passes.
 6. Ensure tests pass.

@@ -18,7 +18,7 @@ Keep this entry file small. Load only the references needed for the current turn
 5. Do not use plan mode. Track plans only in `docs/plan/`.
 6. Update task and plan files immediately; do not defer state sync.
 7. Apply the Coding Principles below to every code change.
-8. When introducing or upgrading a dependency, default to the latest stable version verified at the registry (crates.io / npmjs.com / pkg.go.dev), not at a version that came from a tutorial, prior PR, or model recall. Pin to a non-latest version only with a recorded reason. See `references/workflow.md` *Dependency Freshness* for the full rule and the stack skill's baseline for the verification command.
+8. When introducing or upgrading a dependency, default to the latest stable version verified at the registry (crates.io / npmjs.com / pkg.go.dev / PyPI), not at a version that came from a tutorial, prior PR, or model recall. Pin to a non-latest version only with a recorded reason. See `references/workflow.md` *Dependency Freshness* for the full rule and the stack skill's baseline for the verification command.
 9. Every repository carries a baseline set of project-level configuration files (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, plus stack-pinned toolchain files). See `references/delivery.md` *Repository Hygiene*.
 10. Never hand-author or hand-edit database migration files. Migrations are produced by the project's migration tool / ORM (e.g. `sqlx migrate`, `sea-orm-migration`, `diesel migration`, Drizzle Kit, Prisma, Alembic) — change the model/schema, then let the tool emit the migration. Hand-written or restructured migrations desync from the tool's tracked state and break later auto-generated migrations. See `references/delivery.md` *Database Migrations*.
 
@@ -26,79 +26,18 @@ Keep this entry file small. Load only the references needed for the current turn
 
 Behavioral guardrails for every edit. Bias toward caution over speed; for trivial tasks, use judgment.
 
-### 1. Think Before Coding
-
-Don't assume. Don't hide confusion. Surface tradeoffs.
-
-- State assumptions explicitly; if uncertain, ask.
-- If multiple interpretations exist, present them — don't pick silently.
-- If a simpler approach exists, say so and push back when warranted.
-- If something is unclear, stop, name what's confusing, and ask.
-
-### 2. Simplicity First
-
-Minimum code that solves the problem. Nothing speculative.
-
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No flexibility or configurability that wasn't requested.
-- No error handling for impossible scenarios.
-- If 200 lines could be 50, rewrite it.
-- Self-check: would a senior engineer say this is overcomplicated?
-
-### 3. Surgical Changes
-
-Touch only what you must. Clean up only your own mess.
-
-- Don't improve adjacent code, comments, or formatting.
-- Don't refactor code that isn't broken.
-- Match existing style even if you'd do it differently.
-- Mention unrelated dead code; do not delete it unless asked.
-- Remove imports/variables/functions that YOUR changes made unused.
-- Test: every changed line should trace directly to the user's request.
-
-### 4. Goal-Driven Execution
-
-Define success criteria. Loop until verified.
-
-- Convert vague tasks into verifiable goals:
-  - "Add validation" -> write tests for invalid inputs, then make them pass.
-  - "Fix the bug" -> write a test that reproduces it, then make it pass.
-  - "Refactor X" -> ensure tests pass before and after.
-- For multi-step work, state a brief plan with a verify step per item:
-  1. [Step] -> verify: [check]
-  2. [Step] -> verify: [check]
-- Strong criteria enable independent iteration; weak criteria ("make it work") require constant clarification.
+1. **Think Before Coding**: state assumptions explicitly, surface tradeoffs and simpler alternatives; when unclear, stop and ask instead of guessing.
+2. **Simplicity First**: minimum code that solves the problem — no speculative features, abstractions, or configurability.
+3. **Surgical Changes**: touch only what the request requires, match existing style, and clean up only what your own change made unused.
+4. **Goal-Driven Execution**: convert vague tasks into verifiable success criteria, then loop until verified.
 
 ## Core Workflow
 
-### Phase 1: Investigation
+Three phases with hard gates. Step-by-step detail lives in `references/workflow.md`; load it for any non-trivial task.
 
-- trace upstream and downstream impact
-- inspect related code, tests, config, docs, and recent changelog entries
-- find or create the matching task in `docs/task/index.md`
-- claim the task before implementation
-- create a plan file for non-trivial work
-
-### Phase 2: Proposal
-
-Output these items, then stop for approval:
-
-- current state
-- proposal
-- risks
-- scope
-- alternatives when they matter
-
-### Phase 3: Implement -> Verify -> Record
-
-After approval:
-
-- set task and plan status to in progress
-- implement the approved scope
-- run focused verification
-- mark task and plan completed
-- update changelog when needed
+1. **Phase 1: Investigation** — entry: a chosen task. Claim the task in `docs/task/index.md` (`[ ]` -> `[-]`, owner set) when investigation starts; investigate impact, related code, tests, config, and recent changelog; create a plan file for non-trivial work. Exit: findings recorded.
+2. **Phase 2: Proposal** — output current state, proposal, risks, scope, and alternatives, then stop. Exit gate: explicit approval such as `proceed`.
+3. **Phase 3: Implement -> Verify -> Record** — entry: approval. Set the plan status/marker to in-progress (the task is already claimed since Phase 1), implement the approved scope, run focused verification, mark task and plan completed, update changelog when needed.
 
 ## Reference Packs
 

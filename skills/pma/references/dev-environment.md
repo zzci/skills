@@ -1,6 +1,6 @@
 # PMA Dev Environment
 
-Cross-cutting dev-runtime conventions used by every stack skill (`pma-web`, `pma-bun`, `pma-go`, `pma-rust`). Stack skills carry only the stack-specific invocation; the protocol lives here.
+Cross-cutting dev-runtime conventions used by every stack skill (`/pma-web`, `/pma-bun`, `/pma-go`, `/pma-rust`). Stack skills carry only the stack-specific invocation; the protocol lives here.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ This **replaces** the previous patterns:
 - Backend can be any language (Bun, Go, Rust, Python, …). Frontend does not import or proxy the backend.
 - Vite config stays plain. No backend-aware plugins.
 - Dev is **same-origin** (e.g. `http://myapp.localhost:3355` for both UI and `/api`). Cookies, CORS, and CSP behave the way they will in production — no dev-only workarounds.
-- Identical model across stacks. The same nsl URL works whether the backend is `pma-bun`, `pma-go`, `pma-rust`, or external.
+- Identical model across stacks. The same nsl URL works whether the backend is `/pma-bun`, `/pma-go`, `/pma-rust`, or external.
 
 ### Install
 
@@ -97,7 +97,7 @@ nsl is not limited to `*.localhost`. Each daemon can be configured (see `nsl sta
 
 Practical consequences:
 
-- A SPA dev server (Vite) must accept the public hostname. For Vite this is `server.allowedHosts` — see the per-stack guidance in `pma-web/references/runtime-and-data.md` for how to choose between an explicit list and `true`.
+- A SPA dev server (Vite) must accept the public hostname. For Vite this is `server.allowedHosts` — see the per-stack guidance in `/pma-web` (`references/runtime-and-data.md`) for how to choose between an explicit list and `true`.
 - Backend frameworks rarely care about `Host`. If yours does (e.g. strict virtual-host matching, CSRF based on Origin/Host), document the public domain there too.
 - Cookies and CSP that pin to `localhost` will not work over a public domain. Prefer `Domain`-less cookies and same-origin CSP that follow whatever host the client used.
 

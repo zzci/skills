@@ -69,6 +69,8 @@ Estimated scope of changes.
 (User annotations and responses. Keep all history.)
 ```
 
+The Phase 2 output items map directly onto these sections: `current state` -> Context (holding the Phase 1/2 investigation findings), and `proposal` / `risks` / `scope` / `alternatives` -> the sections of the same name.
+
 ### Detail File Update Rules
 
 - Allowed detail `status` values: `draft`, `implementing`, `completed`, `rejected`

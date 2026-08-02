@@ -1,6 +1,6 @@
 # Monorepo Example: Bun Workspaces + nsl
 
-A concrete walkthrough of when to reach for a Bun monorepo, how to lay it out, and how the apps inside it tie together at dev time via `@nsio/nsl`. Pair this with the *Monorepo* sections in `pma-bun` and `pma-web`, and the protocol reference in [`references/dev-environment.md`](../references/dev-environment.md).
+A concrete walkthrough of when to reach for a Bun monorepo, how to lay it out, and how the apps inside it tie together at dev time via `@nsio/nsl`. Pair this with the *Monorepo* sections in `/pma-bun` and `/pma-web`, and the protocol reference in [`references/dev-environment.md`](../references/dev-environment.md).
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ A monorepo is justified when **at least one** of these is true:
 - one or more `packages/*` are genuinely shared by multiple consumers (e.g. shared types, shared design tokens, shared client SDK)
 - shared TS / lint / drizzle / vite config must be reused across apps
 
-A single API plus a single SPA is **not** justification. That is the *API + Sibling SPA* layout from `pma-bun` (the SPA lives as a plain `web/` directory, no workspace).
+A single API plus a single SPA is **not** justification. That is the *API + Sibling SPA* layout from `/pma-bun` (the SPA lives as a plain `web/` directory, no workspace).
 
 ## Example: `acme` — main app + admin + worker + shared types
 
@@ -29,7 +29,7 @@ acme/
   bun.lock
   tsconfig.base.json
   apps/
-    api/                             # pma-bun
+    api/                             # /pma-bun
       package.json
       tsconfig.json
       drizzle.config.ts
@@ -43,12 +43,12 @@ acme/
           orders/
         shared/
       drizzle/
-    worker/                          # pma-bun, no HTTP exposure
+    worker/                          # /pma-bun, no HTTP exposure
       package.json
       src/
         index.ts
         jobs/
-    web/                             # pma-web, single-app layout under apps/web
+    web/                             # /pma-web, single-app layout under apps/web
       package.json
       vite.config.ts
       components.json
@@ -59,7 +59,7 @@ acme/
         features/
         shared/
       public/
-    admin/                           # pma-web, single-app layout under apps/admin
+    admin/                           # /pma-web, single-app layout under apps/admin
       package.json
       vite.config.ts
       components.json
@@ -215,4 +215,4 @@ Keep `packages/*` dependency-light. Prefer `import type` on the consumer side. D
 
 ### Production
 
-In production the apps deploy independently (or as a single binary that embeds one or more SPA outputs — see `pma-bun` *delivery*). nsl is a **dev-only** tool; nothing in production should depend on it.
+In production the apps deploy independently (or as a single binary that embeds one or more SPA outputs — see `/pma-bun` *delivery*). nsl is a **dev-only** tool; nothing in production should depend on it.

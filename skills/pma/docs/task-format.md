@@ -67,6 +67,7 @@ Present-continuous description for spinner display.
 
 - Allowed detail `status` values: `pending`, `in_progress`, `completed`, `closed`
 - Claiming: set `status` to `in_progress` and set `owner`
+- Unclaiming (proposal rejected or work abandoned): set `status` back to `pending`, clear `owner`, add a note explaining why; revert the index marker `[-] -> [ ]`
 - Completing: set `status` to `completed`, add completion notes if needed
 - Closing: set `status` to `closed`, add reason
 - In progress: append progress notes to the notes section
@@ -87,6 +88,8 @@ Present-continuous description for spinner display.
 | `[-]` | In progress | `in_progress` |
 | `[x]` | Completed | `completed` |
 | `[~]` | Closed / Won't do | `deleted` |
+
+The `TaskCreate` / `TaskUpdate` / `ActiveForm` references apply only in harnesses that expose Claude Code task tools; there, file-status `closed` maps to tool-status `deleted`.
 
 ## Priority Levels
 

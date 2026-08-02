@@ -10,6 +10,7 @@ docs/
 ├── plan/
 │   ├── index.md
 │   └── PLAN-NNN.md
+├── decisions/        # when applicable — recorded decisions, pinned-version justifications
 ├── architecture.md
 └── changelog.md
 ```
