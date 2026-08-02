@@ -129,7 +129,7 @@ The supported project types are also machine-readable in `project-types.json`. R
 | Mobile app design | `mobile-prototype.md`, `hi-fi-design.md`, `interactive-prototype.md` | iOS/Android frame or `ios-shell.js` |
 | Wireframe | `wireframe.md` | `design-canvas.jsx` |
 | Document / Résumé | `make-a-doc.md` | `doc-page.js` |
-| Animation | `animated-video.md`, then `exportable-video.md` when exporting | `animations-v3.jsx` |
+| Animation | `animated-video.md` | `animations-v3.jsx` |
 | UI mockups | `hi-fi-design.md`, `interactive-prototype.md` | `design-canvas.jsx`, `image-slot.js` |
 | 3D object | `3d-object.md` | `three-d-stage.js` |
 | Research | `web-research.md` | `data-overlay.js` when useful |
@@ -227,7 +227,7 @@ Slide decks, presentations, videos, and other fixed-size content must implement 
 
 For slide decks specifically, don't hand-roll this — start from the `starter-components/deck-stage.js` scaffold and put each slide as a direct child `<section>` of the `<deck-stage>` element; its in-file usage notes cover the slide markup, scaling, keyboard/thumbnail navigation, speaker notes, and print-to-PDF, plus how to keep slides directly editable. (It carries some host-persistence assumptions — see the Starter Components caveat — but the scaling and nav work standalone.) If you'd rather build the stage yourself: compute `transform: scale()` from `window.innerWidth/innerHeight` vs the canvas size (recompute on resize), make each slide a direct child `<section>` of the stage, and wire keyboard + click prev/next to switch the active slide (slide position can live in the URL hash so refreshes keep your place).
 
-Slide animations: for `deck-stage` decks, prefer the `data-anim` convention (see `built-in-skills/make-a-deck.md` → *Animations*) — the component previews the builds and the gen-pptx exporter writes them as native PowerPoint animations. Either way, make the visible end-state the base style. Hand-written CSS entrance animations gated on `[data-deck-active]` and `@media (prefers-reduced-motion: no-preference)` still work — print, PDF export, and reduced-motion show content instead of the pre-animation `opacity:0` — but they do not export to PPTX. Avoid infinite decorative loops on slide content.
+Slide animations: for `deck-stage` decks, prefer the `data-anim` convention (see `built-in-skills/make-a-deck.md` → *Animations*) — the component plays the builds with PowerPoint-style click stepping. Either way, make the visible end-state the base style. Hand-written CSS entrance animations gated on `[data-deck-active]` and `@media (prefers-reduced-motion: no-preference)` still work — print, PDF export, and reduced-motion show content instead of the pre-animation `opacity:0`. Avoid infinite decorative loops on slide content.
 
 ## Starter Components
 Ready-made HTML/JS/JSX scaffolds live in the `starter-components/` directory next to this file — use them instead of hand-drawing device frames, deck shells, canvases, or animation timelines. To use one, copy it into your project (`cp <skill-dir>/starter-components/<file> designs/<project>/`) or read it and adapt; each file carries its own usage notes at the top. (Some upstream prompt text names these with underscores — `deck_stage.js`, `animations_v3.jsx` — the files here are the hyphenated equivalents: `deck-stage.js`, `animations-v3.jsx`, `doc-page.js`, `three-d-stage.js`, …)
@@ -241,7 +241,7 @@ Ready-made HTML/JS/JSX scaffolds live in the `starter-components/` directory nex
 - **[animations-v3.jsx](starter-components/animations-v3.jsx)** — Current continuous-composition video engine; one authored clock, editable scene timing, scrubber, captions, and export contract.
 - **[animations-v2.jsx](starter-components/animations-v2.jsx)** / **[animations.jsx](starter-components/animations.jsx)** — Compatibility engines for existing projects only.
 - **[tweaks-panel.jsx](starter-components/tweaks-panel.jsx)** — Tweaks shell: form-control helpers + host-protocol wiring. *(Host-coupled — it only opens on the host's `__activate_edit_mode` postMessage, which no agent harness sends; drive its visibility from your own in-page Show/Hide toggle, or build a plain in-page control panel instead.)*
-- **[deck-stage.js](starter-components/deck-stage.js)** — Latest slide shell: scaling, keyboard nav, multi-select/reorder/delete thumbnail rail, fullscreen, speaker notes, print-to-PDF, and `data-anim` builds exported to PowerPoint via the gen-pptx CLI.
+- **[deck-stage.js](starter-components/deck-stage.js)** — Latest slide shell: scaling, keyboard nav, multi-select/reorder/delete thumbnail rail, fullscreen, speaker notes, print-to-PDF, and `data-anim` slide-build animations.
 - **[doc-page.js](starter-components/doc-page.js)** — Flowing printable pages and fixed one-page documents; owns paper geometry and print rules.
 - **[three-d-stage.js](starter-components/three-d-stage.js)** — Three.js viewer with studio lighting, orbit controls, auto-framing, and OBJ/GLB downloads.
 - **[chart-stage.js](starter-components/chart-stage.js)** / **[data-overlay.js](starter-components/data-overlay.js)** — Data visualization canvas and sourced-data overlay.
@@ -291,5 +291,5 @@ Built-in skill prompts live in the `built-in-skills/` subdirectory next to this 
 - **Create** — `wireframe.md`, `hi-fi-design.md`, `interactive-prototype.md`, `mobile-prototype.md`, `make-a-deck.md`, `make-a-doc.md`, `animated-video.md`, `3d-object.md`, `data-visualization.md`, `maps-geography.md`, `data-science.md`, `experiment-workflow.md`, `web-research.md`, `html-email.md`, `flier.md`, `trifold-brochure.md`, `website-landing-page.md`, `social-media-content.md`, `watercolor-illustration.md`, `frontend-design.md`, `something-cool.md`, `options-stack.md`, `design-feedback.md`, `speaker-notes.md`
 - **Design systems** — `design-system-authoring-guide.md` (canonical authoring flow), `create-design-system.md`, `design-components.md`, `design-system-preview.md`, `use-design-system.md`
 - **Import** — `import-from-figma.md`, `import-from-github.md`, `import-from-html.md`, `read-pdf.md`
-- **Export & handoff** — `export-as-pptx-editable.md` (default PPTX export), `export-as-pptx-screenshots.md`, `export-as-video.md`, `exportable-video.md`, `save-as-pdf.md`, `save-as-standalone-html.md`, `handoff-to-claude-code.md`
+- **Export & handoff** — `save-as-pdf.md`, `save-as-standalone-html.md`, `handoff-to-claude-code.md`
 - **In-prototype capabilities** — `make-tweakable.md`, `generate-images.md`, `claude-api-in-prototypes.md` (no host AI helper here — mock, or user-supplied API key)

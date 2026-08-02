@@ -20,7 +20,6 @@ The upstream prompt references claude.ai web tools that do not exist in Claude C
 | `web_fetch`, `web_search` | `WebFetch`, `WebSearch` |
 | hosted starter-component copy tool | `Bash cp <skill-dir>/starter-components/<file> designs/<project>/` (or `Read` + adapt) |
 | `invoke_skill("X")` / `invoke the "X" skill` | `Read` the matching `built-in-skills/<file>.md` |
-| hosted PPTX / video export tools | Local CLIs bundled with this skill — see "Exporting to PPTX" / "Exporting to video" below |
 | `/projects/<projectId>/<path>` | ordinary filesystem paths (relative to cwd, or absolute) |
 
 ## Clarifying questions
@@ -87,54 +86,3 @@ Only when **authoring a design system** — the compiler (`compile-design-system
 
 When **consuming a design system** in a regular project, the importer (`import-design-system.mjs`) is likewise a plain `Bash` `node <skill>/agents/import-design-system.mjs <dsDir> <projectDir> [--primary]` call that runs inline — full flow in [`use-design-system.md`](../built-in-skills/use-design-system.md). No subagent is needed.
 
-## Exporting to PPTX (the gen-pptx CLI)
-
-There is no hosted PPTX tool here — both export docs ([`export-as-pptx-editable.md`](../built-in-skills/export-as-pptx-editable.md), [`export-as-pptx-screenshots.md`](../built-in-skills/export-as-pptx-screenshots.md)) run a local CLI under this skill that drives a headless Chromium (Playwright) and writes the `.pptx` to disk. The input JSON is **exactly** the object those docs define (`mode`/`width`/`height`/`slides`/`hideSelectors`/`resetTransformSelector`/`googleFontImports`/`fontSwaps`/`filename`); this section only covers how to invoke it. **Default to the editable export** (omit `mode`, or set `"mode":"editable"`); pass `"mode":"screenshots"` only when the user explicitly wants pixel-perfect, non-editable image slides. Decks using the `data-anim` convention ([make-a-deck](../built-in-skills/make-a-deck.md) → *Animations*) export their builds as native PowerPoint animations automatically — no extra config.
-
-**One-time setup** (skip if `agents/gen-pptx/node_modules` and `dist/` already exist):
-
-```bash
-cd <skill-dir>/agents/gen-pptx && npm install && npx playwright install chromium && npm run build
-```
-
-**Each export:**
-
-1. **Serve the deck over HTTP** — the CLI needs an `http(s)` URL, not `file://`. Reuse the nsl `designs` server; the deck is then at `http://<name>.localhost/<project>/<file>.html`.
-2. **Write the input object to a JSON file** (e.g. `/tmp/<project>-pptx.json`) — same schema as the export docs.
-3. **Run the CLI:**
-
-   ```bash
-   node <skill-dir>/agents/gen-pptx/dist/cli.mjs --url <servedDeckUrl> --config <jsonPath> --out designs/<project>
-   ```
-
-   `--config -` reads the JSON from stdin. `--out` defaults to the cwd; pass the project dir so the `.pptx` lands beside the deck. The final path is `<out>/<filename>.pptx`.
-4. **Read the printed JSON** (one line on stdout): `{ ok, file, slides, animations, bytes, flags: [{code, message}], warnings, speakerNotes }` — `animations` counts the `data-anim` builds written into the file. The `flags[].code` values are the diagnostics the export docs describe (`duplicate_adjacent`, `slide_size_mismatch`, `no_speaker_notes`, …) — interpret them per those docs and **do not relay the codes verbatim** to the user. `warnings` is a (usually empty) list of build-time strings — surface them in plain language only if non-empty. On failure the line is `{ ok: false, error }`. Exit code `0` = success (even with warning flags), `64` = usage/config error, `1` = runtime failure (a friendly setup hint prints to stderr if Playwright/Chromium is missing).
-
-Then surface the `.pptx` (path; `SendUserFile` if available).
-
-## Exporting to video (the gen-video CLI)
-
-[`export-as-video.md`](../built-in-skills/export-as-video.md) runs a local CLI under this skill that drives a headless Chromium (Playwright), seeks the animation's timeline bridge frame-by-frame, and pipes PNG frames to **ffmpeg**. The input JSON is **exactly** the object that doc defines (`width`/`height`/`duration`/`fps`/`format`/`bridgeGlobal`/…); this section only covers how to invoke it.
-
-**One-time setup** (skip if `agents/gen-video/node_modules` and `dist/` already exist):
-
-```bash
-cd <skill-dir>/agents/gen-video && npm install && npx playwright install chromium && npm run build
-```
-
-ffmpeg must also be on `PATH` (`apt install ffmpeg` on Debian/Ubuntu, `brew install ffmpeg` on macOS). The CLI preflights for it and prints a setup hint if it's missing.
-
-**Each export:**
-
-1. **Serve the animation over HTTP** — reuse the nsl `designs` server; the page is at `http://<name>.localhost/<project>/<file>.html`. The CLI appends the capture-mode query param itself.
-2. **Write the input object to a JSON file** (e.g. `/tmp/<project>-video.json`). For a current `animations.jsx`/`animations-v3.jsx` Stage, `{ "width": 1920, "height": 1080, "filename": "…" }` is enough; for an older/hand-rolled timeline set `bridgeGlobal` (e.g. `"__ahe"`) and pass `hideSelectors` + `resetTransformSelector`.
-3. **Run the CLI:**
-
-   ```bash
-   node <skill-dir>/agents/gen-video/dist/cli.mjs --url <servedUrl> --config <jsonPath> --out designs/<project>
-   ```
-
-   The final path is `<out>/<filename>.<mp4|webm|gif>`. Long high-fps exports take minutes (every frame is a real screenshot) — run a `startMs`/`endMs` sub-range to iterate, then the full range.
-4. **Read the printed JSON**: `{ ok, file, frames, fps, duration, width, height, bytes, flags, warnings }`. Interpret `flags[].code` (`capture_mode_off`, `duplicate_frames`, `fonts_timeout`, `zero_duration`) per the export doc and **do not relay codes verbatim**. On failure: `{ ok: false, error }`. Exit codes as with gen-pptx.
-
-Then surface the video (path; `SendUserFile` if available).

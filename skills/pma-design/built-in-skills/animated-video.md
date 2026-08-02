@@ -4,7 +4,7 @@ description: "Animated video\nTimeline-based motion design"
 ---
 Create an animated video or motion design piece rendered as an HTML page. Build a timeline-based animation with smooth transitions. Design frame-by-frame sequences with playback controls (play/pause, scrubber). Focus on visual storytelling with the Anthropic brand palette. Export-ready at a fixed aspect ratio (16:9 or 9:16). If you need to know the position of an element (eg to move a cursor or character between elements) use refs to grab the position.
 
-ALWAYS build on the `animations_v3.jsx` starter for ANY animation piece — including one hosted on a design-components page (the helmet-script + x-import structure IS the starter case, not an exemption). The only exemptions: a minor animated accent inside a larger non-animation design, or the user explicitly asking you not to use the starter. Skipping the starter silently removes the user's timeline editor — scene trims, speed changes, and video export only exist when the page builds on the engine. Do NOT load `animations.jsx` or `animations-v2.jsx` alongside it (the engines share window globals — last wins). A project that already uses an older starter keeps it; don't migrate existing animations.
+ALWAYS build on the `animations_v3.jsx` starter for ANY animation piece — including one hosted on a design-components page (the helmet-script + x-import structure IS the starter case, not an exemption). The only exemptions: a minor animated accent inside a larger non-animation design, or the user explicitly asking you not to use the starter. Skipping the starter silently removes the user's timeline editor — scene trims and speed changes only exist when the page builds on the engine. Do NOT load `animations.jsx` or `animations-v2.jsx` alongside it (the engines share window globals — last wins). A project that already uses an older starter keeps it; don't migrate existing animations.
 
 START by copying the starter into the project — `cp <skill-dir>/starter-components/animations-v3.jsx designs/<project>/` — the continuous-composition engine: the whole animation is ONE element tree rendered from one authored-time clock, so elements move, morph, and persist across section boundaries by ordinary interpolation — nothing mounts or unmounts at a boundary. It gives you `<CompositionStage>`, `useComposition()` (→ {T, CUES}), `<Shot>`, `<Captions>`, an `Easing` library, and `interpolate()` / `animate()` tweens. Read the file after copying.
 
@@ -37,18 +37,16 @@ If cursor or pointer movement is depicted (eg in a product walkthrough or protot
 
 For clarity when commenting, update the video root's data-screen-label attr with the current timestamp each second, so you can easily comment on a particular timestamp and know that the agent will be told exactly the timestamp.
 
-To make content exportable as a video (rendered locally by the gen-video CLI — see [export-as-video.md](export-as-video.md)):
+The seek/timeline contract (it powers the timeline editor and the filmstrip verification above):
 
-IF YOU ARE BUILDING ON AN ANIMATIONS STARTER (`animations_v3.jsx`, or `animations_v2.jsx` in an older project — see the "Animated video" skill; the normal case): the stage component (`<CompositionStage>` / `<SceneStage>`) ALREADY SATISFIES THIS ENTIRE CONTRACT — it owns the exportable attribute, the seek listener, the svg/foreignObject wrapper, and font inlining (animations_v2 additionally provides a `<VideoSprite>` helper for looped <video> clips). Do NOT add `data-om-exportable-video-with-duration-secs` to any element yourself. Adding it to a wrapper ABOVE the stage creates two nested exportable roots, and the export and timeline transport bind to the wrong (outer) one — playback control and export silently break.
+IF YOU ARE BUILDING ON AN ANIMATIONS STARTER (`animations_v3.jsx`, or `animations_v2.jsx` in an older project — see the "Animated video" skill; the normal case): the stage component (`<CompositionStage>` / `<SceneStage>`) ALREADY SATISFIES THIS ENTIRE CONTRACT — it owns the root attribute, the seek listener, the svg/foreignObject wrapper, and font inlining (animations_v2 additionally provides a `<VideoSprite>` helper for looped <video> clips). Do NOT add `data-om-exportable-video-with-duration-secs` to any element yourself. Adding it to a wrapper ABOVE the stage creates two nested roots, and the timeline transport binds to the wrong (outer) one — playback control silently breaks.
 
 Only for a page built WITHOUT the starter, implement the contract yourself:
 
-- Put `data-om-exportable-video-with-duration-secs="<N>"` on the ONE root element you want exported (N ≤ 300; longer is clamped). Exactly one element in the document may carry this attribute — never nest it.
+- Put `data-om-exportable-video-with-duration-secs="<N>"` on the ONE root element of the animation (N ≤ 300; longer is clamped). Exactly one element in the document may carry this attribute — never nest it.
 - That element MUST listen for the custom event `data-om-seek-to-time-frame` (`detail: {time, frame}`): on receipt, pause playback and synchronously render that exact timestamp so every visible child is at that point.
-- Nested `<video>` elements that should contribute audio must carry `data-om-exportable-video-play-start`, `data-om-exportable-video-play-end` (seconds into the source), and optionally `data-om-exportable-video-play-speed`; they loop within [start,end] at that speed and their audio is mixed into the export. Keep their visual frame in sync with the timeline yourself (set `video.currentTime` from the seek event / your clock).
-- For best results, make the root an `<svg><foreignObject>` wrapper and inline your @font-face rules into it once — the exporter then serializes the svg directly per frame (fast, pixel-perfect). A plain div works too, just slower (full-page snapshot per frame).
 
-The gen-video exporter (and any hosted preview timeline) drives playback by dispatching the same seek event, so treat every seek as pause-and-hold (don't resume your own clock until seeks stop arriving).
+The timeline editor and the filmstrip verification drive playback by dispatching the same seek event, so treat every seek as pause-and-hold (don't resume your own clock until seeks stop arriving).
 
 ## Portable harness note
 
@@ -56,6 +54,6 @@ After copying `starter-components/animations-v3.jsx` (and
 `starter-components/tweaks-panel.jsx`) into the project, follow their usage
 blocks exactly. There is no hosted `multi_screenshot` tool here — build the
 filmstrip with your harness's screenshot loop (see your harness reference)
-while keeping the same boundary ±0.15s coverage. To render the verified
-result to MP4 in a file-capable agent, continue with `export-as-video.md`;
-do not remove or duplicate the starter's exportable root.
+while keeping the same boundary ±0.15s coverage. Do not remove or duplicate
+the starter's root attribute — the timeline editor and the filmstrip
+verification bind to it.

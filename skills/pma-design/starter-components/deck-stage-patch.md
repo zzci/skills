@@ -261,12 +261,12 @@ Then add the fullscreen-button rules. **Anchor** (the closing brace of that `.kb
 
 ## Patch 3: data-anim build animations
 
-**Motivation**: the deck skill's `data-anim` authoring contract (see `built-in-skills/make-a-deck.md`) gives slides per-element build animations that export as **native PowerPoint animations** via gen-pptx. Upstream deck-stage has no per-element animation support, so this patch adds the preview half: a Web Animations API (WAAPI) engine that plays the same attributes in the browser, with PowerPoint-style click stepping.
+**Motivation**: the deck skill's `data-anim` authoring contract (see `built-in-skills/make-a-deck.md`) gives slides per-element build animations modeled on PowerPoint's build effects. Upstream deck-stage has no per-element animation support, so this patch adds a Web Animations API (WAAPI) engine that plays the attributes in the browser, with PowerPoint-style click stepping.
 
 **Approach / invariants**:
 
 - WAAPI only, animating the independent `translate` / `rotate` / `scale` properties plus `opacity` / `clip-path` — **never** the `transform` shorthand (authors use transform for centering). Wheel/split/random-bars approximate PowerPoint's filters with a gradient `mask-image` driven by one registered custom property (`--deck-anim-t`; see `MASK_OK` in the constants hunk). Both the mask string and the property live only inside keyframes, so `cancel()` cleans everything; browsers without `CSS.registerProperty` fall back to a plain fade.
-- Effect timing follows PowerPoint's defaults (see `ANIM_EFFECTS`); `data-anim-repeat` and `data-anim-auto-reverse` (spin/grow/shrink/path only) map to WAAPI `iterations`/`direction:'alternate'`, and `_animSteps` counts the full repeated/reversed length when chaining `after` steps — the same formula gen-pptx's timing.ts uses, so preview and export stay in step.
+- Effect timing follows PowerPoint's defaults (see `ANIM_EFFECTS`); `data-anim-repeat` and `data-anim-auto-reverse` (spin/grow/shrink/path only) map to WAAPI `iterations`/`direction:'alternate'`, and `_animSteps` counts the full repeated/reversed length when chaining `after` steps, matching PowerPoint's timing semantics.
 - No inline styles; the only DOM writes are `data-deck-anim-*` runtime attrs, which the rail's `MutationObserver` already ignores (`OWN_ATTRS` matches every `data-deck-*` except `data-deck-skip`), so playback never re-clones thumbnails. End states are held by kept-alive `fill:'both'` Animation objects (cancelled on slide deactivation); persistent hidden states are the `data-deck-anim-hidden` attr plus one injected head rule.
 - Base-state invariant: authored CSS **is** the finished layout. The head rule is scoped `@media screen` (print sees base state) and `deck-stage:not([noscale])` (PPTX capture sees base state); thumbnail clones live in nested shadow roots the descendant combinator can't reach.
 - Navigation policy (stateless): forward arrival → reset + autoplay the pre-click auto step; backward arrival → fully built instantly; leaving → cancel + strip (only the active slide carries runtime state); →/Space/tap play pending click steps before advancing (`deckstep` CustomEvent per step); ←, number keys, Home/End and rail clicks bypass steps; reduced-motion plays instantly but keeps click gating; `noscale` / `?_snthumb=` disable the engine outright.
@@ -369,8 +369,7 @@ Thirteen edits.
     }
   } catch (err) { MASK_OK = true; }
 
-  // data-anim build-animation contract, shared with the PPTX exporter
-  // (gen-pptx turns the same attributes into native PowerPoint timing).
+  // data-anim build-animation contract (modeled on PowerPoint timing).
   // kind: entr(ance) effects start hidden and reveal; exit effects hide;
   // emph(asis) and path leave visibility alone. dur is the default ms when
   // data-anim-duration is absent (PowerPoint's own effect defaults) —
@@ -949,7 +948,7 @@ Two one-line inserts. **Anchor A** (the noscale branch):
         steps[steps.length - 1].items.push({ e, start });
         prevStart = start;
         // `after` waits out repeats and the auto-reverse leg, not just one
-        // pass — gen-pptx's timing.ts grouping mirrors this line.
+        // pass — matching PowerPoint's chaining semantics.
         stepEnd = Math.max(stepEnd, start + e.dur * e.repeat * (e.autoRev ? 2 : 1));
       });
       return steps;

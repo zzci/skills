@@ -17,5 +17,3 @@ SRI (sha384, base64) of the current files — these are the values pinned in the
 - `babel.min.js` — `sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y`
 
 Local policy note: both the vendored files and the CDN fallback pin the React **production** builds (upstream mixed production vendor files with development CDN pins); production keeps vendored and CDN pages byte-identical in behavior and smaller to inline.
-
-Separate vendored trees with their own licenses: `agents/gen-pptx/vendor/pptxgenjs/` (PptxGenJS, MIT — see its bundled `LICENSE` and `VENDOR.md`).

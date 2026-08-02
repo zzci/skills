@@ -29,7 +29,7 @@
     {
       "id": "animation",
       "name": "Animation",
-      "skills": ["animated-video", "exportable-video"],
+      "skills": ["animated-video"],
       "starters": ["animations-v3.jsx", "tweaks-panel.jsx"]
     },
     {

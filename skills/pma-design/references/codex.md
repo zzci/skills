@@ -82,10 +82,6 @@ For normal design work, preview, screenshot, console-check, and debug in the cur
 
 Only when **authoring a design system** — the compiler (`compile-design-system.mjs`) and checker (`check-design-system.mjs`) commands and the full flow live in [`design-system-authoring-guide.md`](../built-in-skills/design-system-authoring-guide.md). Both are plain shell `node <skill>/agents/…` calls and run inline. Harness-specific bit: run the read-only checker **inline in the current agent** by default; spawn a separate read-only subagent (same prompt, [`../agents/design-system-checker.md`](../agents/design-system-checker.md), passing the project directory and this skill's `agents/` path) only if the user asks and multi-agent tools are available — it only runs `check-design-system.mjs` and relays output; it must not edit files or compile.
 
-## Exporting to PPTX and video
-
-The hosted PPTX / video export tools do not exist in Codex either — run the same local CLIs bundled with this skill (gen-pptx, gen-video), via shell. The invocation, one-time setup (npm install + Playwright Chromium + build; ffmpeg for video), config schema, and result-JSON handling are documented in [`claude.md`](claude.md) → "Exporting to PPTX" / "Exporting to video" — everything there is plain shell and applies verbatim in Codex (surface the output file by absolute path instead of `SendUserFile`). Config schemas live in [`export-as-pptx-editable.md`](../built-in-skills/export-as-pptx-editable.md), [`export-as-pptx-screenshots.md`](../built-in-skills/export-as-pptx-screenshots.md), and [`export-as-video.md`](../built-in-skills/export-as-video.md).
-
 ## Codex-specific notes
 
 - In Codex app, the in-app browser is best for localhost and file-backed preview pages that do not require sign-in.
