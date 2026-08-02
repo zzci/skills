@@ -19,9 +19,6 @@ npx skills add zzci/skills --skill pma-web --global
 npx skills add zzci/skills --skill pma-rust --global
 npx skills add zzci/skills --skill pma-go --global
 npx skills add zzci/skills --skill pma-bun --global
-npx skills add zzci/skills --skill pma-mem --global
-npx skills add zzci/skills --skill pma-d2 --global
-npx skills add zzci/skills --skill pma-draw --global
 npx skills add zzci/skills --skill pma-design --global
 npx skills add zzci/skills --skill bkd --global
 npx skills add zzci/skills --skill gitea --global
@@ -40,9 +37,6 @@ npx skills add zzci/skills --skill pma-web
 npx skills add zzci/skills --skill pma-rust
 npx skills add zzci/skills --skill pma-go
 npx skills add zzci/skills --skill pma-bun
-npx skills add zzci/skills --skill pma-mem
-npx skills add zzci/skills --skill pma-d2
-npx skills add zzci/skills --skill pma-draw
 npx skills add zzci/skills --skill pma-design
 npx skills add zzci/skills --skill bkd
 npx skills add zzci/skills --skill gitea
@@ -163,9 +157,6 @@ For operating BKD kanban boards via REST API:
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, SQLx/SeaORM/diesel-async data access, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
 | [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend service conventions, optional monorepo promotion, `src/modules` API layout, SQLite-first Drizzle patterns, OpenAPIHono/Bun.serve runtime split, compile-time embedded assets, and validated env config |
-| [pma-mem](skills/pma-mem/) | Knowledge management — capture, classify, search, and sync project knowledge through a Memos backend |
-| [pma-d2](skills/pma-d2/) | D2 diagram author — generate source-controlled `.d2` architecture, workflow, sequence, and ERD diagrams rendered by the official D2 toolchain |
-| [pma-draw](skills/pma-draw/) | ReactFlow diagram creator — generate `.rfd.json` diagrams using predefined semantic node types, edge presets, layouts, and pma-viewer compatibility |
 | [pma-design](skills/pma-design/) | Design artifact creator — self-contained HTML mockups, interactive prototypes, wireframes, decks, and design-system authoring/consumption with nsl-served tmux previews and local vendor React/Babel runtime |
 | [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, L1/L2/L3 three-tier coordination, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
 | [gitea](skills/gitea/) | Gitea REST API operator — curl-based `/api/v1` reference for repos, files, issues, PRs, releases, labels, milestones, actions, packages, wiki, search, server setup, and forced non-GitHub to Gitea routing |
