@@ -103,7 +103,7 @@ Verdict: WARNING
 
 ### PR Review Comments
 
-Use a GitHub-comment-ready format. Link each finding with a permalink pinned to the full commit SHA:
+Use a forge-comment-ready format. Link each finding with a permalink pinned to the full commit SHA. Use the repository's actual forge URL shape: GitHub uses `/blob/FULL_SHA/path#Lx-Ly`; Gitea uses `/src/commit/FULL_SHA/path#Lx-Ly`.
 
 ```markdown
 ### Code review
@@ -112,11 +112,11 @@ Found 2 issues:
 
 1. Missing schema validation on the new POST body allows malformed input to flow into database writes.
 
-https://github.com/owner/repo/blob/FULL_SHA/path/file.ts#L10-L28
+https://forge.example/owner/repo/<forge-path>/FULL_SHA/path/file.ts#L10-L28
 
 2. The new Rust async path performs blocking filesystem work directly on the runtime instead of offloading it.
 
-https://github.com/owner/repo/blob/FULL_SHA/path/lib.rs#L42-L67
+https://forge.example/owner/repo/<forge-path>/FULL_SHA/path/lib.rs#L42-L67
 ```
 
 If nothing meets the threshold:

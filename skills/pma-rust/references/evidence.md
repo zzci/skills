@@ -1,6 +1,6 @@
 # PMA-Rust Evidence Index
 
-This file lists the **verifiable file:line citations** behind every recommendation in this skill. Every claim in `baseline.md`, `toolchain-and-workspace.md`, `runtime-and-data.md`, and `delivery.md` either points to one of these references or is marked as "general convention".
+This file lists the verifiable repository paths and search anchors behind the recommendations in this skill. The repository table pins immutable snapshots captured on 2026-08-25. Existing line numbers are navigation hints; the pinned commit plus the stated symbol or pattern is authoritative when a line has moved.
 
 If a future change to this skill is not anchored in real code from a respected project (or in an official Rust guideline), it should be challenged.
 
@@ -36,26 +36,29 @@ If a future change to this skill is not anchored in real code from a respected p
 
 The 10 projects clone-checked for this skill, and what each is mirrored for (key files verified in parentheses):
 
-| Project | What we mirror | Verified file evidence |
-|---|---|---|
-| `rust-lang/cargo` | Workspace `[lints]`, `xtask-*` split crates, `crate-ci/typos`, `cargo-deny`, MSRV via `cargo hack` | `Cargo.toml`, `.cargo/config.toml`, `deny.toml`, `.github/workflows/main.yml` |
-| `rust-lang/rust-analyzer` | Large multi-crate workspace, single `xtask/` (`publish=false`), `cargo nextest`, `cargo machete` | `Cargo.toml`, `xtask/Cargo.toml`, `.github/workflows/ci.yaml` |
-| `paradigmxyz/reth` | `default-members`, extensive `[workspace.lints]`, `deny.toml` with hard `openssl` ban, `mold` + `sccache` + `Swatinem/rust-cache`, `cargo udeps`, `zepter` | `Cargo.toml`, `deny.toml`, `.github/workflows/lint.yml` |
-| `vectordotdev/vector` | `rust-toolchain.toml` pin, build-flag lint enforcement via `.cargo/config.toml` rustflags, `vdev` published xtask | `rust-toolchain.toml`, `.cargo/config.toml`, `vdev/` |
-| `tokio-rs/tokio` | Lib-level lint policy, MSRV policy, `cargo nextest` + separate `--doc`, loom + miri + cargo-fuzz | `tokio/src/lib.rs`, `CONTRIBUTING.md`, `.github/workflows/ci.yml` |
-| `tokio-rs/axum` | Axum 0.8 path syntax `/{id}`, `with_state`, `ServiceBuilder` middleware order, `tower::ServiceExt::oneshot` testing, `with_graceful_shutdown` | `examples/*/src/main.rs`, `axum/src/docs/routing/with_state.md` |
-| `linkerd/linkerd2-proxy` | Production tower stack: load-shed outside concurrency-limit, normalized middleware ordering | `linkerd/app/inbound/src/http/server.rs` |
-| `astral-sh/uv` | Thin bin (`crates/uv/src/bin/uv.rs`) + `uv-cli` crate split, `clap_complete_command`, `ArgAction::Count` for verbose/quiet, `cargo-dist`, `cargo-shear`, `insta` | `crates/uv-cli/src/lib.rs`, `release.yml` |
-| `astral-sh/ruff` | Single bin + custom panic hook, `cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest`, mimalloc/jemalloc allocator switching | `crates/ruff/src/{main,lib}.rs`, `.github/workflows/ci.yaml` |
-| `quickwit-oss/quickwit` | Hand-built tokio runtime + tokio-metrics, OTLP via `opentelemetry-otlp` 0.31 (gRPC + HTTP/JSON), `prometheus` const-label build_info, `utoipa` OpenAPI, `/livez` + `/readyz`, rustls `install_default_crypto_ring_provider()` | `quickwit-cli/src/{main,logger}.rs`, `quickwit-serve/src/{health_check_api,metrics_api,openapi}.rs` |
+| Project | Snapshot commit | What we mirror | Verified file evidence |
+|---|---|---|---|
+| `rust-lang/cargo` | `77a6fbc7cea1e3c4e7506c55de112bf9bade11bb` | Workspace `[lints]`, `xtask-*` split crates, `crate-ci/typos`, `cargo-deny`, MSRV via `cargo hack` | `Cargo.toml`, `.cargo/config.toml`, `deny.toml`, `.github/workflows/main.yml` |
+| `rust-lang/rust-analyzer` | `69d0e262cc12e4cac32a23b127c1537c71ad9beb` | Large multi-crate workspace, single `xtask/` (`publish=false`), `cargo nextest`, `cargo machete` | `Cargo.toml`, `xtask/Cargo.toml`, `.github/workflows/ci.yaml` |
+| `paradigmxyz/reth` | `b472a11f8caae8fdd194460d772665a77f503ab8` | `default-members`, extensive `[workspace.lints]`, `deny.toml` with hard `openssl` ban, `mold` + `sccache` + `Swatinem/rust-cache`, `cargo udeps`, `zepter` | `Cargo.toml`, `deny.toml`, `.github/workflows/lint.yml` |
+| `vectordotdev/vector` | `99894c8d8885659cc16efc39bd71f9fb3b59e296` | `rust-toolchain.toml` pin, build-flag lint enforcement via `.cargo/config.toml` rustflags, `vdev` published xtask | `rust-toolchain.toml`, `.cargo/config.toml`, `vdev/` |
+| `tokio-rs/tokio` | `ea91b33ca57ff0581b38e735cc108f831bccbdaa` | Lib-level lint policy, MSRV policy, `cargo nextest` + separate `--doc`, loom + miri + cargo-fuzz | `tokio/src/lib.rs`, `CONTRIBUTING.md`, `.github/workflows/ci.yml` |
+| `tokio-rs/axum` | `3d78036dcac289d6c1d54934708acb6a5bd73686` | Axum 0.8 path syntax `/{id}`, `with_state`, `ServiceBuilder` middleware order, `tower::ServiceExt::oneshot` testing, `with_graceful_shutdown` | `examples/*/src/main.rs`, `axum/src/docs/routing/with_state.md` |
+| `linkerd/linkerd2-proxy` | `e9b3cc508c9b8cac21e1a0cb3cd5e5043e3b82fe` | Production tower stack: load-shed outside concurrency-limit, normalized middleware ordering | `linkerd/app/inbound/src/http/server.rs` |
+| `astral-sh/uv` | `a61e5c918cedf9ecc7e831bae2650657ae413445` | Thin bin (`crates/uv/src/bin/uv.rs`) + `uv-cli` crate split, `clap_complete_command`, `ArgAction::Count` for verbose/quiet, `cargo-dist`, `cargo-shear`, `insta` | `crates/uv-cli/src/lib.rs`, `release.yml` |
+| `astral-sh/ruff` | `423b9fbf1923b00e66f25f059b1e91dd79aacd03` | Single bin + custom panic hook, `cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest`, mimalloc/jemalloc allocator switching | `crates/ruff/src/{main,lib}.rs`, `.github/workflows/ci.yaml` |
+| `quickwit-oss/quickwit` | `8eddacfa5b6d6d6054682ab33a922fb3f706c5cf` | Hand-built tokio runtime + tokio-metrics, OTLP, Prometheus build info, `utoipa` OpenAPI, health endpoints, rustls provider installation | `quickwit-cli/src/{main,logger}.rs`, `quickwit-serve/src/{health_check_api,metrics_api,openapi}.rs` |
 
-Citations elsewhere in this file are written as `<repo>/<file>:<line>` relative to a fresh clone of each repo.
+Citations elsewhere in this file are written as `<repo>/<file>:<line>` relative to the pinned snapshot. Use the path plus the claim's symbol or pattern when surrounding edits shift a line.
 
 To re-verify any claim:
 
 ```bash
-git clone --depth 1 --filter=blob:none https://github.com/<org>/<repo>.git
-cd <repo> && grep -n "<pattern>" <file>
+git init <repo> && cd <repo>
+git remote add origin https://github.com/<org>/<repo>.git
+git fetch --depth 1 origin <SNAPSHOT_COMMIT>
+git checkout --detach FETCH_HEAD
+grep -n "<pattern>" <file>
 ```
 
 ## Workspace, Edition, MSRV (Lock 5, Lock 7)
@@ -63,10 +66,10 @@ cd <repo> && grep -n "<pattern>" <file>
 | Claim | Evidence |
 |---|---|
 | Edition 2024 widespread | `cargo/Cargo.toml:15`; `rust-analyzer/Cargo.toml:8`; `reth/Cargo.toml:3`; `vector/Cargo.toml:5` |
-| `rust-version` MSRV declared in workspace | `cargo/Cargo.toml:14` (`1.93`); `rust-analyzer/Cargo.toml:7` (`1.95`); `reth/Cargo.toml:4` (`1.93`); `vector/Cargo.toml:15` (`1.92`) |
-| `resolver = "2"` is the common choice | `cargo/Cargo.toml:2`; `rust-analyzer/Cargo.toml:4`; `reth/Cargo.toml:160` |
-| `default-members` is optional | only `reth/Cargo.toml:155` uses it (`["bin/reth"]`); cargo, rust-analyzer, vector do not |
-| `rust-toolchain.toml` is optional | only `vector/rust-toolchain.toml` uses it (`channel = "1.92"`). cargo, rust-analyzer, reth do not |
+| `rust-version` MSRV declared in workspace | `cargo/Cargo.toml:14` (`1.95`); `rust-analyzer/Cargo.toml:7` (`1.95`); `reth/Cargo.toml:4` (`1.95`); `vector/Cargo.toml:15` (`1.95`) |
+| `resolver = "2"` is the common choice | `cargo/Cargo.toml:2`; `rust-analyzer/Cargo.toml:4`; `reth/Cargo.toml:158` |
+| `default-members` is optional | only `reth/Cargo.toml:153` uses it (`["bin/reth"]`); cargo, rust-analyzer, vector do not |
+| `rust-toolchain.toml` is optional | only `vector/rust-toolchain.toml` uses it (`channel = "1.95"`). cargo, rust-analyzer, reth do not |
 | MSRV 6-month policy | `tokio/CONTRIBUTING.md:30-42` |
 | MSRV CI via `cargo hack` | `cargo/.github/workflows/main.yml:320-323` |
 | MSRV CI via `cargo msrv verify` | `vector/.github/workflows/msrv.yml` |

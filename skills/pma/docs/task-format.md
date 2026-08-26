@@ -66,10 +66,11 @@ Present-continuous description for spinner display.
 ### Detail File Update Rules
 
 - Allowed detail `status` values: `pending`, `in_progress`, `completed`, `closed`
-- Claiming: set `status` to `in_progress` and set `owner`
-- Unclaiming (proposal rejected or work abandoned): set `status` back to `pending`, clear `owner`, add a note explaining why; revert the index marker `[-] -> [ ]`
-- Completing: set `status` to `completed`, add completion notes if needed
-- Closing: set `status` to `closed`, add reason
+- Claiming: use `<pma-skill>/scripts/task-state.sh claim <task-file> <owner>` so index, status, and owner change under one lock
+- Unclaiming: use `task-state.sh unclaim <task-file> <owner> <reason>`
+- Completing: use `task-state.sh complete <task-file> <owner> [note]`
+- Closing: use `task-state.sh close <task-file> <owner> <reason>`
+- Owner convention: use a stable, unique per-session identifier such as `worker-a/session-123`; all cooperating workers must use the script rather than editing claim fields directly
 - In progress: append progress notes to the notes section
 
 ## Task ID Rules

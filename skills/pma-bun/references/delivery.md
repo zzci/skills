@@ -1,5 +1,17 @@
 # PMA-Bun Delivery
 
+## Table of Contents
+
+- [Compile Pipeline](#compile-pipeline)
+- [Hooks And Tooling](#hooks-and-tooling)
+- [Security Patterns](#security-patterns)
+- [Observability](#observability)
+- [CI Pipeline](#ci-pipeline)
+- [Docker](#docker)
+- [Workspaces](#workspaces)
+- [Git Conventions](#git-conventions)
+- [API Review Checklist](#api-review-checklist)
+
 ## Compile Pipeline
 
 When the repository ships a standalone binary:

@@ -1,0 +1,4 @@
+interface:
+  display_name: "PMA Design"
+  short_description: "Create polished HTML design artifacts and prototypes"
+  default_prompt: "Use $pma-design to create and verify a polished HTML design artifact."

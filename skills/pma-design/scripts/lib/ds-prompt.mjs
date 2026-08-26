@@ -23,7 +23,7 @@ const SCOPE =
 // Pinned page-scaffold tags — keep in sync with system-prompt.md ("React + Babel").
 // The prompt must stand alone for whoever reopens the project, so the exact tags
 // ride here rather than a pointer to the skill docs.
-// Local adaptation: pinned to the production builds (matching agents/vendor/) so
+// Local adaptation: pinned to the production builds (matching scripts/vendor/) so
 // vendored and CDN pages run the same bytes; upstream pinned development builds.
 const REACT_UMD_TAGS = [
   '<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>',

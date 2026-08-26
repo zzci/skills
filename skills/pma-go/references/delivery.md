@@ -1,5 +1,16 @@
 # PMA-Go Delivery
 
+## Table of Contents
+
+- [Lint And Static Checks](#lint-and-static-checks)
+- [Testing](#testing)
+- [Task Runner](#task-runner)
+- [Security Patterns](#security-patterns)
+- [Pre-Commit Security Checklist](#pre-commit-security-checklist)
+- [CI Pipeline](#ci-pipeline)
+- [Git Conventions](#git-conventions)
+- [Review Focus](#review-focus)
+
 ## Lint And Static Checks
 
 - use `.golangci.yml` for shared lint rules — start from the starter below

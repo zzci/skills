@@ -47,7 +47,7 @@ Concrete tool names (`imagegen`, `GenerateImage`, `image_generate`, `baoyu-image
 
 - Save kept images inside the project (`designs/<project>/imgs/`), with prompt files in `designs/<project>/prompts/`, so deliverables stay self-contained. Some flows have their own convention (a mobile prototype's icon is `icon.png` in the project root) — follow the calling flow.
 - Place images on white or contrasting areas; full-bleed art aspect-fills, screenshots / diagrams aspect-fit. **View each generated file and verify it loaded** before finishing.
-- The HTML page that embeds the images is the recorded asset (`agents/record-asset.mjs`); the raster files themselves are ordinary project files referenced by it — not separately recorded.
+- The HTML page that embeds the images is the recorded asset (`scripts/record-asset.mjs`); the raster files themselves are ordinary project files referenced by it — not separately recorded.
 
 ## Cross-harness
 

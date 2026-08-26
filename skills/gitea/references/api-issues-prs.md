@@ -2,6 +2,8 @@
 
 All examples use the `gitea` helper from [setup.md](setup.md#gitea-helper-function). Annotation column: `R` / `W` / `D` (= read-only / write / **DESTRUCTIVE**).
 
+For titles, descriptions, comments, review text, or any other free-form value, create a temporary body with `jq -n` and call `gitea_json`; never interpolate text into inline JSON. The snippets below assume `BODY_FILE=$(mktemp)` with a cleanup trap.
+
 > Gotcha: in Gitea, PRs and issues share the same `number` namespace per repo.
 > PR conversation comments go to `/issues/{idx}/comments`. Code-review comments
 > go through the review endpoints below.
@@ -64,8 +66,11 @@ Query: `state` (`open|closed|all`, default `open`), `labels` (comma-separated na
 ### Create issue · `POST /repos/{owner}/{repo}/issues` · write
 
 ```bash
-gitea POST /repos/{owner}/{repo}/issues \
-  -d '{"title":"fix login","body":"Steps...","assignees":["alice"],"labels":[3,7],"milestone":2,"due_date":"2025-12-31T00:00:00Z"}'
+jq -n --arg title "$TITLE" --arg body "$BODY" \
+  --argjson assignees '["alice"]' --argjson labels '[3,7]' \
+  '{title: $title, body: $body, assignees: $assignees, labels: $labels, milestone: 2, due_date: "2025-12-31T00:00:00Z"}' \
+  > "$BODY_FILE"
+gitea_json POST /repos/{owner}/{repo}/issues "$BODY_FILE"
 ```
 
 Body: `title` (req), `body`, `assignees` (array of usernames), `labels` (array of label IDs), `milestone` (ID), `due_date` (ISO 8601), `ref` (branch).
@@ -85,7 +90,8 @@ Body fields (any subset): `title`, `body`, `assignees`, `milestone`, `state` (`o
 ### Create comment · `POST /repos/{owner}/{repo}/issues/{idx}/comments` · write
 
 ```bash
-gitea POST "/repos/{owner}/{repo}/issues/$NUM/comments" -d '{"body":"PR will land tomorrow"}'
+jq -n --arg body "$COMMENT" '{body: $body}' > "$BODY_FILE"
+gitea_json POST "/repos/{owner}/{repo}/issues/$NUM/comments" "$BODY_FILE"
 ```
 
 ### Edit comment · `PATCH /repos/{owner}/{repo}/issues/comments/{id}` · write
@@ -133,8 +139,10 @@ For patch format: `/pulls/{idx}.patch`. Append `?binary=true` to include binary 
 ### Create PR · `POST /repos/{owner}/{repo}/pulls` · write
 
 ```bash
-gitea POST /repos/{owner}/{repo}/pulls \
-  -d '{"title":"feat: add cache","body":"...","head":"feature/cache","base":"main","assignees":["alice"],"labels":[3]}'
+jq -n --arg title "$TITLE" --arg body "$BODY" --arg head "$HEAD_BRANCH" --arg base "$BASE_BRANCH" \
+  '{title: $title, body: $body, head: $head, base: $base, assignees: ["alice"], labels: [3]}' \
+  > "$BODY_FILE"
+gitea_json POST /repos/{owner}/{repo}/pulls "$BODY_FILE"
 ```
 
 Body: `title` (req), `body`, `head` (req — source branch; for cross-fork use `owner:branch`), `base` (req — target branch), `assignee`, `assignees`, `milestone`, `labels`, `due_date`. Prefix title with `WIP: ` (or `Draft: `) to create a draft PR.
@@ -150,8 +158,10 @@ Pulls the latest `base` into the PR's head branch.
 ### Merge PR · `POST /repos/{owner}/{repo}/pulls/{idx}/merge` · write
 
 ```bash
-gitea POST "/repos/{owner}/{repo}/pulls/$IDX/merge" \
-  -d '{"Do":"squash","MergeTitleField":"feat: add cache","MergeMessageField":"...","delete_branch_after_merge":true,"head_commit_id":"<expected-head-sha>"}'
+jq -n --arg title "$MERGE_TITLE" --arg message "$MERGE_MESSAGE" --arg head "$EXPECTED_HEAD_SHA" \
+  '{Do: "squash", MergeTitleField: $title, MergeMessageField: $message, delete_branch_after_merge: true, head_commit_id: $head}' \
+  > "$BODY_FILE"
+gitea_json POST "/repos/{owner}/{repo}/pulls/$IDX/merge" "$BODY_FILE"
 ```
 
 Body: `Do` (req: `merge|rebase|rebase-merge|squash|fast-forward-only`, **note the capital D**), `MergeTitleField`, `MergeMessageField`, `delete_branch_after_merge`, `force_merge` (bypass failing checks), `merge_when_checks_succeed` (queue until green), `head_commit_id` (expected head SHA — server returns 409 if it has moved).
@@ -169,14 +179,10 @@ A 405 typically means the PR is not mergeable (conflicts, failing required check
 ### Create review · `POST /repos/{owner}/{repo}/pulls/{idx}/reviews` · write
 
 ```bash
-gitea POST "/repos/{owner}/{repo}/pulls/$IDX/reviews" -d '{
-  "body":"Overall LGTM, two small comments",
-  "event":"APPROVED",
-  "commit_id":"<pr.head.sha>",
-  "comments":[
-    {"path":"src/foo.go","old_position":0,"new_position":42,"body":"Inline comment"}
-  ]
-}'
+jq -n --arg body "$REVIEW_BODY" --arg commit "$PR_HEAD_SHA" --arg comment "$INLINE_COMMENT" \
+  '{body: $body, event: "APPROVED", commit_id: $commit, comments: [{path: "src/foo.go", old_position: 0, new_position: 42, body: $comment}]}' \
+  > "$BODY_FILE"
+gitea_json POST "/repos/{owner}/{repo}/pulls/$IDX/reviews" "$BODY_FILE"
 ```
 
 Body: `body` (overall comment), `event` (`APPROVED|REQUEST_CHANGES|COMMENT|PENDING`), `commit_id` (PR head SHA at time of review), `comments[]` (`{path, old_position, new_position, body}` — inline comments).

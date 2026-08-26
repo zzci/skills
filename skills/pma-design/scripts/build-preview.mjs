@@ -5,7 +5,7 @@
 // built-in-skills/design-system-preview.md for the skill doc.
 //
 // Usage:
-//   node <skill>/agents/build-preview.mjs <design-system-dir>
+//   node <skill>/scripts/build-preview.mjs <design-system-dir>
 //        [--out <file>] [--title <t>] [--cdn] [--offline]
 //
 // Cards are isolated with declarative Shadow DOM (one shadow root per card,
@@ -135,7 +135,7 @@ async function loadBuildBabel(offline) {
     const m = await import("@babel/standalone");
     return m.default && m.default.transform ? m.default : m;
   } catch {}
-  // agents/vendor/babel.min.js ships with the skill (the compiler uses it too);
+  // scripts/vendor/babel.min.js ships with the skill (the compiler uses it too);
   // fall back to the versioned cache / unpkg download.
   const code =
     (await readMaybe(path.join(VENDOR_DIR, "babel.min.js"))) ??

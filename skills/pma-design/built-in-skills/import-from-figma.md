@@ -4,7 +4,7 @@ description: "Import from Figma (.fig)\nDecode a local .fig file offline — mou
 ---
 # Import from Figma (.fig)
 
-Import a **local `.fig` file** with `agents/import-figma.mjs`. The vendored decoder (`agents/vendor/fig-materialize.mjs`) runs entirely offline: kiwi + zstd/deflate decode → node tree → React JSX / token CSS emit. Two destinations:
+Import a **local `.fig` file** with `scripts/import-figma.mjs`. The vendored decoder (`scripts/vendor/fig-materialize.mjs`) runs entirely offline: kiwi + zstd/deflate decode → node tree → React JSX / token CSS emit. Two destinations:
 
 - **Design reference** — mount the file as a browsable tree inside a project, cherry-pick real component code, render frames as visual ground truth.
 - **Design system** — emit every component + variables into a new `designs/<slug>/` folder that follows [design-system-authoring-guide.md](design-system-authoring-guide.md), then compile/check/preview as usual.
@@ -21,8 +21,8 @@ Import a **local `.fig` file** with `agents/import-figma.mjs`. The vendored deco
 Run it first, every time — it's read-only and tells you what's inside (pages → frames with guids, component counts and top variant sets, variable/style counts):
 
 ```bash
-node <skill>/agents/import-figma.mjs outline <file.fig>          # human summary
-node <skill>/agents/import-figma.mjs outline <file.fig> --json   # full structured list
+node <skill>/scripts/import-figma.mjs outline <file.fig>          # human summary
+node <skill>/scripts/import-figma.mjs outline <file.fig> --json   # full structured list
 ```
 
 Then use your harness's Ask tool to confirm with the user: which pages/frames matter? Reference or full design system? Where should it land? (Community files often carry hundreds of icon symbols — importing everything is rarely what the user wants for a reference; it's fine for a design system.) Carry the confirmed scope into every later command — `--pages` on `mount`/`design-system`, explicit `--frames`/`--components` on `materialize` — so out-of-scope pages never get decoded into the project.
@@ -31,7 +31,7 @@ Then use your harness's Ask tool to confirm with the user: which pages/frames ma
 
 1. **Mount** the decoded file into the project, then explore with Read/Grep/Glob:
    ```bash
-   node <skill>/agents/import-figma.mjs mount <file.fig> <projectDir> [--pages <a,b>]
+   node <skill>/scripts/import-figma.mjs mount <file.fig> <projectDir> [--pages <a,b>]
    ```
    This writes `<projectDir>/_fig/<slug>/` — `README.md`, `METADATA.md`, `/<Page>/<frame>/index.jsx` per frame, `/<Page>/components/`, `/external-shared/`, plus `node-index.json` (guid → path). Each `.jsx` opens with a `// figma node: <guid>` comment. It is a **read-only reference tree**, not a deliverable:
    - The mounted JSX is a **quick reconstruction for orientation** — never copy it into project files; when you need real code, **materialize** it (step 3) and get dependency-closed modules.
@@ -42,13 +42,13 @@ Then use your harness's Ask tool to confirm with the user: which pages/frames ma
 2. **Read before you draw**: start with the mounted `README.md`/`METADATA.md`, then the frame JSX for the screens that matter. The JSX is the truth for geometry, colors, and text.
 3. **Materialize** real code when you need it in the project (guids come from `node-index.json` or the `// figma node:` comments):
    ```bash
-   node <skill>/agents/import-figma.mjs materialize <file.fig> --out <dir> --components Button,Input
-   node <skill>/agents/import-figma.mjs materialize <file.fig> --out <dir> --frames 13:2144
+   node <skill>/scripts/import-figma.mjs materialize <file.fig> --out <dir> --components Button,Input
+   node <skill>/scripts/import-figma.mjs materialize <file.fig> --out <dir> --frames 13:2144
    ```
    Emits flat `<Name>.jsx` + `<Name>.d.ts` with the dependency closure (sibling relative imports — keep an emitted set together in one folder), `assets/` + `fig-assets.css`, and with `--tokens`/`--typography` the variable/text-style CSS. Component names derive from Figma layer names (PascalCased, deduped) — read the printed component list and each `<Name>.d.ts` before writing code; the variant axes are the props. Then wire the emitted `fig-*.css` files into the page or the project's root stylesheet via `<link>`/`@import` — they do nothing until referenced. (Flow B skips this: `design-system` writes `styles.css` itself.)
 4. **Render** a frame for visual ground truth — serve it over HTTP and screenshot it with your harness preview tools:
    ```bash
-   node <skill>/agents/import-figma.mjs render <file.fig> --frame <guid> --out <dir>/frame.html
+   node <skill>/scripts/import-figma.mjs render <file.fig> --frame <guid> --out <dir>/frame.html
    ```
    Render **sparingly**: each render inlines every image (multi-MB HTML) plus a serve/screenshot round trip — one or two frames are enough to orient, never one render per component, and never render a node whose JSX you haven't read. Use the render to judge look-and-feel and the JSX to copy exact values. Never redraw from a screenshot alone when the decoded code is sitting right there.
 
@@ -56,7 +56,7 @@ Then use your harness's Ask tool to confirm with the user: which pages/frames ma
 
 1. Emit everything in one shot:
    ```bash
-   node <skill>/agents/import-figma.mjs design-system <file.fig> designs/<slug> --name "Display Name" [--pages <a,b>]
+   node <skill>/scripts/import-figma.mjs design-system <file.fig> designs/<slug> --name "Display Name" [--pages <a,b>]
    ```
    This writes the authoring convention: `components/<Name>.jsx` + `.d.ts` (every variant set + symbol, dependency-closed), `tokens/fig-tokens.css` + `tokens/fig-typography.css` (when the file has variables/styles; unclassifiable tokens are marked `/* @kind other */`), `assets/` + `fig-assets.css`, `styles.css` (@imports), and a stub `README.md` with provenance + design metadata.
 2. Continue with [design-system-authoring-guide.md](design-system-authoring-guide.md) — the emitted folder is **raw material, not a finished system**. The curation pass:

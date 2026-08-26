@@ -487,8 +487,8 @@ Both invoke `cargo` with the right linker/sysroot pair; both honor your `[profil
 
 ```dockerfile
 # === Build stage (shared across all runtime variants) ===
-FROM rust:<MSRV> AS chef
-# ^ pin to the workspace rust-version — literal lives in baseline.md Lock 5
+FROM rust:<CURRENT_TOOLCHAIN> AS chef
+# ^ match rust-toolchain.toml / the current CI pin; PROJECT_MSRV is tested separately
 RUN cargo install cargo-chef --locked
 WORKDIR /src
 
@@ -667,7 +667,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
-        with: { toolchain: "<MSRV>" }     # match workspace.package.rust-version (baseline.md Lock 5)
+        with: { toolchain: "<PROJECT_MSRV>" }     # match workspace.package.rust-version
       - uses: taiki-e/install-action@v2
         with: { tool: cargo-hack }
       - run: cargo hack check --rust-version --workspace --ignore-private --locked

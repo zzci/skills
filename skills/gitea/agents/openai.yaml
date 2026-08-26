@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gitea"
+  short_description: "Operate Gitea repositories through the REST API"
+  default_prompt: "Use $gitea to inspect or manage this Gitea repository safely."

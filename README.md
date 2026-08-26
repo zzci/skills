@@ -139,7 +139,7 @@ For operating BKD kanban boards via REST API:
 
 1. Use `/bkd` for single issue CRUD, cron jobs, and basic operations.
 2. Use short activation phrases such as `use bkd to start coordination` or `start BKD L1` to start the three-tier L1/L2/L3 coordination pattern.
-3. For long-running autonomous coordination, L1 talks to the user, L2 owns DAG decomposition and cron-driven dispatch, and L3 issues execute short-lived subtasks.
+3. For long-running autonomous coordination, L1 has no cron and wakes only on user messages or L2 follow-ups. Every campaign is split across multiple bounded L2 coordinators; each L2 owns its workstream DAG and self-cron, while L3 issues execute short-lived subtasks.
 4. For multi-subtask orchestration, the skill supports two modes:
    - **Worktree mode**: subtasks work in isolated branches (`bkd/{issueId}`), suitable for multi-file changes or overlapping subtasks.
    - **Simple mode**: subtasks work directly on the main branch, suitable for small independent changes.
@@ -158,5 +158,5 @@ For operating BKD kanban boards via REST API:
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
 | [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend service conventions, optional monorepo promotion, `src/modules` API layout, SQLite-first Drizzle patterns, OpenAPIHono/Bun.serve runtime split, compile-time embedded assets, and validated env config |
 | [pma-design](skills/pma-design/) | Design artifact creator — self-contained HTML mockups, interactive prototypes, wireframes, decks, and design-system authoring/consumption with nsl-served tmux previews and local vendor React/Babel runtime |
-| [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, L1/L2/L3 three-tier coordination, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
+| [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, event-driven L1 plus multiple cron-driven L2 workstreams and L3 execution, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
 | [gitea](skills/gitea/) | Gitea REST API operator — curl-based `/api/v1` reference for repos, files, issues, PRs, releases, labels, milestones, actions, packages, wiki, search, server setup, and forced non-GitHub to Gitea routing |

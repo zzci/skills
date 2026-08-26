@@ -1,6 +1,6 @@
 ---
 name: pma-web
-description: Frontend implementation guide for PMA-managed React + Vite SPA and internal-tool frontend projects. Covers required quality gates, file-based type-safe routing with TanStack Router, server state with TanStack Query, the shadcn/ui (base-nova) hard lock (other UI component ecosystems are forbidden), Tailwind theming, testing, i18n, nsl-based dev integration, and frontend delivery rules. Use when implementing, scaffolding, or reviewing a React/Vite SPA or internal-tool frontend in a PMA repo.
+description: Frontend implementation and acceptance baseline for PMA-managed React + Vite SPA and internal-tool frontend projects. Covers required quality gates, file-based type-safe routing with TanStack Router, server state with TanStack Query, the shadcn/ui (base-nova) hard lock, Tailwind theming, testing, i18n, nsl-based dev integration, and delivery rules. Use when implementing, scaffolding, upgrading, or validating acceptance of a React/Vite SPA; use pma-cr for code-review workflow.
 ---
 
 # Web Frontend Implementation Guide

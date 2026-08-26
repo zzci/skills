@@ -6,6 +6,18 @@ description: "Full authoring flow for setting up or importing a design system �
 
 Use this guide when the user wants to **set up a design system**, **import an existing design system**, or **create a UI kit**. It is the **canonical** authoring doc — the compiler/checker contract and the full craft flow live here. [`create-design-system.md`](create-design-system.md) adds the component-inventory rules; [`design-components.md`](design-components.md) covers standalone `.dc.html` Design Components.
 
+## Table of Contents
+
+- [Project contract and portable tools](#this-project-is-a-design-system)
+- [Build flow](#the-build-flow)
+- [Foundation cards](#foundation-cards)
+- [Iconography](#iconography)
+- [Components](#components)
+- [Starting points](#starting-points)
+- [UI kits](#ui-kits)
+- [Guidance and portable skill metadata](#guidance)
+- [Consumption after authoring](#after-authoring-how-projects-consume-this-system)
+
 ## This project is a design system
 
 You are authoring the design system itself, not consuming one. Design systems are folders on the file system containing typography guidelines, colors, assets, brand style and tone guides, CSS styles, and React recreations of UIs, decks, etc. They give design agents the ability to create designs against a company's existing products, and create assets using that company's brand. A design system should contain real visual assets (logos, brand illustrations, etc.), low-level visual foundations (typography specifics; color, shadow, border, spacing systems), reusable UI components, and high-level UI kits (full screens).
@@ -15,7 +27,7 @@ You are authoring the design system itself, not consuming one. Design systems ar
 There is **no background compiler** in this harness. `_ds_bundle.js`, `_ds_manifest.json`, `_adherence.oxlintrc.json`, and `preview.html` are **generated artifacts** — never hand-edit them. After you edit components, tokens, or cards, (re)generate them yourself by running the compiler (a plain shell call, identical on Claude Code / Codex):
 
 ```
-node <skill>/agents/compile-design-system.mjs designs/<project>
+node <skill>/scripts/compile-design-system.mjs designs/<project>
 ```
 
 (`<skill>` is this skill's directory; `designs/<project>` is the design-system folder.) The compiler discovers everything from **file content and sibling relationships — not from folder names** — so the only fixed location is the global-CSS entry point (below). It bundles the components into a runtime library, indexes the styles, and writes the three artifacts.
@@ -23,7 +35,7 @@ node <skill>/agents/compile-design-system.mjs designs/<project>
 After compiling, validate with the **read-only design-system checker** — it reports what the compiler found (namespace, components, `@dsCard` cards, starting points, tokens, fonts) and any issues, and **writes nothing**:
 
 ```
-node <skill>/agents/check-design-system.mjs designs/<project>
+node <skill>/scripts/check-design-system.mjs designs/<project>
 ```
 
 To run it as an isolated read-only subagent (recommended after a batch of edits), launch it with the prompt at [`../agents/design-system-checker.md`](../agents/design-system-checker.md) — see your harness reference (`references/<harness>.md`) for the exact launch tool (Claude Code → `Agent`; Codex → inline). Fix what it reports, recompile, and run again until clean. Wherever older instructions said "call `check_design_system`", they mean: recompile, then run this checker.
@@ -31,7 +43,7 @@ To run it as an isolated read-only subagent (recommended after a batch of edits)
 Once compiler + checker are clean, **build the single-file review page** — it compiles every `@dsCard` card, the Readme, and the starting points into one self-contained interactive `preview.html` in the design-system folder (open it directly in a browser to review everything at once):
 
 ```
-node <skill>/agents/build-preview.mjs designs/<project>
+node <skill>/scripts/build-preview.mjs designs/<project>
 ```
 
 Re-run it after any later edit, like the compiler — full doc in [`design-system-preview.md`](design-system-preview.md).
@@ -84,7 +96,7 @@ To begin, create a todo list with the tasks below, then follow it:
 - **Update `readme.md` with a short "index"** pointing the reader to the other files available — a manifest of the root folder, plus a list of components, UI kits, etc.
 - **Create the `SKILL.md` file** (template below).
 - **Compile, run the checker until clean,** then preview a card or two over HTTP to confirm components render with no console errors (see your harness reference for preview tools).
-- **Build `preview.html`** as the last step — `node <skill>/agents/build-preview.mjs designs/<project>` compiles the whole system (Readme + every card) into one self-contained interactive `designs/<project>/preview.html`. Open/screenshot it to confirm cards mount with no `[ds-preview]` console errors, and point the user at it as the one file to review. See [`design-system-preview.md`](design-system-preview.md).
+- **Build `preview.html`** as the last step — `node <skill>/scripts/build-preview.mjs designs/<project>` compiles the whole system (Readme + every card) into one self-contained interactive `designs/<project>/preview.html`. Open/screenshot it to confirm cards mount with no `[ds-preview]` console errors, and point the user at it as the one file to review. See [`design-system-preview.md`](design-system-preview.md).
 - **You are done!** The generated `preview.html` shows every registered card. Do NOT summarize your output; just mention CAVEATS (things you couldn't do or are unsure about) and end with a CLEAR, BOLD ASK for the user to help you ITERATE toward perfect.
 
 ## Foundation cards

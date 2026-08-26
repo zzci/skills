@@ -1,6 +1,6 @@
 # Gitea REST API — Repositories, files, branches, tags, commits, releases
 
-All examples use the `gitea` helper from [setup.md](setup.md#gitea-helper-function) (auto-injects URL + auth + JSON header + jq + 4xx handling). Annotation column: `R` = read-only, `W` = write, `D` = **DESTRUCTIVE** (confirm with the user first).
+All examples use the `gitea` helper from [setup.md](setup.md#gitea-helper-function) (auto-injects URL + auth + JSON header + jq + 4xx handling). Annotation column: `R` = read-only, `W` = write, `D` = **DESTRUCTIVE** (confirm with the user first). For user-provided or free-form values, build the body with `jq -n` in a temporary file and call `gitea_json`; inline `-d` examples are fixed trusted literals only.
 
 ## Endpoint reference
 

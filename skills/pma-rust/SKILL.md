@@ -1,6 +1,6 @@
 ---
 name: pma-rust
-description: Production-grade Rust acceptance baseline for PMA-managed Rust services and CLIs. Use with /pma when creating, reviewing, or upgrading Rust workspaces, Axum/Tokio services, CLI binaries, CI pipelines, release packaging, lint policy, dependency choices, testing, observability, security, or supply-chain controls. Defines hard locks for pure-Rust dependencies, rustls TLS, forbid unsafe code, edition 2024, workspace lint inheritance, MSRV, nextest, cargo-deny, cargo-shear, typos, and portable release builds.
+description: Production-grade Rust implementation and acceptance baseline for PMA-managed Rust services and CLIs. Use with /pma when creating, upgrading, or validating acceptance of Rust workspaces, Axum/Tokio services, CLI binaries, CI pipelines, release packaging, lint policy, dependencies, testing, observability, security, or supply-chain controls. Use pma-cr for code-review workflow.
 ---
 
 # Rust Project Implementation & Acceptance Guide

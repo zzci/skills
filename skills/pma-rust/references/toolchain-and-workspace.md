@@ -68,7 +68,7 @@ default-members = ["crates/app"]   # OPTIONAL — only reth uses it (`Cargo.toml
 
 [workspace.package]
 edition      = "2024"
-rust-version = "<MSRV>"            # current baseline literal lives in baseline.md Lock 5; bump in minor releases only
+rust-version = "<PROJECT_MSRV>"    # minimum supported compiler; independent of the current toolchain pin
 license      = "Apache-2.0"
 repository   = "https://github.com/acme/acme"
 authors      = ["Acme Engineering"]
@@ -190,27 +190,29 @@ Two equally valid approaches, depending on project type.
 
 ### Approach A — `rust-version` only (cargo / rust-analyzer / reth pattern)
 
-`Cargo.toml` declares `rust-version`; CI installs via `dtolnay/rust-toolchain@stable` (or `master` for explicit pin). **No** `rust-toolchain.toml`. Lighter for libraries and CI variability.
+`Cargo.toml` declares the project MSRV; CI installs the current toolchain separately and adds a distinct MSRV verification job. **No** `rust-toolchain.toml`. This is lighter for libraries that intentionally test both a moving stable compiler and a supported minimum.
 
 ```yaml
 # .github/workflows/ci.yml
-- uses: dtolnay/rust-toolchain@stable
 - uses: dtolnay/rust-toolchain@master
   with:
-    toolchain: "<MSRV>"   # for MSRV verification job — match workspace.package.rust-version (baseline.md Lock 5)
+    toolchain: "1.98.0"   # current CI toolchain snapshot; refresh deliberately
+- uses: dtolnay/rust-toolchain@master
+  with:
+    toolchain: "<PROJECT_MSRV>"   # separate MSRV verification job
 ```
 
 ### Approach B — `rust-toolchain.toml` (vector pattern)
 
 ```toml
 [toolchain]
-channel    = "<MSRV>"           # match baseline.md Lock 5 / workspace.package.rust-version, or pin a sliding stable
+channel    = "1.98.0"           # current reproducible dev/CI toolchain; independent of PROJECT_MSRV
 components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
 profile    = "minimal"
 targets    = ["x86_64-unknown-linux-gnu"]
 ```
 
-The `rust-toolchain.toml` mechanism is verified at `vector/rust-toolchain.toml` (vector itself pins `channel = "1.92"`; substitute this skill's baseline MSRV from `baseline.md` Lock 5, not vector's value). Use when developer environments must be byte-for-byte reproducible (services with strict deployment pipelines).
+The `rust-toolchain.toml` mechanism is verified at `vector/rust-toolchain.toml`. Use it when developer environments must be byte-for-byte reproducible. Keep `[workspace.package].rust-version = "<PROJECT_MSRV>"` separate and retain an MSRV CI job; the toolchain pin may advance without changing the support promise.
 
 ## `.cargo/config.toml`
 

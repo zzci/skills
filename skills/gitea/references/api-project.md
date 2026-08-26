@@ -1,6 +1,6 @@
 # Gitea REST API — Labels, milestones, time tracking, wiki
 
-All examples use the `gitea` helper from [setup.md](setup.md#gitea-helper-function). Annotation column: `R` / `W` / `D`.
+All examples use the `gitea` helper from [setup.md](setup.md#gitea-helper-function). Annotation column: `R` / `W` / `D`. For user-provided or free-form values, build the body with `jq -n` in a temporary file and call `gitea_json`; inline `-d` examples are fixed trusted literals only.
 
 ## Endpoint reference
 

@@ -30,7 +30,7 @@ Goals:
 
 | Category | Technology | Notes |
 |---|---|---|
-| Language | Go 1.26+ | latest stable |
+| Language | Go 1.27+ | latest stable |
 | Format | gofmt and goimports | enforced in CI |
 | Lint | golangci-lint v2 | includes revive, govet, errcheck, staticcheck |
 | Security scan | gosec | static security checks; runs as a required gate |
@@ -100,7 +100,7 @@ When pinning to a non-latest version, note the reason in `go.mod` near the `requ
 
 ```go
 require (
-    // PINNED: <module>@v1 — v2 requires Go 1.27; revisit after toolchain bump
+    // PINNED: <module>@v1 — v2 requires Go 1.28; revisit after toolchain bump
     example.com/<module> v1.8.3
 )
 ```

@@ -20,7 +20,8 @@ Keep this entry file small. Load only the references needed for the current turn
 7. Apply the Coding Principles below to every code change.
 8. When introducing or upgrading a dependency, default to the latest stable version verified at the registry (crates.io / npmjs.com / pkg.go.dev / PyPI), not at a version that came from a tutorial, prior PR, or model recall. Pin to a non-latest version only with a recorded reason. See `references/workflow.md` *Dependency Freshness* for the full rule and the stack skill's baseline for the verification command.
 9. Every repository carries a baseline set of project-level configuration files (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, plus stack-pinned toolchain files). See `references/delivery.md` *Repository Hygiene*.
-10. Never hand-author or hand-edit database migration files. Migrations are produced by the project's migration tool / ORM (e.g. `sqlx migrate`, `sea-orm-migration`, `diesel migration`, Drizzle Kit, Prisma, Alembic) — change the model/schema, then let the tool emit the migration. Hand-written or restructured migrations desync from the tool's tracked state and break later auto-generated migrations. See `references/delivery.md` *Database Migrations*.
+10. Use the project's migration tool and follow its migration model. Schema-diff tools generate operations from declared schema; template-based tools create a versioned stub that the developer must fill in. Never edit a migration already applied to a shared environment. See `references/delivery.md` *Database Migrations*.
+11. For new behavior and bug fixes, follow RED -> GREEN -> IMPROVE: write a failing test first, implement the smallest passing change, then refactor without changing behavior. Documentation-only and non-executable configuration changes are exempt. Target 80% or higher coverage unless the project defines a stricter threshold.
 
 ## Coding Principles
 
@@ -37,7 +38,7 @@ Three phases with hard gates. Step-by-step detail lives in `references/workflow.
 
 1. **Phase 1: Investigation** — entry: a chosen task. Claim the task in `docs/task/index.md` (`[ ]` -> `[-]`, owner set) when investigation starts; investigate impact, related code, tests, config, and recent changelog; create a plan file for non-trivial work. Exit: findings recorded.
 2. **Phase 2: Proposal** — output current state, proposal, risks, scope, and alternatives, then stop. Exit gate: explicit approval such as `proceed`.
-3. **Phase 3: Implement -> Verify -> Record** — entry: approval. Set the plan status/marker to in-progress (the task is already claimed since Phase 1), implement the approved scope, run focused verification, mark task and plan completed, update changelog when needed.
+3. **Phase 3: Test -> Implement -> Verify -> Record** — entry: approval. Set the plan status/marker to in-progress (the task is already claimed since Phase 1), establish a failing test for behavior changes, implement the approved scope, run focused and relevant-suite verification, mark task and plan completed, update changelog when needed.
 
 ## Reference Packs
 

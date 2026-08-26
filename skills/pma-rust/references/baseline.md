@@ -132,12 +132,12 @@ Policy stays in the repo; only the developer's shell relaxes it for WIP. CI is u
 ```toml
 [workspace.package]
 edition      = "2024"
-rust-version = "1.96.0"   # bump deliberately; minor-version cadence; never in patch releases
+rust-version = "<PROJECT_MSRV>"   # minimum supported compiler, not the current toolchain pin
 ```
 
-**This Lock is the single source of truth for the baseline MSRV literal** — current baseline: `1.96.0` — update this one value on each stable release. Every other snippet in this skill writes `<MSRV>` (or "match the workspace `rust-version`") and points here.
+`rust-version` states the oldest compiler the project promises to support. It is not a rolling alias for latest stable and must not be bumped merely because a new Rust release exists. New internal services may start at the currently verified stable toolchain (`1.98.0` as of 2026-08-20); libraries and compatibility-sensitive services choose a deliberate lower MSRV and document why.
 
-Verify in CI with `cargo hack check --rust-version --workspace --ignore-private --locked` (cargo's pattern, `main.yml:320-323`) **or** `cargo msrv verify` (vector's pattern, `msrv.yml`). PMA baseline policy: track the **latest stable Rust**; bump the MSRV deliberately in a minor release, never in a patch release. (This intentionally does not adopt Tokio's "support ≥6 months of stable" lag — PMA-managed services build on a controlled, current toolchain rather than guaranteeing older-toolchain compatibility.)
+Verify the minimum in a dedicated CI job with `cargo hack check --rust-version --workspace --ignore-private --locked` or `cargo msrv verify`. Separately pin or install the current CI/development toolchain and keep it fresh. Bump MSRV only when project requirements or dependencies justify dropping older compiler support; record the change in the changelog and release it deliberately.
 
 ### Lock 6 — No `unwrap` / `expect` / `panic!` in runtime paths
 
@@ -231,7 +231,7 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 
 | Category | Technology | Notes / Evidence |
 |---|---|---|
-| Toolchain | stable Rust, **edition 2024** | `rust-version` in workspace; `rust-toolchain.toml` optional (only vector uses it) |
+| Toolchain | current pinned stable Rust, **edition 2024** | `rust-toolchain.toml` or CI pin tracks current stable; workspace `rust-version` separately declares PROJECT_MSRV |
 | Async runtime | **Tokio** (multi-thread) | hand-built `Builder` for tuning (`quickwit-cli/main.rs:43-53`) |
 | HTTP server | **Axum 0.8.x** + Hyper 1 + tower / tower-http | gRPC-heavy services: **Tonic** + warp/axum hybrid (quickwit) |
 | TLS | **rustls** + **`aws-lc-rs`** provider (rustls 0.23 default) | install the provider early in `main` (canonical snippet: Lock 2); startup-install pattern per `quickwit-cli/main.rs:98` (quickwit uses the ring provider) |

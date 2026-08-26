@@ -93,8 +93,8 @@ acme/
     "check": "bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {
-    "@nsio/nsl": "^0.1.4",
-    "typescript": "^5.9.0"
+    "@nsio/nsl": "^0.1.7",
+    "typescript": "^7.0.2"
   }
 }
 ```

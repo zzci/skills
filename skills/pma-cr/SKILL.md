@@ -81,30 +81,38 @@ Next.js Route Handlers / Server Actions -> load both the TS frontend and TS back
 
 If the change spans multiple stacks, load all relevant packs and review each changed area against the correct pack.
 
+`pma-cr` owns review workflow and findings. PMA stack skills provide implementation acceptance baselines; load a relevant stack baseline as supporting project policy when the repository uses it, but do not delegate review mode or output rules to that skill.
+
 ## Review Priorities
 
 Review order and confidence filtering: see `references/core-review-policy.md`.
 
 ## Local Review Mode
 
-Use local mode for uncommitted or staged changes.
+Use local mode for a deterministic working-tree or branch scope.
 
-- inspect staged and unstaged diffs
+- inspect `git status --short`, `git diff --staged`, and `git diff`; if either diff is non-empty, review their union and read relevant untracked source files in full because Git has no diff base for them
+- if both diffs are empty, resolve the comparison base in order: `@{upstream}`, the remote default branch (`refs/remotes/origin/HEAD`), then an existing `origin/main` or `origin/master`
+- review `git diff $(git merge-base HEAD <base>)...HEAD`; if no trustworthy base can be resolved, or multiple remotes/bases make intent ambiguous, ask the user
+- never substitute an arbitrary recent-commit window such as `git log -5`
 - read enough surrounding code to validate behavior
 - produce a findings-first report ordered by severity
 - block approval for critical issues
 
 ## PR Review Mode
 
-Use PR mode for GitHub pull requests.
+Use PR mode for GitHub or a verified Gitea instance.
 
-- inspect PR metadata and diff with `gh`
+- derive the forge from `origin`: `github.com` uses `gh`; any other host must return HTTP 200 JSON with a `version` field from `https://<host>/api/v1/version` before using the `gitea` skill and REST endpoints
+- if the non-GitHub probe fails, stop and ask; do not guess the forge or API
+- inspect PR metadata, head SHA, changed files, and diff with the selected forge client
 - skip ineligible PRs such as closed or draft PRs
 - gather relevant `CLAUDE.md` / `AGENTS.md` guidance
 - review only changed behavior and nearby context, not unrelated legacy code
 - when useful, split the audit by concern or stack, then merge only high-confidence findings
-- present findings to the user first; post to GitHub via `gh pr review` only after the user confirms
-- default to `gh pr review --comment`; use `--approve` or `--request-changes` only when the user explicitly asks for them (note: `--approve` fails on your own PR)
+- present findings to the user first; post to the forge only after the user confirms
+- on GitHub, default to `gh pr review --comment`; use `--approve` or `--request-changes` only when explicitly requested (note: `--approve` fails on your own PR)
+- on Gitea, use the verified base URL and the `gitea` skill's PR review or issue-comment endpoints; send free-form review text through a temporary `jq` body and `gitea_json`
 
 ## Repository Audit Mode
 

@@ -31,6 +31,7 @@ export GITEA_ORGA_URL=https://git.orga.com     GITEA_ORGA_TOKEN="..."
 export GITEA_ORGB_URL=https://git.orgb.local   GITEA_ORGB_TOKEN="..."
 
 # Activate (auto-pick by current repo's origin, else fall back to GITEA_URL/GITEA_TOKEN):
+source <gitea-skill>/scripts/gitea.sh
 gitea_auto || { echo "no Gitea credentials in env" >&2; exit 1; }
 
 AUTH=(-H "Authorization: token $GITEA_TOKEN")
@@ -57,77 +58,25 @@ export GITEA_TOKEN="$(pass show gitea/public)"
 
 - Discovery regex: `^GITEA_[A-Z0-9][A-Z0-9_]*_URL=` — the captured middle group is the alias.
 - `_TOKEN_FILE` is accepted for any alias when `_TOKEN` is not exported directly.
-- Host matching in `gitea_auto` strips `:port` — two aliases on the same host with different ports (e.g. `git.orgb.local` vs `git.orgb.local:3000`) resolve arbitrarily; use `gitea_use <ALIAS>` explicitly in that case.
+- HTTP(S) targets match the full authority, including port. SSH remotes do not reveal the HTTPS port; if multiple aliases share the same host on different ports, `gitea_auto` fails and requires `gitea_use <ALIAS>`.
 
 ### Selection helpers
 
-These are the **canonical definitions** — SKILL.md refers here rather than duplicating them. In non-persistent shells (each agent command block is a fresh shell), write them plus the `gitea` wrapper below to a temp file (e.g. `/tmp/gitea-helpers.sh`) once and `source` it at the top of every command block:
+The canonical, tested definitions live in `../scripts/gitea.sh`. Source the file in every fresh shell rather than copying shell functions out of documentation:
 
 ```bash
-# Print all aliases that have a GITEA_<ALIAS>_URL set, one per line.
-gitea_list_aliases() {
-  env | grep -oE '^GITEA_[A-Z0-9][A-Z0-9_]*_URL=' \
-      | sed -E 's/^GITEA_(.+)_URL=$/\1/' | sort -u
-}
-
-# Activate a named alias: load its URL + token into GITEA_URL/GITEA_TOKEN.
-gitea_use() {
-  local a="$1" u="GITEA_${1}_URL" t="GITEA_${1}_TOKEN" f="GITEA_${1}_TOKEN_FILE"
-  [ -n "${!u:-}" ] || { echo "no $u in env" >&2; return 1; }
-  if   [ -n "${!t:-}" ];                              then GITEA_TOKEN="${!t}"
-  elif [ -n "${!f:-}" ] && [ -r "${!f}" ];            then GITEA_TOKEN="$(cat "${!f}")"
-  else echo "no $t or ${t}_FILE in env" >&2; return 1
-  fi
-  GITEA_URL="${!u}"
-  export GITEA_URL GITEA_TOKEN
-}
-
-# Resolve a Gitea instance by matching a URL host against the configured aliases.
-# Source URL priority: explicit $GITEA_URL > current repo's `git remote origin`.
-# Lookup: scan GITEA_<ALIAS>_URL pairs for a host match, then load that alias's token.
-# Fallbacks: unaliased GITEA_URL/GITEA_TOKEN -> legacy GITEA_HOST/GITEA_ACCESS_TOKEN.
-gitea_auto() {
-  local src o h a u uh
-  if [ -n "${GITEA_URL:-}" ]; then
-    src="$GITEA_URL"                                  # explicit target wins
-  else
-    o=$(git remote get-url origin 2>/dev/null) || o=""
-    src="$o"                                          # else fall back to repo origin
-  fi
-  case "$src" in
-    git@*:*)        h="${src#git@}";   h="${h%%:*}";;
-    ssh://*)        h="${src#ssh://}"; h="${h#*@}"; h="${h%%/*}"; h="${h%%:*}";;
-    http*://*)      h="${src#http*://}"; h="${h%%/*}"; h="${h%%:*}";;
-    *)              h="";;
-  esac
-  # 1. Match host against any configured alias
-  if [ -n "$h" ]; then
-    for a in $(gitea_list_aliases); do
-      u="GITEA_${a}_URL"; uh="${!u#http*://}"; uh="${uh%%/*}"; uh="${uh%%:*}"
-      if [ "$h" = "$uh" ]; then gitea_use "$a"; return 0; fi
-    done
-  fi
-  # 2. Unaliased default pair (only valid if BOTH URL and TOKEN are set)
-  if [ -n "${GITEA_URL:-}" ] && [ -n "${GITEA_TOKEN:-}" ]; then
-    export GITEA_URL GITEA_TOKEN; return 0
-  fi
-  # 3. gitea-mcp legacy pair
-  if [ -n "${GITEA_HOST:-}" ] && [ -n "${GITEA_ACCESS_TOKEN:-}" ]; then
-    GITEA_URL="$GITEA_HOST"; GITEA_TOKEN="$GITEA_ACCESS_TOKEN"
-    export GITEA_URL GITEA_TOKEN; return 0
-  fi
-  return 1
-}
+source <gitea-skill>/scripts/gitea.sh
+gitea_auto
 ```
 
 ### Selection order (resolved by `gitea_auto`)
 
-`gitea_auto` first determines a **source URL** to match against, then scans the named pairs by **host**:
+`gitea_auto` first determines a **source URL**, then matches named pairs by full HTTP(S) authority or by a unique SSH host:
 
 | Step | What happens | Example |
 |---|---|---|
 | 0 | Source URL = explicit `$GITEA_URL` if set, else `git remote get-url origin`. | `GITEA_URL=https://git.aaa.com` -> source = `git.aaa.com`. |
-| 1 | **Match host against every configured `GITEA_<ALIAS>_URL`.** First match wins; `gitea_use ALIAS` loads its URL + token. | `GITEA_ORGA_URL=https://git.aaa.com` -> alias `ORGA` matches -> `GITEA_TOKEN` set from `GITEA_ORGA_TOKEN`. |
+| 1 | Match an HTTP(S) target by full authority, or an SSH target by host when exactly one alias matches. Ambiguity fails safely. | `GITEA_ORGA_URL=https://git.aaa.com` -> alias `ORGA` matches -> `GITEA_TOKEN` set from `GITEA_ORGA_TOKEN`. |
 | 2 | No host match? Use **unaliased default**: `GITEA_URL` + `GITEA_TOKEN` (both must be set explicitly by the user). | Single-instance shell with `GITEA_URL=...` + `GITEA_TOKEN=...`. |
 | 3 | Still nothing? Use **gitea-mcp legacy** pair: `GITEA_HOST` + `GITEA_ACCESS_TOKEN`. | Migrating from an older gitea-mcp config without renaming env vars. |
 | 4 | Nothing found -> ask the user; recommend they add a named pair so future sessions auto-resolve. | — |
@@ -145,32 +94,17 @@ After `gitea_auto`, confirm before any write — never echo the full token:
 
 ```bash
 echo "host:  $(printf '%s' "$GITEA_URL" | sed -E 's#^https?://##; s#/.*##')"
-echo "token: $(printf '%s' "$GITEA_TOKEN" | head -c 6)... ($(printf '%s' "$GITEA_TOKEN" | wc -c) chars)"
+echo "token: configured ($(printf '%s' "$GITEA_TOKEN" | wc -c) chars)"
 gitea GET /user | jq '{login, full_name}'
 ```
 
 ## `gitea` helper function
 
-The `api-*.md` reference packs use a one-line `gitea` wrapper instead of repeating the full curl invocation. Define it in every shell that runs the examples (via the temp-file + `source` pattern above in non-persistent shells):
+The `api-*.md` reference packs use the `gitea` wrapper from `../scripts/gitea.sh` instead of repeating the full curl invocation:
 
 ```bash
-gitea() {
-  local method="$1" path="$2"; shift 2
-  local url="${GITEA_URL}/api/v1${path}"
-  local tmp; tmp=$(mktemp)
-  local http rc
-  http=$(curl -sS -o "$tmp" -w '%{http_code}' \
-    -H "Authorization: token $GITEA_TOKEN" \
-    -H 'Content-Type: application/json' \
-    -X "$method" "$@" "$url"); rc=$?
-  if [ "$rc" -ne 0 ] || [ "$http" -lt 200 ] || [ "$http" -ge 400 ]; then
-    >&2 echo "HTTP $http (curl exit $rc) for $method $path"
-    >&2 jq . "$tmp" 2>/dev/null || >&2 cat "$tmp"
-    rm -f "$tmp"; return 1
-  fi
-  [ -s "$tmp" ] && { jq . "$tmp" 2>/dev/null || cat "$tmp"; }
-  rm -f "$tmp"
-}
+source <gitea-skill>/scripts/gitea.sh
+gitea_auto
 ```
 
 ### Usage
@@ -186,6 +120,7 @@ gitea DELETE /repos/foo/bar/releases/42
 ### Properties
 
 - Method and path are positional; everything after is passed through to curl unchanged (`-d`, `-F`, `--data-binary`, extra `-H`, `--cacert`, etc.).
+- For user-provided or free-form JSON values, build a temporary body with `jq -n` and pass it through `gitea_json METHOD PATH FILE`. Inline `-d` is only for fixed trusted literals.
 - The helper always sends `Content-Type: application/json`. For multipart uploads, use raw `curl` with `-F` so curl can generate the multipart boundary.
 - Success bodies are pretty-printed via `jq`; empty 204 bodies are silently fine.
 - Failure: curl transport errors (connection refused, DNS failure — `%{http_code}` is `000`) and any HTTP status outside 200–399 write `HTTP <code> (curl exit <rc>) for <method> <path>` + the `{message, url}` envelope to **stderr** and return 1. Combine with `||` for failure handling, or capture stdout for the success payload.
@@ -199,7 +134,7 @@ gitea DELETE /repos/foo/bar/releases/42
   curl -sS "${AUTH[@]}" "$GITEA_URL/api/v1/repos/foo/bar/pulls/3.diff" > pr.diff
   ```
 
-When an example in the `api-*.md` packs uses `gitea ...`, it requires this function and the resolved env to be in scope — in a fresh (non-persistent) shell, `source /tmp/gitea-helpers.sh` and run `gitea_auto` at the top of the command block first. Examples that drop to raw `curl` are doing so deliberately (multipart upload, base64-heavy payloads, HTTP-status capture, raw text response).
+When an example in the `api-*.md` packs uses `gitea ...`, it requires `scripts/gitea.sh` and the resolved env to be in scope. Examples that drop to raw `curl` are doing so deliberately (multipart upload, base64-heavy payloads, HTTP-status capture, raw text response).
 
 ## Authentication
 

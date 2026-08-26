@@ -49,23 +49,19 @@ nsl list   # confirm the route and URL
 
 ## Browser preview, screenshots, and debug
 
-Prefer the bundled **Browser** plugin for Codex preview work. If the Browser plugin skill is listed, read and follow `browser:control-in-app-browser` before browser automation.
+Choose preview tooling by capability, in this order:
 
-Typical Codex Browser flow:
+1. If an installed Browser plugin and its skill are present, read that skill and use its documented navigation, console, screenshot, and visibility APIs. Do not assume a bootstrap tool name or runtime API from an older session.
+2. Otherwise, if the `agent-browser` skill is available, read it and use its CLI flow against the served HTTP URL.
+3. Otherwise, keep the nsl server running, provide the URL and file path, and perform static shell checks. State that interactive browser verification was unavailable.
 
-1. If needed, use `tool_search` to expose the Node REPL `js` tool (`node_repl js`).
-2. Initialize the Browser runtime exactly as the Browser skill describes, then bind the in-app browser (`iab`).
-3. Navigate to the served URL, for example `http://<name>.localhost/<project>/<file>.html`.
-4. Inspect the rendered page with the Browser plugin's documented DOM/screenshot APIs.
-5. Check console/runtime errors with the Browser plugin's documented Playwright or page-evaluation APIs.
-6. Fix errors, reload the page, and repeat until the page loads cleanly.
-7. When the deliverable is ready, present the in-app browser with `await (await browser.capabilities.get("visibility")).set(true)` so the user can see and interact with the result directly.
+For either browser path, navigate to `http://<name>.localhost/<project>/<file>.html`, inspect runtime errors and the expected DOM, take a screenshot when layout matters, fix issues, and repeat until clean. Make the preview visible to the user only through capabilities actually exposed by the selected tool.
 
 Use screenshots when visual layout matters. Save screenshots under the project's `designs/<project>/` folder or a temp path, then embed the absolute screenshot path if the user should see it.
 
 For in-page JavaScript probes, use the Browser plugin's documented page evaluation / Playwright API after initialization. Prefer real browser clicks and keystrokes for interaction tests where available; use direct evaluation for read-only state checks and console inspection.
 
-If the Browser plugin is unavailable:
+If no browser automation capability is available:
 
 - Still start the nsl `designs` server (in tmux, as above).
 - Provide the local URL and file path to the user.
@@ -80,7 +76,7 @@ For normal design work, preview, screenshot, console-check, and debug in the cur
 
 ## Design-system checker subagent
 
-Only when **authoring a design system** — the compiler (`compile-design-system.mjs`) and checker (`check-design-system.mjs`) commands and the full flow live in [`design-system-authoring-guide.md`](../built-in-skills/design-system-authoring-guide.md). Both are plain shell `node <skill>/agents/…` calls and run inline. Harness-specific bit: run the read-only checker **inline in the current agent** by default; spawn a separate read-only subagent (same prompt, [`../agents/design-system-checker.md`](../agents/design-system-checker.md), passing the project directory and this skill's `agents/` path) only if the user asks and multi-agent tools are available — it only runs `check-design-system.mjs` and relays output; it must not edit files or compile.
+Only when **authoring a design system** — the compiler (`compile-design-system.mjs`) and checker (`check-design-system.mjs`) commands and the full flow live in [`design-system-authoring-guide.md`](../built-in-skills/design-system-authoring-guide.md). Both are plain shell `node <skill>/scripts/…` calls and run inline. Harness-specific bit: run the read-only checker **inline in the current agent** by default; spawn a separate read-only subagent (same prompt, [`../agents/design-system-checker.md`](../agents/design-system-checker.md), passing the project directory and this skill's `scripts/` path) only if the user asks and multi-agent tools are available — it only runs `check-design-system.mjs` and relays output; it must not edit files or compile.
 
 ## Codex-specific notes
 

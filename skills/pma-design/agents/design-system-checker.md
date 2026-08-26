@@ -10,14 +10,14 @@ serve anything, or take any other action. You read and report — nothing else.
 You are given the **project directory** of a design system (the folder that
 holds `styles.css` / token CSS, `components/`, `*.card.html`, and — once
 compiled — `_ds_bundle.js` / `_ds_manifest.json`). You are also given the path
-to this skill's `agents/` directory.
+to this skill's `scripts/` directory.
 
 ## What to do
 
 1. Run the checker (it writes nothing):
 
    ```
-   node <skill>/agents/check-design-system.mjs "<projectDir>"
+   node <skill>/scripts/check-design-system.mjs "<projectDir>"
    ```
 
    Add `--verbose` only if the caller asked for the full export map (every

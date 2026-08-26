@@ -32,18 +32,22 @@ Use `/pma` for workflow control. Use this pack for implementation defaults.
 | Category | Technology | Version | Notes |
 |---|---|---|---|
 | Framework | React | 19 | default app framework |
-| Language | TypeScript | 5.9+ | strict mode |
+| Language | TypeScript | 7.0+ | strict mode; compatibility rule below |
 | Build tool | Vite | 8 | `host: "0.0.0.0"`. `server.allowedHosts` decision depends on the nsl deployment — see *Vite Configuration* in `runtime-and-data.md`. |
 | Styling | Tailwind CSS | 4 | `@theme` plus CSS variables in oklch |
 | Server state | TanStack Query | 5 | owns request lifecycle |
-| Lint / format | ESLint + @antfu/eslint-config | 8+ | no Prettier; see notes below |
+| Lint / format | ESLint + @antfu/eslint-config | 9+ | no Prettier; see notes below |
 | Test | Vitest | 4 | unit and integration tests |
 
 #### @antfu/eslint-config notes
 
-- **v8+** requires `@eslint-react/eslint-plugin` v3. Ensure the project does not pin v2.
+- **v9+** pairs with `@eslint-react/eslint-plugin` v5. Do not retain an older incompatible major.
 - **v7+** enables `react/prefer-namespace-import` by default — use `import * as React from 'react'` instead of `import React from 'react'`, or explicitly disable the rule in eslint config.
 - The config is flat-config native. Do not use legacy `.eslintrc` format.
+
+#### TypeScript 7 compatibility
+
+TypeScript 7 is the default compiler baseline for React/Vite projects that only need the CLI and standard language service. It does not yet expose the legacy programmatic compiler API. Projects whose framework or tooling embeds TypeScript (for example Vue, MDX, Astro, Svelte, Angular, or a plugin that imports `typescript`) may pin TypeScript 6 with a recorded compatibility reason, or run TypeScript 7 beside `@typescript/typescript6`. Verify the current official migration guidance before choosing.
 
 ### Default
 
@@ -137,7 +141,7 @@ When pinning to a non-latest version (peer-dep conflict, breaking-change deferra
 }
 ```
 
-Library docs check: when adopting or upgrading a non-trivial library, fetch current docs via Context7 (`mcp__plugin_context7_context7__query-docs`) — React 19, TanStack Router/Query, Tailwind v4, and shadcn all evolve faster than training-data recall.
+Library docs check: when adopting or upgrading a non-trivial library, use official vendor documentation first. If a documentation connector such as Context7 is installed and available, it may help locate the relevant material; never assume an exact connector tool name exists. React, TanStack Router/Query, Tailwind, and shadcn evolve faster than training-data recall.
 
 ## Required Quality Gates
 
@@ -273,7 +277,7 @@ Each PMA-Web app should expose at least:
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@nsio/nsl": "^0.1.4"
+    "@nsio/nsl": "^0.1.7"
   }
 }
 ```

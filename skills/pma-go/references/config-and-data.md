@@ -67,9 +67,10 @@ Rules:
 ## Migration Guidance
 
 - use goose by default
-- commit migrations
+- create versioned stubs with `goose create <name> sql` (or `go` for a code migration), then author the migration body; Goose does not infer the intended schema diff
+- commit migrations; never edit one already applied to a shared environment
 - avoid silent schema drift
-- ensure CI or local verification can apply migrations reproducibly
+- verify with the configured Goose apply and status commands against an ephemeral database
 
 ## GORM Alternative
 

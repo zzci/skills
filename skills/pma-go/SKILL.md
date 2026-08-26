@@ -1,6 +1,6 @@
 ---
 name: pma-go
-description: Go implementation guide for PMA-managed service and CLI projects. Covers project layout (cmd/internal), strict linting with golangci-lint v2, database access (sqlc + pgx or GORM), HTTP patterns (stdlib + Chi or Gin), layered config with koanf, structured logging with slog, OpenTelemetry observability, and CI quality gates. Use when implementing, scaffolding, or reviewing a Go service or CLI in a PMA repo.
+description: Go implementation and acceptance baseline for PMA-managed service and CLI projects. Covers project layout (cmd/internal), strict linting with golangci-lint v2, database access, HTTP patterns, layered config, structured logging, observability, and CI quality gates. Use when implementing, scaffolding, upgrading, or validating acceptance of a Go service or CLI; use pma-cr for code-review workflow.
 ---
 
 # Go Project Implementation Guide

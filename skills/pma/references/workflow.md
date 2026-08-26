@@ -51,16 +51,17 @@ For non-trivial tasks:
 - append one line to `docs/plan/index.md` with `[ ]`
 - wait for approval and address annotations before implementation
 
-### Phase 3: Implement -> Verify -> Record
+### Phase 3: Test -> Implement -> Verify -> Record
 
 Only after approval:
 
 1. If a plan exists, set the plan index marker to `[-]` and detail status to `implementing`.
-2. Implement only the approved scope.
-3. Run focused self-verification.
-4. Set the task index marker to `[x]` and task detail status to `completed`.
-5. If a plan exists, set the plan index marker to `[x]` and plan detail status to `completed`.
-6. Update changelog when needed.
+2. For a new feature or bug fix, write the smallest test that demonstrates the missing or broken behavior and run it to establish RED. Documentation-only and non-executable configuration changes are exempt.
+3. Implement only the approved scope until the new test passes (GREEN), then simplify without changing behavior (IMPROVE).
+4. Run the focused test, the relevant suite, and the stack quality gates. Target 80% or higher coverage unless the repository defines a stricter threshold; explain any material gap instead of hiding it.
+5. Set the task index marker to `[x]` and task detail status to `completed`.
+6. If a plan exists, set the plan index marker to `[x]` and plan detail status to `completed`.
+7. Update changelog when needed.
 
 ## Claim-Before-Work
 
@@ -68,37 +69,42 @@ Before writing implementation code:
 
 1. Read `docs/task/index.md` and inspect `[-]` items.
 2. If another agent owns the in-progress task, skip it.
-3. Claim atomically:
-   - update task index `[ ] -> [-]`
-   - update task detail `status -> in_progress`
-   - set `owner`
-   - sync tool state if task tools exist
-4. Start implementation only after the claim is fully written.
+3. Choose a stable, unique owner identifier for the work session, such as `worker-a/session-123`.
+4. Claim through the bundled serializer:
 
-Conflict rule (the claim spans multiple writes and is not atomic):
+   ```bash
+   <pma-skill>/scripts/task-state.sh claim docs/task/PREFIX-NNN.md worker-a/session-123
+   ```
 
-- The task index line edit (`[ ]` -> `[-]`) is the claim-deciding write. If the line no longer reads `[ ]` when you attempt the edit, someone else claimed it — do not proceed.
-- After writing the claim, re-read `docs/task/index.md` and the task detail file. If the recorded `owner` is not you, back off, revert any partial writes of yours, and pick another task.
+   The script takes an exclusive lock, validates the index and detail preconditions, stages both updates, commits them with rollback, and rejects a competing owner.
+5. Sync tool state if task tools exist.
+6. Start implementation only after the claim is fully written.
+
+All cooperating workers must use `task-state.sh`; direct multi-file edits bypass the lock and are forbidden. If the script rejects a claim, re-read task state and choose another task.
 
 Unclaim (proposal rejected or work abandoned):
 
-- revert task index `[-] -> [ ]`
-- set task detail `status -> pending` and clear `owner`
-- append a note line explaining why the task was released
+```bash
+<pma-skill>/scripts/task-state.sh unclaim docs/task/PREFIX-NNN.md worker-a/session-123 "Proposal was rejected."
+```
+
+The reason is required; the script resets the marker, status, and owner together and appends the note.
 
 Staleness heuristic: a `[-]` task whose owner session is gone and whose notes have not changed may be unclaimed by another agent after confirming with the user.
 
 On completion:
 
-- set task index `[-] -> [x]`
-- set task detail `status -> completed`
-- sync tool state if task tools exist
+```bash
+<pma-skill>/scripts/task-state.sh complete docs/task/PREFIX-NNN.md worker-a/session-123 "Focused and relevant suites passed."
+```
+
+Then sync tool state if task tools exist.
 
 On close:
 
-- set task index to `[~]`
-- set task detail `status -> closed`
-- record the reason
+```bash
+<pma-skill>/scripts/task-state.sh close docs/task/PREFIX-NNN.md worker-a/session-123 "Superseded by PREFIX-002."
+```
 
 ## Sync Rules
 
@@ -117,7 +123,7 @@ Before adding any new dependency or accepting any version number that came from 
 
 1. **Verify the latest stable at the registry** (commands per stack — see the stack skill's baseline):
    - crates.io / npmjs.com / pkg.go.dev / PyPI are the sources of truth; the LLM is not.
-2. **Confirm current API and breaking changes via official docs.** Use Context7 (`mcp__plugin_context7_context7__query-docs`) or the vendor site for libraries you are not already using at the latest version. Training-data recall lags real releases — treat it as a hint, not a fact.
+2. **Confirm current API and breaking changes via official docs.** Prefer the vendor's official documentation. If a documentation connector such as Context7 is installed and available, it may help locate the relevant official material; never assume a connector or exact tool name exists. Training-data recall lags real releases — treat it as a hint, not a fact.
 3. **Pin to non-latest only with a recorded reason.** MSRV constraint, peer-dep incompatibility, blocked upstream — write the justification inline next to the dependency entry (`// PINNED: <reason> until <condition>`) or in `docs/decisions/`.
 4. **Separate routine version bumps from feature work.** A `chore(deps): bump X to Y` commit or PR is reviewable; bundling it into a feature diff hides regressions.
 

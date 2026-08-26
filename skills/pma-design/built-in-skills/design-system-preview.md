@@ -14,6 +14,14 @@ interactive preview card per manifest entry.
 card scripts run against per-card `document`/`window` proxies, so duplicate
 `id="root"`s, `body` styles, and script globals never collide across cards.
 
+## Table of Contents
+
+- [When to run](#when-to-run)
+- [Run](#run)
+- [Input format](#input-format)
+- [How fidelity is kept](#how-fidelity-is-kept)
+- [Known limits](#known-limits-inherent-to-no-iframe)
+
 ## When to run
 
 **Always as the final step of authoring**: after you create or import a design
@@ -26,7 +34,7 @@ artifact**: never hand-edit it, always regenerate.
 ## Run
 
 ```bash
-node <skill>/agents/build-preview.mjs designs/<project>
+node <skill>/scripts/build-preview.mjs designs/<project>
 ```
 
 (`<skill>` is this skill's directory; `designs/<project>` is the design-system
@@ -45,7 +53,7 @@ Options:
 | `--cdn` | reference React/Babel from unpkg instead of inlining (smaller file, needs network) |
 | `--offline` | never hit the network; use vendor cache or emit CDN tags |
 
-React/ReactDOM UMDs and Babel are inlined from `agents/vendor/` (shipped with
+React/ReactDOM UMDs and Babel are inlined from `scripts/vendor/` (shipped with
 this skill), so the default build needs no network.
 
 ## Input format
@@ -59,7 +67,7 @@ this skill), so the default build needs no network.
 - `readme.md` at the root becomes the pinned Readme card.
 - React cards (`<script type="text/babel">` + `_ds_bundle.js` + React CDN tags
   in the card HTML) are supported: JSX is compiled at build time
-  (@babel/standalone from `agents/vendor/`), React production UMDs and
+  (@babel/standalone from `scripts/vendor/`), React production UMDs and
   `_ds_bundle.js` are inlined once at document level.
 
 ## How fidelity is kept

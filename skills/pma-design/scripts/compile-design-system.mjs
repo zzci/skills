@@ -32,8 +32,8 @@ try {
   }
 } catch (e) {
   process.stderr.write(
-    `compile-design-system: could not load agents/vendor/babel.min.js — ${(e && e.message) || e}\n` +
-    'Fetch it once with: curl -L https://unpkg.com/@babel/standalone@7.29.0/babel.min.js -o agents/vendor/babel.min.js\n',
+    `compile-design-system: could not load scripts/vendor/babel.min.js — ${(e && e.message) || e}\n` +
+    'Fetch it once with: curl -L https://unpkg.com/@babel/standalone@7.29.0/babel.min.js -o scripts/vendor/babel.min.js\n',
   );
   process.exit(1);
 }

@@ -47,7 +47,7 @@ skip phases. Do not implement before explicit approval such as `proceed`.
 
 ### Project-specific facts
 
-- Primary language / runtime: <e.g. Rust 1.85, Bun 1.2, Go 1.26>
+- Primary language / runtime: <read the active stack skill, then pin the verified project version>
 - Database / storage: <e.g. SQLite via SQLx, Postgres via pgx>
 - Dev URL routing: <e.g. nsl on, host `<name>.localhost`, see /pma references/dev-environment.md>
 - Deployment target: <e.g. distroless container, static musl binary>

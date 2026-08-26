@@ -31,10 +31,10 @@ Goals:
 
 | Category | Technology | Notes |
 |---|---|---|
-| Runtime | Bun 1.2+ | latest stable |
-| Language | TypeScript 5.9+ | strict mode, `noUncheckedIndexedAccess` |
+| Runtime | Bun 1.4+ | latest stable |
+| Language | TypeScript 7.0+ | strict mode, `noUncheckedIndexedAccess`; pin TypeScript 6 with a recorded reason when tooling needs the legacy compiler API |
 | Package manager | bun | commit `bun.lock` |
-| Lint / format | ESLint + @antfu/eslint-config | no Prettier |
+| Lint / format | ESLint + `@antfu/eslint-config` 9+ | no Prettier |
 | Validation | Zod 4 (current major) | API-boundary validation; the dependency-freshness procedure below applies |
 | Errors | typed error classes | `AppError` hierarchy at transport boundaries |
 | Test | bun:test | built-in runner |
@@ -97,13 +97,13 @@ When pinning to a non-latest version, note the reason in `package.json` near the
 ```jsonc
 {
   "dependencies": {
-    // PINNED: <pkg>@3.x — 4.x requires Bun 1.3; revisit after runtime bump
+    // PINNED: <pkg>@3.x — 4.x requires Bun 1.5; revisit after runtime bump
     "<pkg>": "^3.8.0"
   }
 }
 ```
 
-Library docs check: when adopting or upgrading Hono, Drizzle, Zod, or any other core dep, fetch current docs via Context7 (`mcp__plugin_context7_context7__query-docs`). Hono v4 and Drizzle's APIs evolve faster than training-data recall.
+Library docs check: when adopting or upgrading Hono, Drizzle, Zod, or any other core dependency, use official vendor documentation first. If a documentation connector such as Context7 is installed and available, it may help locate the relevant material; never assume an exact connector tool name exists.
 
 ## Required Quality Gates
 
@@ -254,7 +254,7 @@ For a *Single API* or the API project in the *API + Sibling SPA* layout:
     "db:generate": "drizzle-kit generate"
   },
   "devDependencies": {
-    "@nsio/nsl": "^0.1.4"
+    "@nsio/nsl": "^0.1.7"
   }
 }
 ```

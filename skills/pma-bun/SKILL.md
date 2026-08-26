@@ -1,6 +1,6 @@
 ---
 name: pma-bun
-description: Bun implementation guide for PMA-managed backend services and internal tools. Covers project layout and monorepo promotion, required quality gates, SQLite-first data access with Drizzle, Hono HTTP serving, validated env config, nsl-based dev URL routing (paired with pma-web), and standalone binary compilation with embedded assets and migrations. Use when implementing, scaffolding, or reviewing a Bun/Hono backend or internal tool in a PMA repo.
+description: Bun implementation and acceptance baseline for PMA-managed backend services and internal tools. Covers project layout and monorepo promotion, required quality gates, SQLite-first data access with Drizzle, Hono HTTP serving, validated env config, nsl-based dev URL routing, and standalone binary compilation. Use when implementing, scaffolding, upgrading, or validating acceptance of a Bun/Hono backend; use pma-cr for code-review workflow.
 ---
 
 # Bun Project Implementation Guide
