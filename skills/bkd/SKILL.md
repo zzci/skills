@@ -92,7 +92,7 @@ Load only what the current task needs:
 - `references/merge-strategy.md`
   Use for worktree branch merging, conflict resolution, post-merge verification, and cleanup after subtasks complete in worktree mode.
 - `references/three-tier-coordination.md`
-  Use for event-driven L1, cron-driven L2, and short-lived L3 autonomous coordination: the user-facing L1 is woken only by the user or L2 follow-ups, every campaign is partitioned across multiple bounded L2 coordinators, each L2 owns its own DAG and 30-min self cron, and L3 issues execute short-lived subtasks. Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.). Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
+  Use for event-driven L1, cron-driven L2, and short-lived L3 autonomous coordination: the user-facing L1 is woken only by the user or L2 follow-ups, every campaign is partitioned across multiple bounded L2 coordinators, each L2 owns its own DAG and 15-min self cron, and L3 issues execute short-lived subtasks. Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.). Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
 
 ## Quick Routing
 

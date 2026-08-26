@@ -24,7 +24,7 @@ deliberately avoid slash-command shorthand (`/bkd`, `/pma-cr`, etc.) because not
 every engine resolves them. State requirements as capabilities; if an engine has
 a matching skill, mention it as a hint, never as the only path.
 
-**Lightweight by design.** Each L2 cron fires every 30 min. Every L2 wake must
+**Lightweight by design.** Each L2 cron fires every 15 min. Every L2 wake must
 do **scan + decide + act**, never re-investigate the codebase: the plan is
 decomposed once at L2's first wake and snapshotted into the issue log. L1 wakes
 only for a user message or L2 follow-up and queries only the affected campaign
@@ -84,7 +84,7 @@ L1 (current agent session, any engine; main worktree; no cron)
          acceptance, scope, dependencies (reference paths, not file contents)
 L2 x N, N >= 2 (one issue per workstream; useWorktree: true)
   - never writes source; decomposes only its workstream into L3 BKD issues,
-    dispatches, monitors, evaluates; 30-min self cron drives one round per wake
+    dispatches, monitors, evaluates; 15-min self cron drives one round per wake
   - merges L3 branches into bkd/{L2_ID} (never main); reports/escalates to L1
       v  create + follow-up: self-contained spec + acceptance + report URL
 L3 (one issue per subtask; useWorktree: true; branch bkd/{L3_ID}; short-lived)
@@ -266,7 +266,7 @@ pattern and one member of a multiple-L2 campaign. Your branch is
 bkd/__L2_ID__. Follow the "L2 - Scheduling Issue"
 section of the bkd skill's references/three-tier-coordination.md verbatim: its
 Hard Rules (never write source, never touch main, every L3 useWorktree:true),
-Bootstrap (run THIS turn: 30-min self cron `l2-dispatch-__L2_ID__`, create real
+Bootstrap (run THIS turn: 15-min self cron `l2-dispatch-__L2_ID__`, create real
 L3 issues, emit snapshot), one Steady-State round per cron wake, the Merge
 phase for green L3s, and Termination. Stay in BKD statusId=working; never sleep.
 
@@ -322,7 +322,7 @@ curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$L2_ID" \
 Each L2 issue dispatches one bounded campaign workstream, running in its own
 worktree on branch `bkd/{L2_ID}`. A campaign always has multiple L2s. An L2
 must reject scope that belongs to a sibling L2 and report the boundary issue to
-L1. Its 30-minute self cron drives **one decision round per wake**, then the
+L1. Its 15-minute self cron drives **one decision round per wake**, then the
 turn ends. **No `sleep`, ever. Never touch main.**
 
 ### L2 Responsibilities
@@ -337,7 +337,7 @@ turn ends. **No `sleep`, ever. Never touch main.**
 
 **Bootstrap (first wake, single turn):**
 
-1. Register the 30-min self cron (`issue-follow-up` targeting self).
+1. Register the 15-min self cron (`issue-follow-up` targeting self).
 2. Read whatever source is needed for decomposition, then **create** each L3 as a real BKD issue (`POST /issues` with `useWorktree:true` + campaign tag) — mental decomposition is invalid; a snapshot with zero L3 ids fails validation.
 3. Emit `[L2-plan-snapshot v1 campaignId={campaignId} l2Id={L2_ID}]` (DAG + per-L3 self-contained spec referencing file paths only, including the project check command each L3 must pass) and `[dag-state ...]`. End turn.
 
@@ -369,14 +369,14 @@ turn ends. **No `sleep`, ever. Never touch main.**
 3. Move L2 itself to `review`.
 4. End turn. L2 will not wake again.
 
-### L2 30-minute Self Cron (bootstrap)
+### L2 15-minute Self Cron (bootstrap)
 
 ```bash
 curl -s -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "l2-dispatch-'"$L2_ID"'",
-    "cron": "*/30 * * * *",
+    "cron": "*/15 * * * *",
     "action": "issue-follow-up",
     "config": {
       "projectId": "{projectId}",
@@ -504,7 +504,7 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
                           review/working -> working (rework)
 ```
 
-- Each L2 stays `working` for its workstream (its 30-min cron keeps waking it).
+- Each L2 stays `working` for its workstream (its 15-min cron keeps waking it).
 - L3 subtasks land in `review` and stay there. While they sit in `review`, L1
   reviews `bkd/{L2_ID}` and merges it into main (git-level integration,
   orthogonal to BKD status). Issues move to `done` only when the user says so —
@@ -515,7 +515,7 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
 - **L1 is event-driven and has no cron.** A user message or an L2 follow-up
   wakes it. After handling that event and any affected campaign state, it ends
   the turn.
-- **Every L2 owns one BKD `issue-follow-up` cron** at a 30-min interval. Each
+- **Every L2 owns one BKD `issue-follow-up` cron** at a 15-min interval. Each
   L2 wake performs **one round of decisions** and ends the turn; its next
   periodic round waits for its own cron fire.
 - **Never** use `sleep`. **Never** poll inside a turn.
@@ -638,7 +638,7 @@ Branch bkd/$L2_ID is ready for L1 review and ordered merge into main. Check sibl
 
 - Marker MUST be the **final** assistant message of the turn —
   `logs/filter/turn/lastN` keys on it.
-- 3 wakes ≈ 90 min. To change the window, adjust the **L2 cron interval**, not
+- 3 wakes ≈ 45 min. To change the window, adjust the **L2 cron interval**, not
   the count.
 - User explicit stop bypasses the countdown — delete all campaign L2 crons
   immediately.
