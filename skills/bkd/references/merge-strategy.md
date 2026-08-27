@@ -3,6 +3,15 @@
 Branch merging for worktree-mode subtasks. Simple-mode subtasks skip this entirely
 since they work directly on the main branch.
 
+This reference is canonical for the two-tier coordinator, which runs in the
+integration worktree. In the three-tier pattern, an L2 must use the merge phase
+in `three-tier-coordination.md`; reuse only the conflict, rollback, and
+verification concepts here. Never apply this file's main-worktree or integration
+branch steps from an L2.
+
+Shell mutation examples assume `set -o pipefail` and the `bkd_check` helper
+from `rest-api.md`.
+
 ## Table of Contents
 
 - [Branch Architecture](#branch-architecture)
@@ -49,23 +58,28 @@ git status --porcelain
 
 **When uncommitted changes exist:**
 
+First distinguish coordinator-owned changes from pre-existing user changes. If
+ownership is unclear, stop and ask; never stage, stash, or commit unrelated
+work. If known user-owned changes would remain dirty, do not merge in that
+worktree; ask the user or create a separate clean integration worktree.
+
 ```bash
 # Check file overlap between coordinator changes and subtask changes
-curl -s "$BKD_URL/projects/{pid}/issues/$SUB_ID/changes" | jq '.data[].path'
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/$SUB_ID/changes" | bkd_check | jq -er '.data[].path'
 git diff --name-only
 git diff --cached --name-only
 ```
 
 ```bash
 # Option A: No file overlap (common case)
-# Commit coordinator changes first, then merge subtask
-git add -A
+# Commit only explicit coordinator-owned paths, then merge subtask
+git add -- {owned/path/one} {owned/path/two}
 git commit -m "feat: {coordinator work description}"
 # Proceed to merge
 
 # Option B: File overlap exists
-# Stash coordinator changes, merge subtask, then restore
-git stash push -m "coordinator work before merge bkd/{subIssueId}"
+# Stash only coordinator-owned paths, merge subtask, then restore
+git stash push -m "coordinator work before merge bkd/{subIssueId}" -- {owned/path/one} {owned/path/two}
 # Proceed to merge
 # After merge:
 git stash pop
@@ -108,13 +122,10 @@ git merge bkd/{dependentSubIssueId} --no-ff
 For many subtasks or complex dependencies. Create an integration branch first:
 
 ```bash
-# Detect base branch
-BASE_BRANCH=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
-BASE_BRANCH=${BASE_BRANCH:-main}
-
+INTEGRATION_BRANCH=$(git branch --show-current)
 MERGE_BASE=$(git rev-parse HEAD)
 
-git checkout -b integrate/{orchestratorId} $BASE_BRANCH
+git checkout -b integrate/{orchestratorId} "$MERGE_BASE"
 
 for SUB_BRANCH in bkd/{sub1} bkd/{sub2} bkd/{sub3}; do
   git merge $SUB_BRANCH --no-ff
@@ -122,7 +133,7 @@ for SUB_BRANCH in bkd/{sub1} bkd/{sub2} bkd/{sub3}; do
 done
 
 # After integration branch tests pass, merge back to base branch
-git checkout $BASE_BRANCH
+git checkout "$INTEGRATION_BRANCH"
 git merge integrate/{orchestratorId} --no-ff -m "merge: {dispatch task title}"
 ```
 
@@ -164,11 +175,15 @@ needed. (Never-inline rule — send the prompt via a temp file, not inline; see
 `rest-api.md` → [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).)
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "Post-merge build failed, reverted.\nError: {build/test error details}\nRequired: fix issues based on latest main branch and resubmit."
-  }' | jq
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Post-merge build failed, reverted.
+Error: {build/test error details}
+Required: fix issues based on the latest integration branch and resubmit.
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
+FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 ```
 
 Reworked subtasks re-enter the pipeline from the completion report step.
@@ -181,7 +196,7 @@ No manual cleanup needed. BKD auto-cleans worktrees 1 day after an issue enters 
 - Controlled by: `worktree:autoCleanup` application setting
 - Early cleanup if needed:
   ```bash
-  curl -s -X DELETE "$BKD_URL/projects/{pid}/worktrees/{subIssueId}" | jq
+  curl -sS --fail-with-body -X DELETE "$BKD_URL/projects/{pid}/worktrees/{subIssueId}" | bkd_check
   ```
 
 ## Key Rules

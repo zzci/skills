@@ -3,6 +3,10 @@
 Multi-subtask dispatch through a coordinator issue that manages subtask lifecycle,
 follow-up communication, and completion tracking.
 
+Shell examples assume `set -o pipefail` and the `bkd_check` helper from
+`rest-api.md`, so HTTP and application failures abort instead of passing
+silently.
+
 ## Table of Contents
 
 - [Flow Overview](#flow-overview)
@@ -39,45 +43,63 @@ Check capacity -> Create coordinator issue -> Split subtasks -> Subtask executio
 ## 1. Pre-Flight
 
 ```bash
-curl -s "$BKD_URL/health" | jq
-curl -s "$BKD_URL/processes/capacity" | jq
+curl -sS --fail-with-body "$BKD_URL/health" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/processes/capacity" | bkd_check
 ```
 
 - `$BKD_URL` missing: ask the user for it
-- `availableSlots` is 0: wait, do not force-create tasks
+- `availableSlots` is 0: do not create or start tasks; end the turn and wait
+  for a later user/system event to retry pre-flight
 - Re-check capacity before each new subtask
 
-> **The never-inline rule.** The `"prompt": "..."` blocks below are shown inline
-> for readability only — send them via a temp file + `jq` + `--data-binary @file`.
-> See `rest-api.md` → [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).
+> **The never-inline rule.** Send every free-form prompt via a temp file + `jq`
+> + `--data-binary @file`. See `rest-api.md` →
+> [Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).
 
 ## 2. Create Coordinator Issue
 
 ```bash
-ORCH=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"[dispatch] task title","statusId":"todo"}')
-
-# Check .success before extracting the ID — see SKILL.md's error-envelope guard
-ORCH_ID=$(echo "$ORCH" | jq -r '.data.id')
+ORCH=$(jq -n --arg title "[dispatch] task title" \
+  '{title:$title,statusId:"todo"}' \
+  | curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
+      -H 'Content-Type: application/json' -d @-) || exit 1
+if ! printf '%s\n' "$ORCH" | jq -e '.success == true and (.data.id | type == "string")' >/dev/null; then
+  printf 'BKD error: %s\n' "$(printf '%s\n' "$ORCH" | jq -r '.error // "invalid response"')" >&2
+  exit 1
+fi
+ORCH_ID=$(printf '%s\n' "$ORCH" | jq -er '.data.id')
 ```
 
 Send task details and subtask breakdown:
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$ORCH_ID/follow-up" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "## Goal\n{full description}\n\n## Subtasks\n1. {subtask A title} - {acceptance criteria}\n2. {subtask B title} - {acceptance criteria}\n\n## Mode\n{Worktree mode | Simple mode}\n\n## Rules\n- Each subtask must follow-up report to this issue after completion\n- Report includes: status, changed files, key decisions, issues encountered"
-  }' | jq
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+## Goal
+{full description}
+
+## Subtasks
+1. {subtask A title} - {acceptance criteria}
+2. {subtask B title} - {acceptance criteria}
+
+## Mode
+{Worktree mode | Simple mode}
+
+## Rules
+- Each subtask must follow-up report to this issue after completion
+- Report includes: status, changed files, key decisions, issues encountered
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
+FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$ORCH_ID/follow-up" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 ```
 
 Start the coordinator:
 
 ```bash
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_ID" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_ID" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
+  -d '{"statusId":"working"}' | bkd_check
 ```
 
 ## 3. Mode Selection
@@ -104,21 +126,23 @@ Choose before creating subtasks based on task characteristics:
 **Worktree mode:**
 
 ```bash
-SUB=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"{subtask title}","statusId":"todo","useWorktree":true}')
-
-SUB_ID=$(echo "$SUB" | jq -r '.data.id')
+SUB=$(jq -n --arg title "{subtask title}" \
+  '{title:$title,statusId:"todo",useWorktree:true}' \
+  | curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
+      -H 'Content-Type: application/json' -d @-) || exit 1
+printf '%s\n' "$SUB" | jq -e '.success == true and (.data.id | type == "string")' >/dev/null || exit 1
+SUB_ID=$(printf '%s\n' "$SUB" | jq -er '.data.id')
 ```
 
 **Simple mode:**
 
 ```bash
-SUB=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"{subtask title}","statusId":"todo"}')
-
-SUB_ID=$(echo "$SUB" | jq -r '.data.id')
+SUB=$(jq -n --arg title "{subtask title}" \
+  '{title:$title,statusId:"todo"}' \
+  | curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
+      -H 'Content-Type: application/json' -d @-) || exit 1
+printf '%s\n' "$SUB" | jq -e '.success == true and (.data.id | type == "string")' >/dev/null || exit 1
+SUB_ID=$(printf '%s\n' "$SUB" | jq -er '.data.id')
 ```
 
 ### 4.2 Send Implementation Details
@@ -167,31 +191,38 @@ Strict requirements:
 PROMPT
 sed -i "s|__BKD_URL__|$BKD_URL|g; s|__ORCH_ID__|$ORCH_ID|g" /tmp/bkd-prompt.txt
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$SUB_ID/follow-up" \
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$SUB_ID/follow-up" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json | bkd_check
 ```
 
 ### 4.3 Start Execution
 
 ```bash
 # Re-check capacity
-curl -s "$BKD_URL/processes/capacity" | jq '.data.availableSlots'
+curl -sS --fail-with-body "$BKD_URL/processes/capacity" | bkd_check | jq -er '.data.availableSlots'
 
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
+  -d '{"statusId":"working"}' | bkd_check
 ```
 
 ### 4.4 Monitor
 
 ```bash
 # Last 3 turns, assistant messages only
-curl -s "$BKD_URL/projects/{projectId}/issues/$SUB_ID/logs/filter/types/assistant-message/turn/last3" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/$SUB_ID/logs/filter/types/assistant-message/turn/last3" | bkd_check
 
 # Or check for errors
-curl -s "$BKD_URL/projects/{projectId}/issues/$SUB_ID/logs/filter/types/error-message" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/$SUB_ID/logs/filter/types/error-message" | bkd_check
 ```
+
+If monitoring must span turns, create one `issue-follow-up` cron for the
+coordinator using the ID-capturing pattern in `rest-api.md`. Persist
+`coordinatorCronId` in the coordinator's final state. Bootstrap is idempotent:
+reuse exactly one active same-name cron and treat duplicates as an error. On
+completion or user stop, delete by ID, assert `.success`, and verify
+`isDeleted:true` before leaving `working`.
 
 ## 5. Subtask Self-Review, Fix, and Reporting
 
@@ -201,7 +232,8 @@ After a subtask finishes implementation:
 
 The subtask must:
 
-1. Run `/pma-cr` on its own changes
+1. Run an incremental code review over its own changes, using an available
+   review capability such as `pma-cr` when supported
 2. Fix all P0 and P1 issues found
 3. Only then report to the coordinator
 
@@ -213,11 +245,19 @@ This is mandatory. The coordinator should not need to send back obvious issues.
 - **Report to coordinator**: the subtask sends a follow-up including self-review results.
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$ORCH_ID/follow-up" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "Subtask '$SUB_ID' ({title}) complete.\nStatus: success\nChanged files: src/foo.ts, src/bar.ts\nKey decisions: used XX approach\nSelf-review: passed (fixed 1 P1: missing error handling in api.ts)\nRemaining issues: none"
-  }' | jq
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Subtask __SUB_ID__ ({title}) complete.
+Status: success
+Changed files: src/foo.ts, src/bar.ts
+Key decisions: used XX approach
+Self-review: passed (fixed 1 P1: missing error handling in api.ts)
+Remaining issues: none
+PROMPT
+sed -i "s|__SUB_ID__|$SUB_ID|g" /tmp/bkd-prompt.txt
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
+REPORT=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$ORCH_ID/follow-up" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$REPORT" | jq -e '.success == true' >/dev/null || exit 1
 ```
 
 ### Follow-up Queue Behavior
@@ -243,22 +283,22 @@ After all subtasks pass self-review + coordinator quality assessment (+ merge in
 
 ```bash
 # Move coordinator to review
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_ID" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_ID" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"review"}' | jq
+  -d '{"statusId":"review"}' | bkd_check
 ```
 
 After human confirmation, close everything:
 
 ```bash
 # Move coordinator and all subtasks to done
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_ID" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_ID" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"done"}' | jq
+  -d '{"statusId":"done"}' | bkd_check
 
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"done"}' | jq
+  -d '{"statusId":"done"}' | bkd_check
 ```
 
 ## Status Flow
@@ -307,8 +347,8 @@ Subtask:      todo -> working -> self-review + fix -> review (auto) + report to 
 3. **Report instructions are mandatory** - subtask follow-up details must include the full report API path to prevent agents from using wrong endpoints
 4. **Capacity first** - check `/processes/capacity` before every new subtask
 5. **autoMoveToReview** - BKD auto-moves completed subtasks to `review`; do not manually change status
-6. **Subtask self-review is mandatory** - each subtask must run pma-cr on its own changes and fix P0/P1 issues before reporting to coordinator
+6. **Subtask self-review is mandatory** - each subtask must review its incremental changes and fix P0/P1 issues before reporting; use an available review capability when helpful, without requiring one specific skill
 7. **Pipeline assessment** - coordinator assesses each subtask immediately on completion; do not wait for all subtasks
 8. **review != done** - `review` awaits human confirmation; only move to `done` after human approval
 9. **Soft delete** - project and issue deletions are soft-delete by default
-10. **No sleep** - never use `sleep` to wait for subtasks or long-running operations; create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, then let the current turn end. The cron follow-up will wake the coordinator when it fires.
+10. **No sleep** - never use `sleep` to wait for subtasks or long-running operations; create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, capture `.data.id`, and let the current turn end. Persist that cron ID in the coordinator's final state. On completion or user stop, delete the cron by ID, assert `.success`, and verify `isDeleted:true` before moving the coordinator to `review`.

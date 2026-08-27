@@ -4,6 +4,9 @@ Two-tier review: subtasks self-review before reporting, then the coordinator
 runs logs filter assessment. Assess immediately on each subtask completion;
 do not wait for all subtasks to finish.
 
+Shell mutation examples assume `set -o pipefail` and the `bkd_check` helper
+from `rest-api.md`.
+
 ## Table of Contents
 
 - [Pipeline Order](#pipeline-order)
@@ -15,7 +18,7 @@ do not wait for all subtasks to finish.
 ## Pipeline Order
 
 ```
-Subtask: implementation -> self-review (pma-cr) -> first-round fix -> report to coordinator
+Subtask: implementation -> incremental self-review -> first-round fix -> report to coordinator
 Coordinator: receive report -> Logs Filter assessment -> next phase (merge or done)
 ```
 
@@ -35,7 +38,7 @@ See `references/rest-api.md` for filter path syntax and available entry types.
 ### 1.1 Check Error Signals
 
 ```bash
-curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/error-message" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/error-message" | bkd_check
 ```
 
 - Error messages present = yellow signal; check subsequent steps for recovery
@@ -43,16 +46,18 @@ curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/error-message" |
 ### 1.2 Check Final Output
 
 ```bash
-curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/assistant-message/turn/last" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/assistant-message/turn/last" | bkd_check
 ```
 
 - Output does not match task goal = red
-- Contains "failed", "unable to complete", "gave up" = red
+- Reports an unresolved final failure such as "unable to complete" or "gave
+  up" = red. Do not classify on the word "failed" alone when the same final
+  output shows recovery and passing checks.
 
 ### 1.3 Check Tool Call Patterns
 
 ```bash
-curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/tool-use/turn/last3" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/tool-use/turn/last3" | bkd_check
 ```
 
 - Same tool + similar args >= 3 consecutive times = red (blind retry)
@@ -62,12 +67,14 @@ curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/tool-use/turn/la
 ### 1.4 Check Execution Scale
 
 ```bash
-curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/user-message" \
-  | jq '.data | length'
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/user-message" \
+  | bkd_check | jq '.data | {count:(.logs | length), nextCursor, hasMore}'
 ```
 
 - Each turn starts with one `user-message`, so the entry count is a proxy for
   total turn count
+- Follow `nextCursor` while `hasMore` is true and sum page counts; one page is
+  not necessarily the total
 - Total turns exceeding 2x estimated complexity = yellow
 
 ### 1.5 Signal Classification
@@ -82,16 +89,19 @@ curl -s "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/user-message" \
 
 **Green (pass):** Proceed directly to next phase (merge or done). Do not follow-up the coordinator issue — the coordinator is already running this assessment inline, so sending a follow-up to itself would cause self-activation loops.
 
-**Red (rework):** (Never-inline rule — the prompt is shown inline for
-readability only; send it via a temp file. See `rest-api.md` →
-[Sending Request Bodies Safely](rest-api.md#sending-request-bodies-safely).)
+**Red (rework):** Send the prompt with the never-inline pattern from
+`rest-api.md`:
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "Quality assessment failed.\nRed signal: turn/last output is \"unable to install dependencies\", task incomplete.\nRequired: investigate root cause and re-execute. Do not blindly retry."
-  }' | jq
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Quality assessment failed.
+Red signal: turn/last output is "unable to install dependencies", task incomplete.
+Required: investigate root cause and re-execute. Do not blindly retry.
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json \
+  | bkd_check
 ```
 
 The subtask sits in `review` (autoMoveToReview), so this follow-up alone
@@ -104,7 +114,9 @@ Each subtask is responsible for reviewing and fixing its own code before reporti
 
 ### 2.1 Subtask Responsibilities
 
-1. Run `/pma-cr` on its own changes after implementation
+1. Run an incremental code review over its own changes after implementation;
+   use an engine-provided review capability such as `pma-cr` when available,
+   but never require one specific skill
 2. Fix all P0 and P1 issues found
 3. Include self-review summary in the completion report to the coordinator
 
@@ -123,11 +135,16 @@ If the coordinator's logs filter assessment finds issues that the subtask's self
 send the subtask back for rework:
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "prompt": "Logs filter found issues missed by self-review.\n- Red signal: blind retry pattern in turn/last3\n- Out-of-scope file changes detected\nRequired: fix issues, re-run self-review, and report again."
-  }' | jq
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+Logs filter found issues missed by self-review.
+- Red signal: blind retry pattern in turn/last3
+- Out-of-scope file changes detected
+Required: fix issues, re-run self-review, and report again.
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{pid}/issues/$SUB_ID/follow-up" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json \
+  | bkd_check
 ```
 
 The follow-up auto-moves the `review` issue back to `working`; no `PATCH` is
@@ -136,8 +153,8 @@ needed. After rework, the subtask re-enters the pipeline: self-review -> report
 
 ## Key Rules
 
-- **Subtasks own their code review** - each subtask runs pma-cr and fixes P0/P1 before reporting
+- **Subtasks own their code review** - each subtask reviews its incremental changes and fixes P0/P1 before reporting
 - **Coordinator only runs logs filter** - the coordinator validates execution quality, not code quality
-- **pma-cr reviews incremental changes only** - do not chase historical debt
+- **Incremental scope only** - use an available review capability when helpful; do not require a specific skill or chase historical debt
 - **Pipeline processing** - assess each subtask as soon as it completes; do not batch
 - **Both tiers must pass before merge** - subtask self-review + coordinator logs filter assessment

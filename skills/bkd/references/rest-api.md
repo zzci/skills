@@ -3,6 +3,9 @@
 Use this file when the `bkd` skill needs exact BKD routes, payload shapes, or
 operational examples.
 
+The edge-case behavior documented here was verified against BKD v0.0.90. Read
+`/health` first and re-verify version-sensitive behavior after a server upgrade.
+
 ## Table of Contents
 
 - [Setup](#setup)
@@ -24,12 +27,26 @@ operational examples.
 
 ```bash
 BKD_URL="http://your-host:port/api"
+set -o pipefail
+
+bkd_check() {
+  jq -e 'if type == "object" and has("success") then
+    if .success == true then . else error(.error // "BKD request failed") end
+  else . end'
+}
 ```
 
-BKD responses use one of these envelopes:
+Successful BKD API calls normally use one of these envelopes:
 
 - Success: `{ "success": true, "data": ... }`
 - Failure: `{ "success": false, "error": "..." }`
+
+Some HTTP validation failures return no JSON envelope. Always use
+`curl -sS --fail-with-body`, check its exit status, then assert
+`.success == true` before consuming `.data`. Never depend on `curl -s | jq` as
+an error check. The examples use `set -o pipefail` plus `bkd_check` when piping
+responses; together they fail on both HTTP errors and `{success:false}` while
+still accepting successful endpoints whose payload has no envelope.
 
 ## Sending Request Bodies Safely
 
@@ -51,9 +68,10 @@ PROMPT
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
 
 # 3. POST the file — never an inline -d string
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
+RESPONSE=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$RESPONSE" | jq -e '.success == true' >/dev/null || exit 1
 ```
 
 Add more fields with extra `jq` args (`--rawfile` for file-sourced text, `--arg`
@@ -73,8 +91,8 @@ whenever a body carries a prompt, title, description, or any user-supplied text.
 ## Health and Status
 
 ```bash
-curl -s "$BKD_URL/health" | jq    # { status, version, commit, db, timestamp }
-curl -s "$BKD_URL/status" | jq    # detailed server status
+curl -sS --fail-with-body "$BKD_URL/health" | bkd_check    # { status, version, commit, db, timestamp }
+curl -sS --fail-with-body "$BKD_URL/status" | bkd_check    # detailed server status
 ```
 
 ## Engines
@@ -85,12 +103,12 @@ is installed and which models are available before dispatching.
 
 ```bash
 # Detected engines + their models (installed, version, authStatus)
-curl -s "$BKD_URL/engines/available" | jq
+curl -sS --fail-with-body "$BKD_URL/engines/available" | bkd_check
 
 # Per-engine model list, profiles, and current engine settings
-curl -s "$BKD_URL/engines/{engineType}/models" | jq
-curl -s "$BKD_URL/engines/profiles" | jq
-curl -s "$BKD_URL/engines/settings" | jq
+curl -sS --fail-with-body "$BKD_URL/engines/{engineType}/models" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/engines/profiles" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/engines/settings" | bkd_check
 ```
 
 ## Processes and Capacity
@@ -98,8 +116,8 @@ curl -s "$BKD_URL/engines/settings" | jq
 Check capacity before starting more issue executions.
 
 ```bash
-curl -s "$BKD_URL/processes/capacity" | jq   # capacity summary (below)
-curl -s "$BKD_URL/processes" | jq            # list active engine processes
+curl -sS --fail-with-body "$BKD_URL/processes/capacity" | bkd_check   # capacity summary (below)
+curl -sS --fail-with-body "$BKD_URL/processes" | bkd_check            # list active engine processes
 ```
 
 Response fields:
@@ -115,7 +133,7 @@ Response fields:
 Force-terminate the engine process for one issue:
 
 ```bash
-curl -s -X POST "$BKD_URL/processes/{issueId}/terminate" | jq
+curl -sS --fail-with-body -X POST "$BKD_URL/processes/{issueId}/terminate" | bkd_check
 ```
 
 This is the process-monitor (project-agnostic) route. It is **equivalent** to the
@@ -129,13 +147,13 @@ In orchestration, prefer the project-scoped command since you already hold the
 ### List projects
 
 ```bash
-curl -s "$BKD_URL/projects" | jq
+curl -sS --fail-with-body "$BKD_URL/projects" | bkd_check
 ```
 
 ### Get project
 
 ```bash
-curl -s "$BKD_URL/projects/{projectId}" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}" | bkd_check
 ```
 
 ### Create project
@@ -144,9 +162,9 @@ curl -s "$BKD_URL/projects/{projectId}" | jq
 jq -n --arg name "my-project" --arg desc "Optional description" \
       --arg dir "/path/to/workspace" --arg repo "https://github.com/example/repo" \
   '{name: $name, description: $desc, directory: $dir, repositoryUrl: $repo}' > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/projects" \
+curl -sS --fail-with-body -X POST "$BKD_URL/projects" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json | bkd_check
 ```
 
 Useful fields (only `name` is required):
@@ -164,14 +182,14 @@ Useful fields (only `name` is required):
 ### Lifecycle
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{projectId}/archive" | jq
-curl -s -X POST "$BKD_URL/projects/{projectId}/unarchive" | jq
-curl -s -X DELETE "$BKD_URL/projects/{projectId}" | jq   # soft-delete
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/archive" | bkd_check
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/unarchive" | bkd_check
+curl -sS --fail-with-body -X DELETE "$BKD_URL/projects/{projectId}" | bkd_check   # soft-delete
 
 # Reorder a project in the board
-curl -s -X PATCH "$BKD_URL/projects/sort" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/sort" \
   -H 'Content-Type: application/json' \
-  -d '{"id":"{projectId}","sortOrder":"a5"}' | jq
+  -d '{"id":"{projectId}","sortOrder":"a5"}' | bkd_check
 ```
 
 ## Issues
@@ -187,9 +205,9 @@ Prefer the safe flow: create in `todo`, then follow up, then move to `working`.
 ```bash
 jq -n --arg title "fix auth bug" --argjson useWorktree true \
   '{title: $title, statusId: "todo", useWorktree: $useWorktree}' > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json | bkd_check
 ```
 
 Useful fields:
@@ -206,16 +224,20 @@ Useful fields:
 ### List or get issues
 
 ```bash
-curl -s "$BKD_URL/projects/{projectId}/issues" | jq
-curl -s "$BKD_URL/projects/{projectId}/issues/{issueId}" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}" | bkd_check
 ```
+
+Before treating an issue as completed, inspect its `turnInFlight` field together
+with status, commits, and the last assistant turn. Status alone cannot
+distinguish a clean completion from a killed turn.
 
 ### Update issue
 
 ```bash
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
+  -d '{"statusId":"working"}' | bkd_check
 ```
 
 Common fields:
@@ -233,22 +255,22 @@ Update many issues in one call — handy for moving a batch of subtasks at once.
 Each entry needs `id`; `statusId` and `sortOrder` are optional (max 1000).
 
 ```bash
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/bulk" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/bulk" \
   -H 'Content-Type: application/json' \
   -d '{"updates":[{"id":"abc12345","statusId":"working"},
-                  {"id":"def67890","statusId":"review"}]}' | jq
+                  {"id":"def67890","statusId":"review"}]}' | bkd_check
 ```
 
 ### Duplicate issue
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/duplicate" | jq
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/duplicate" | bkd_check
 ```
 
 ### Delete issue
 
 ```bash
-curl -s -X DELETE "$BKD_URL/projects/{projectId}/issues/{issueId}" | jq
+curl -sS --fail-with-body -X DELETE "$BKD_URL/projects/{projectId}/issues/{issueId}" | bkd_check
 ```
 
 ## Issue Execution
@@ -256,9 +278,9 @@ curl -s -X DELETE "$BKD_URL/projects/{projectId}/issues/{issueId}" | jq
 The normal BKD execution trigger is moving the issue to `working`.
 
 ```bash
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
+  -d '{"statusId":"working"}' | bkd_check
 ```
 
 Recommended sequence:
@@ -281,9 +303,9 @@ PROMPT
 jq -n --rawfile prompt /tmp/bkd-prompt.txt \
       --arg engine "claude-code" --arg model "claude-sonnet-4-6" \
   '{engineType: $engine, prompt: $prompt, model: $model}' > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/execute" \
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/execute" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json | bkd_check
 # -> { executionId, issueId, messageId, queued }
 ```
 
@@ -296,9 +318,9 @@ cat > /tmp/bkd-prompt.txt <<'PROMPT'
 Also fix the logout flow and add tests.
 PROMPT
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json | bkd_check
 ```
 
 Fields:
@@ -319,13 +341,18 @@ Behavior (by current `statusId`):
   A bare follow-up to a `review` issue is therefore enough to begin rework; no
   separate `PATCH {statusId:"working"}` is needed.
 
+The `prompt` field is limited to 32768 characters. A larger payload returns a
+bare HTTP 400. Keep the target in `todo` or explicitly stopped while sending
+ordered, numbered chunks, then start it only after every chunk is queued. Never
+send chunk 1 to a `working` + idle issue: it can start before later chunks arrive.
+
 ### Restart, cancel, terminate, or clear session
 
 ```bash
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/restart" | jq
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | jq
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | jq
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/clear-session" | jq
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/restart" | bkd_check
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | bkd_check
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | bkd_check
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/clear-session" | bkd_check
 ```
 
 - `restart`: re-run a failed session.
@@ -341,17 +368,26 @@ curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/clear-session" |
 To redirect a busy issue to a changed requirement, the reliable sequence is
 **stop → follow-up → start** (cancel first; terminate only if it hangs):
 
+After cancel/terminate, re-read the issue once and require
+`turnInFlight:false`. If it is still true, end the current turn and retry on a
+later event; never poll or enqueue the changed requirement behind the old turn.
+
 ```bash
 # 1. Stop the in-flight turn (graceful)
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | jq
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | bkd_check
 #    If it does not stop, force-kill:
-#    curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | jq
+#    curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | bkd_check
 # 2. Send the new requirement (queued while stopped)
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
-  -H 'Content-Type: application/json' -d '{"prompt":"<new requirement>"}' | jq
+cat > /tmp/bkd-prompt.txt <<'PROMPT'
+<new requirement>
+PROMPT
+jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
+FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 # 3. Start a fresh turn
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
-  -H 'Content-Type: application/json' -d '{"statusId":"working"}' | jq
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
+  -H 'Content-Type: application/json' -d '{"statusId":"working"}' | bkd_check
 ```
 
 ## Issue Changes
@@ -359,7 +395,7 @@ curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
 Get files changed by an issue (useful before merging worktree branches):
 
 ```bash
-curl -s "$BKD_URL/projects/{projectId}/issues/{issueId}/changes" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/changes" | bkd_check
 ```
 
 ## Issue Logs
@@ -367,7 +403,7 @@ curl -s "$BKD_URL/projects/{projectId}/issues/{issueId}/changes" | jq
 ### Get logs
 
 ```bash
-curl -s "$BKD_URL/projects/{projectId}/issues/{issueId}/logs?limit=50" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/logs?limit=50" | bkd_check
 ```
 
 Useful query params:
@@ -383,6 +419,12 @@ Use the filter API to pull specific log slices without fetching full logs.
 ```
 GET /projects/{projectId}/issues/{issueId}/logs/filter/{filter_path}
 ```
+
+The response `.data` is an object with `{ issue, logs, nextCursor, hasMore }`;
+log entries are in the `.data.logs` array. Read message text with
+`.data.logs[].content`, never `.data[].content`.
+When `hasMore` is true, repeat the same filter request with the returned
+`nextCursor`; do not treat one page's log count as the total.
 
 #### Filter path syntax
 
@@ -402,7 +444,7 @@ Available entry types: `user-message` `assistant-message` `tool-use` `system-mes
 ### List worktrees
 
 ```bash
-curl -s "$BKD_URL/projects/{projectId}/worktrees" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/worktrees" | bkd_check
 ```
 
 ### Delete worktree
@@ -410,7 +452,7 @@ curl -s "$BKD_URL/projects/{projectId}/worktrees" | jq
 Force-deletes the worktree for an issue (does not wait for the auto-clean cycle):
 
 ```bash
-curl -s -X DELETE "$BKD_URL/projects/{projectId}/worktrees/{issueId}" | jq
+curl -sS --fail-with-body -X DELETE "$BKD_URL/projects/{projectId}/worktrees/{issueId}" | bkd_check
 ```
 
 BKD auto-cleans worktrees 1 day after an issue enters `done`. The cleanup cycle runs every 30 minutes and is controlled by the `worktree:autoCleanup` application setting.
@@ -422,7 +464,7 @@ Use `GET /cron/actions` when you need the current server help text.
 ### List cron jobs
 
 ```bash
-curl -s "$BKD_URL/cron" | jq
+curl -sS --fail-with-body "$BKD_URL/cron" | bkd_check
 ```
 
 Useful query params:
@@ -434,7 +476,7 @@ Useful query params:
 ### List cron actions
 
 ```bash
-curl -s "$BKD_URL/cron/actions" | jq
+curl -sS --fail-with-body "$BKD_URL/cron/actions" | bkd_check
 ```
 
 Builtin maintenance actions (no per-issue config):
@@ -451,14 +493,19 @@ Issue actions (`issue-execute`, `issue-follow-up`, `issue-close`,
 ### Create cron job
 
 ```bash
-curl -s -X POST "$BKD_URL/cron" \
+CRON=$(curl -sS --fail-with-body -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "daily-cleanup",
     "cron": "@daily",
     "action": "upload-cleanup",
     "config": {}
-  }' | jq
+  }') || exit 1
+if ! printf '%s\n' "$CRON" | jq -e '.success == true and (.data.id | type == "string")' >/dev/null; then
+  printf 'BKD error: %s\n' "$(printf '%s\n' "$CRON" | jq -r '.error // "invalid response"')" >&2
+  exit 1
+fi
+CRON_ID=$(printf '%s\n' "$CRON" | jq -er '.data.id')
 ```
 
 Generic fields:
@@ -467,6 +514,10 @@ Generic fields:
 - `cron`
 - `action`
 - `config`
+
+Keep `.data.id`; deletion and schedule replacement require the cron ID. If it
+is lost, query `GET /cron?deleted=false`, match `.name`, and require exactly one
+active result across all cursor pages before acting.
 
 ### Issue cron actions
 
@@ -483,9 +534,11 @@ jq -n --rawfile prompt /tmp/bkd-prompt.txt \
   '{name: "nightly-issue-execute", cron: "@daily", action: "issue-execute",
     config: {projectId: "my-project", issueId: "abc12345", prompt: $prompt, engineType: "claude-code"}}' \
   > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/cron" \
+CRON=$(curl -sS --fail-with-body -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$CRON" | bkd_check >/dev/null || exit 1
+CRON_ID=$(printf '%s\n' "$CRON" | jq -er '.data.id')
 ```
 
 #### `issue-follow-up`
@@ -501,9 +554,11 @@ jq -n --rawfile prompt /tmp/bkd-prompt.txt \
   '{name: "morning-follow-up", cron: "@hourly", action: "issue-follow-up",
     config: {projectId: "my-project", issueId: "abc12345", prompt: $prompt}}' \
   > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/cron" \
+CRON=$(curl -sS --fail-with-body -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$CRON" | bkd_check >/dev/null || exit 1
+CRON_ID=$(printf '%s\n' "$CRON" | jq -er '.data.id')
 ```
 
 #### `issue-close`
@@ -512,7 +567,7 @@ Required config: `projectId`, `issueId`
 Optional config: `targetStatus` (default `done`)
 
 ```bash
-curl -s -X POST "$BKD_URL/cron" \
+CRON=$(curl -sS --fail-with-body -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "close-stale-review-item",
@@ -523,7 +578,9 @@ curl -s -X POST "$BKD_URL/cron" \
       "issueId": "abc12345",
       "targetStatus": "done"
     }
-  }' | jq
+  }') || exit 1
+printf '%s\n' "$CRON" | bkd_check >/dev/null || exit 1
+CRON_ID=$(printf '%s\n' "$CRON" | jq -er '.data.id')
 ```
 
 #### `issue-check-status`
@@ -531,7 +588,7 @@ curl -s -X POST "$BKD_URL/cron" \
 Required config: `projectId`, `issueId`
 
 ```bash
-curl -s -X POST "$BKD_URL/cron" \
+CRON=$(curl -sS --fail-with-body -X POST "$BKD_URL/cron" \
   -H 'Content-Type: application/json' \
   -d '{
     "name": "check-issue-status",
@@ -541,24 +598,33 @@ curl -s -X POST "$BKD_URL/cron" \
       "projectId": "my-project",
       "issueId": "abc12345"
     }
-  }' | jq
+  }') || exit 1
+printf '%s\n' "$CRON" | bkd_check >/dev/null || exit 1
+CRON_ID=$(printf '%s\n' "$CRON" | jq -er '.data.id')
 ```
 
 ### Trigger, pause, resume, delete
 
-For these operations, `{job}` may be the job ID or job name.
+Use the cron ID for these operations. In particular, `DELETE` does not accept a
+name: a by-name request returns `Job not found` and leaves the cron active.
 
 ```bash
-curl -s -X POST "$BKD_URL/cron/{job}/trigger" | jq
-curl -s -X POST "$BKD_URL/cron/{job}/pause" | jq
-curl -s -X POST "$BKD_URL/cron/{job}/resume" | jq
-curl -s -X DELETE "$BKD_URL/cron/{job}" | jq
+curl -sS --fail-with-body -X POST "$BKD_URL/cron/{jobId}/trigger" | bkd_check
+curl -sS --fail-with-body -X POST "$BKD_URL/cron/{jobId}/pause" | bkd_check
+curl -sS --fail-with-body -X POST "$BKD_URL/cron/{jobId}/resume" | bkd_check
+curl -sS --fail-with-body -X DELETE "$BKD_URL/cron/{jobId}" | bkd_check
 ```
+
+Assert `.success` on deletion, then re-read the job through the cron list and
+verify `isDeleted:true`. That is the only truthful deletion field: `enabled`,
+`status`, and `nextExecution` remain misleading after soft deletion. There is
+no cron update route; change a schedule by deleting the job by ID, verifying
+the deletion, and recreating it under the same name.
 
 ### Get cron job logs
 
 ```bash
-curl -s "$BKD_URL/cron/{jobId}/logs?limit=20" | jq
+curl -sS --fail-with-body "$BKD_URL/cron/{jobId}/logs?limit=20" | bkd_check
 ```
 
 Supported query params:

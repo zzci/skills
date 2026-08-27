@@ -13,15 +13,20 @@ Keep this entry file small. Load only the references needed for the current turn
 ## Always-On Rules
 
 1. Confirm `$BKD_URL` before making any request. If it is missing, ask for it.
-2. Prefer `curl -s` piped to `jq` so results are easy to inspect.
+2. Use `curl -sS --fail-with-body` and check its exit status before parsing.
+   For mutations, also assert `.success == true`; never rely on `curl -s | jq`
+   because HTTP errors and failure envelopes can otherwise pass silently.
 3. Use the safe issue execution flow: create in `todo` -> follow-up -> move to `working`.
 4. Check `/processes/capacity` before starting any execution.
 5. Move finished work to `review`, not `done`. Use `done` only after human confirmation.
 6. Use follow-up for all inter-issue communication.
 7. Treat project and issue deletions as soft-delete unless the API says otherwise.
-8. Expect all responses to use `{ success, data }` or `{ success, error }`.
+8. Successful API calls normally use `{ success, data }` and application
+   failures normally use `{ success, error }`, but some HTTP validation errors
+   have no JSON envelope. Check transport/HTTP success first, then the envelope;
+   fail closed if either check fails.
 9. Never use `sleep` to wait for subtasks or long-running operations. In the three-tier pattern, L1 never creates a cron: user messages and L2 follow-ups wake it. Each L2 owns its own `issue-follow-up` cron and ends the current turn between rounds. For non-three-tier orchestration, use the coordinator cron described in `references/orchestration.md`.
-10. **The never-inline rule**: never inline free-form text (prompts, descriptions) into `-d '{...}'` — quotes, `$`, backticks, and newlines get mangled by shell + JSON escaping. Write the text to a temp file, build the body with `jq`, and POST it with `--data-binary @file`. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely). Fixed-value bodies (e.g. `{"statusId":"working"}`) are safe to inline.
+10. **The never-inline rule**: never inline free-form text (prompts, descriptions) into `-d '{...}'` — quotes, `$`, backticks, and newlines get mangled by shell + JSON escaping. Write the text to a temp file outside the repository, build the body with `jq`, and POST it with `--data-binary @file`. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely). Fixed-value bodies (e.g. `{"statusId":"working"}`) are safe to inline.
 
 ## Core Workflow
 
@@ -35,48 +40,56 @@ full L1/L2/L3 rules in the prompt.
 ### Single Issue Execution
 
 ```bash
+set -o pipefail
+
 # 1. Create issue
-ISSUE=$(curl -s -X POST "$BKD_URL/projects/{projectId}/issues" \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"short title","statusId":"todo"}')
-# Guard the envelope before extracting the ID
-echo "$ISSUE" | jq -e '.success' >/dev/null || { echo "BKD error: $(echo "$ISSUE" | jq -r '.error // "unknown"')" >&2; false; }
-ISSUE_ID=$(echo "$ISSUE" | jq -r '.data.id')
+ISSUE=$(jq -n --arg title "short title" '{title:$title,statusId:"todo"}' \
+  | curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
+      -H 'Content-Type: application/json' -d @-) || exit 1
+if ! printf '%s\n' "$ISSUE" | jq -e '.success == true and (.data.id | type == "string")' >/dev/null; then
+  printf 'BKD error: %s\n' "$(printf '%s\n' "$ISSUE" | jq -r '.error // "invalid response"')" >&2
+  exit 1
+fi
+ISSUE_ID=$(printf '%s\n' "$ISSUE" | jq -er '.data.id')
 
 # 2. Send details — write the prompt to a file, never inline (the never-inline rule)
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
 full implementation details
 PROMPT
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
-curl -s -X POST "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID/follow-up" \
+FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID/follow-up" \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/bkd-body.json | jq
+  --data-binary @/tmp/bkd-body.json) || exit 1
+printf '%s\n' "$FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 
 # 3. Start execution
-curl -s -X PATCH "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID" \
+START=$(curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID" \
   -H 'Content-Type: application/json' \
-  -d '{"statusId":"working"}' | jq
+  -d '{"statusId":"working"}') || exit 1
+printf '%s\n' "$START" | jq -e '.success == true' >/dev/null || exit 1
 ```
 
-Failed calls return `{ success: false, error }`, so apply the guard shown in
-step 1 after every BKD call before extracting IDs (or any other `.data` field);
-skipping it silently propagates `null` IDs.
+Apply both guards after every BKD mutation: `curl --fail-with-body` must succeed,
+then `.success` must be true. Use `jq -er` for required `.data` values. A bare
+`false` inside an `||` block does not abort a shell that lacks `set -e`.
 
 ### Quick Operations
 
 ```bash
+set -o pipefail
+
 # Health check
-curl -s "$BKD_URL/health" | jq
+curl -sS --fail-with-body "$BKD_URL/health" | jq
 
 # Execution capacity
-curl -s "$BKD_URL/processes/capacity" | jq
+curl -sS --fail-with-body "$BKD_URL/processes/capacity" | jq
 
 # Monitor logs (last 3 turns, assistant messages only)
-curl -s "$BKD_URL/projects/{projectId}/issues/{issueId}/logs/filter/types/assistant-message/turn/last3" | jq
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/logs/filter/types/assistant-message/turn/last3" | jq
 
 # Cron jobs
-curl -s "$BKD_URL/cron/actions" | jq
-curl -s "$BKD_URL/cron" | jq
+curl -sS --fail-with-body "$BKD_URL/cron/actions" | jq
+curl -sS --fail-with-body "$BKD_URL/cron" | jq
 ```
 
 ## Reference Packs
@@ -100,8 +113,13 @@ Choose references by intent:
 
 - Single issue CRUD, cron jobs, or API details: load `references/rest-api.md`.
 - Short activation phrases like "use bkd to start coordination" or "start BKD L1": load `references/three-tier-coordination.md`.
-- Multi-subtask dispatch or orchestration: load `references/orchestration.md`.
-- Subtask quality assessment or code review: load `references/quality-review.md`.
-- Branch merging after worktree subtasks: load `references/merge-strategy.md`.
+- Multi-subtask dispatch or orchestration: load `references/rest-api.md` once
+  for guarded transport, then `references/orchestration.md`.
+- Subtask quality assessment or code review: load `references/rest-api.md` once
+  for guarded transport, then `references/quality-review.md`.
+- Branch merging after worktree subtasks: load `references/rest-api.md` once
+  for guarded transport, then `references/merge-strategy.md`.
 - Long-running three-tier coordination across heterogeneous engines: load `references/three-tier-coordination.md` (use instead of `orchestration.md` when L1 must remain user-facing and event-driven, multiple L2 coordinators must own separate workstreams and self-drive via cron, and L2/L3 may run on different engines than L1).
-- Full orchestration pipeline: load `references/orchestration.md`, then `references/quality-review.md`, then `references/merge-strategy.md` as each phase is reached.
+- Full orchestration pipeline: load `references/rest-api.md` once, then
+  `references/orchestration.md`, `references/quality-review.md`, and
+  `references/merge-strategy.md` as each phase is reached.
