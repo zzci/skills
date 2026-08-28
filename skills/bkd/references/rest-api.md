@@ -3,8 +3,10 @@
 Use this file when the `bkd` skill needs exact BKD routes, payload shapes, or
 operational examples.
 
-The edge-case behavior documented here was verified against BKD v0.0.90. Read
-`/health` first and re-verify version-sensitive behavior after a server upgrade.
+The original edge-case behavior documented here was verified against BKD
+v0.0.90. Process control, status transitions, and follow-up guards were
+re-verified against BKD v0.1.0 source at commit `93df96a`. Read `/health` first
+and re-verify version-sensitive behavior after a server upgrade.
 
 ## Table of Contents
 
@@ -200,7 +202,9 @@ All issue routes are project-scoped:
 
 ### Create issue
 
-Prefer the safe flow: create in `todo`, then follow up, then move to `working`.
+Prefer the safe first-execution flow: create in `todo`, queue the full
+instruction with a follow-up, then move it to `working`. That actual transition
+consumes the queued instruction and starts the initial execution.
 
 ```bash
 jq -n --arg title "fix auth bug" --argjson useWorktree true \
@@ -240,6 +244,14 @@ curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueI
   -d '{"statusId":"working"}' | bkd_check
 ```
 
+`statusId` is lifecycle metadata with one transition side effect in v0.1.0: an
+actual non-`working` -> `working` transition may asynchronously start the
+initial execution or flush queued messages. PATCHing an issue that is already
+`working` does not wake it. For an eligible existing issue with no queued
+input, send a follow-up instead of depending on the fire-and-forget transition
+hook. For a new `todo` issue, queue the full input before the transition as
+described above.
+
 Common fields:
 
 - `title`
@@ -275,7 +287,10 @@ curl -sS --fail-with-body -X DELETE "$BKD_URL/projects/{projectId}/issues/{issue
 
 ## Issue Execution
 
-The normal BKD execution trigger is moving the issue to `working`.
+For an existing eligible issue, the normal BKD session wake is a follow-up.
+Moving an issue to `working` is not a general process-control command: only an
+actual transition invokes the asynchronous auto-execute/queued-message flush
+hook:
 
 ```bash
 curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
@@ -283,18 +298,36 @@ curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueI
   -d '{"statusId":"working"}' | bkd_check
 ```
 
+Keep board state and process state separate:
+
+| Signal or action | Meaning | Starts or wakes a process? |
+|------------------|---------|----------------------------|
+| `statusId: todo` | Planned or queued work | No |
+| `statusId: working` | Board says the issue is active | Only as an actual transition; not when already `working` |
+| `statusId: review` | Work awaits evaluation or rework | No |
+| `statusId: done` | Human-confirmed completion | No |
+| `POST .../restart` | Replay the stored prompt for a `failed`/`cancelled` session | Conditionally; rejects other session states |
+| `POST .../follow-up` | Deliver input and ask BKD to resume the issue session | Yes, when the issue is eligible |
+
+Use `turnInFlight` and `/processes`, not `statusId`, to determine whether an
+engine process actually exists.
+
 Recommended sequence:
 
 1. Create the issue in `todo`
-2. Send details with `follow-up`
-3. Move the issue to `working`
+2. Queue the complete task details with `follow-up`
+3. Move the issue to `working`; the transition hook consumes the queued details
+   for the initial execution
 
-**Do not use `/execute` as the normal execution trigger — move the issue to
-`working` instead.** The status change is the trigger used throughout this
-skill. `execute` is a lower-level primitive that starts a turn in one call,
+**Do not use a status transition or `/restart` as a general-purpose wake.** Use
+`follow-up` to continue or resume an eligible existing issue. The initial
+`todo` -> `working` transition above is the lifecycle exception. `/restart`
+only accepts `failed`/`cancelled` session state and replays the stored prompt;
+it rejects `completed`, `running`, and `pending`.
+`execute` is a lower-level primitive that starts a turn in one call,
 pinning the engine/model/prompt at start time; reach for it only when you
-specifically need that. Unlike the status trigger, `execute` **requires**
-`engineType` and `prompt`:
+specifically need that. Unlike `follow-up`, `execute` **requires** `engineType`
+and `prompt`:
 
 ```bash
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
@@ -333,7 +366,12 @@ Fields:
 
 Behavior (by current `statusId`):
 
-- `todo` or `done`: queued, waits for the issue to move to `working`
+- `todo`: returns `queued:true` before the wake path. POST the complete
+  follow-up first, then PATCH the issue to `working`; the transition consumes
+  the queued input
+- `done`: returns `queued:true` before the wake path and must not receive the
+  new follow-up yet. PATCH the issue to `review`, then POST the follow-up;
+  `review` is auto-moved to `working` by that request
 - `working` during an active turn (or with messages already queued): queued,
   processed after the current turn ends
 - `working` when idle: immediate, triggers the next turn
@@ -341,10 +379,27 @@ Behavior (by current `statusId`):
   A bare follow-up to a `review` issue is therefore enough to begin rework; no
   separate `PATCH {statusId:"working"}` is needed.
 
+Operational routing for ordinary follow-ups:
+
+| Current status | Action order |
+|----------------|--------------|
+| `todo` | POST `follow-up` -> PATCH `working` |
+| `done` | PATCH `review` -> POST `follow-up` |
+| `review` | POST `follow-up` directly |
+| `working` | POST `follow-up` directly |
+
+Do not interpret HTTP 200 plus `.success:true` as proof that a process started.
+An immediate wake normally returns `.data.executionId`; `.data.queued:true`
+means only that the message was persisted or queued. In particular, `done`
+returns `queued:true` and remains non-executable. When execution is required,
+verify `executionId`, `turnInFlight`, or the issue in `/processes`.
+
 The `prompt` field is limited to 32768 characters. A larger payload returns a
 bare HTTP 400. Keep the target in `todo` or explicitly stopped while sending
-ordered, numbered chunks, then start it only after every chunk is queued. Never
-send chunk 1 to a `working` + idle issue: it can start before later chunks arrive.
+ordered, numbered chunks. Queue a final numbered chunk such as "All parts sent;
+begin", then move a `todo` issue to `working` to consume the full batch. Never
+send chunk 1 to a `working` + idle issue: it can start before later chunks
+arrive.
 
 ### Restart, cancel, terminate, or clear session
 
@@ -355,29 +410,41 @@ curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId
 curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/clear-session" | bkd_check
 ```
 
-- `restart`: re-run a failed session.
-- `cancel`: graceful stop of the current execution. The default way to halt a
-  running turn.
-- `terminate`: force-kill the running process. Use only when `cancel` does not
-  stop a hung / unresponsive turn. After a terminate the issue is no longer
-  executing — re-trigger it by moving it back to `working`.
+- `restart`: directly spawns only when `sessionStatus` is `failed` or
+  `cancelled`, using the stored original prompt. It is not the normal way to
+  deliver changed requirements, and it rejects completed/running/pending
+  sessions.
+- `cancel`: soft-interrupt the current turn, clear its in-memory pending
+  inputs, and schedule background escalation (repeat interrupts, then hard
+  kill if the turn never settles). This is the default first attempt. The
+  response status is `interrupted` when an active process received the soft
+  interrupt, or `cancelled` when no active process existed.
+- `terminate`: force-kill immediately. Use it directly when an immediate stop
+  is required, or after a graceful cancel did not settle. It clears in-memory
+  inputs, records the session as cancelled, and moves the issue to `review`.
 - `clear-session`: drop the engine's external session id so the next run starts
   a fresh conversation instead of resuming. Use when the prior context is stale
   or corrupted.
 
-To redirect a busy issue to a changed requirement, the reliable sequence is
-**stop → follow-up → start** (cancel first; terminate only if it hangs):
-
-After cancel/terminate, re-read the issue once and require
-`turnInFlight:false`. If it is still true, end the current turn and retry on a
-later event; never poll or enqueue the changed requirement behind the old turn.
+To urgently correct a `working` issue, use **stop -> verify review ->
+follow-up**. Try `cancel` when a graceful interrupt is acceptable. Re-read the
+issue once and require `statusId:"review"` before sending the correction. If it
+is still `working` and the correction cannot wait, call `terminate`; that route
+force-kills the process and moves the issue to `review`. Never send the changed
+requirement while the issue is still `working`, because it can queue behind the
+turn being discarded. Do not use `/restart` for this workflow:
 
 ```bash
 # 1. Stop the in-flight turn (graceful)
 curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | bkd_check
-#    If it does not stop, force-kill:
-#    curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | bkd_check
-# 2. Send the new requirement (queued while stopped)
+# 2. Re-read once. If it is not review and the correction cannot wait, force-kill.
+ISSUE=$(curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}") || exit 1
+if ! printf '%s\n' "$ISSUE" | jq -e '.success == true and .data.statusId == "review"' >/dev/null; then
+  curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | bkd_check
+fi
+# 3. Assert review before sending the replacement requirement.
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}" \
+  | jq -e '.success == true and .data.statusId == "review"' >/dev/null || exit 1
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
 <new requirement>
 PROMPT
@@ -385,10 +452,13 @@ jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.js
 FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/follow-up" \
   -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json) || exit 1
 printf '%s\n' "$FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
-# 3. Start a fresh turn
-curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueId}" \
-  -H 'Content-Type: application/json' -d '{"statusId":"working"}' | bkd_check
 ```
+
+For an immediate hard stop, call `terminate` directly. It force-kills active
+processes, clears their in-memory inputs, records `sessionStatus:cancelled`, and
+moves the issue to `review`. Verify that status, then send a follow-up only when
+a replacement turn is wanted; the follow-up moves `review` to `working`. If the
+issue is `done`, PATCH it to `review`, verify, then send the new follow-up.
 
 ## Issue Changes
 

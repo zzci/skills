@@ -189,7 +189,8 @@ matter; only BKD HTTP semantics do.
   - **New campaign** -> one shared `campaignId` and **multiple new L2 issues**,
     one per workstream, each in its own worktree.
   - **Continuation** -> route each changed requirement only to the affected
-    existing L2 or L2s. If a target is mid-turn, use stop → follow-up → start
+    existing L2 or L2s. If a target is mid-turn, use stop → verify review →
+    follow-up
     (see [Loop Engine](#loop-engine)) so it folds the change into its snapshot
     and DAG on a clean turn.
   - **Unsure** -> ask. Never silently fold unrelated work into one existing L2.
@@ -210,7 +211,7 @@ matter; only BKD HTTP semantics do.
   an L2 follow-up nor a user progress query may silently cross this gate.
 - For each confirmed new campaign, create at least two L2 issues **with
   `useWorktree: true`** (mandatory), delivering each bounded package plus the
-  shared `campaignId` via follow-up. Check capacity before starting them; L2s
+  shared `campaignId` via follow-up. Check capacity before waking them; L2s
   whose workstreams are independent may run concurrently. If two L2s have a
   dependency or overlapping write scope, L1 records the order and delays the
   downstream L2 until its prerequisite branch has been merged into main.
@@ -253,17 +254,18 @@ templates below. Cron-config prompts follow the same idea — build the whole
 body with `jq --rawfile prompt ... '{name:..., config:{..., prompt:$prompt}}'`.
 The `prompt` field on `POST .../follow-up` is limited to 32768 characters. A
 larger payload returns a bare HTTP 400. Keep the target in `todo` or explicitly
-stopped, queue all ordered and numbered chunks within the limit, then start the
-target. Never send the first chunk to a `working` + idle target because it may
-start before the remaining chunks arrive.
+stopped, queue all ordered and numbered chunks within the limit, including a
+final "all parts sent" chunk, then move a `todo` target to `working` to consume
+the full batch. Never send the first chunk to a `working` + idle target because
+it may start before the remaining chunks arrive.
 
 ### Creating Each L2 Dispatch Issue
 
 Repeat this flow for every confirmed workstream in the campaign. Reuse one
 `campaignId`; never stop after creating a single catch-all L2.
 
-Create and verify the complete L2 issue set before starting eligible L2s. Keep
-capacity-blocked or dependency-blocked L2s in `todo`. Before starting a delayed
+Create and verify the complete L2 issue set before waking eligible L2s. Keep
+capacity-blocked or dependency-blocked L2s in `todo`. Before waking a delayed
 L2 after its prerequisite was merged to main, add an explicit first step to its
 follow-up: `git merge {baseBranch}` into `bkd/{L2_ID}` before
 reading source or decomposing its L3 DAG.
@@ -344,10 +346,12 @@ every wake.
 PROMPT
 sed -i "s|__CAMPAIGN_ID__|$CAMPAIGN_ID|g; s|__L2_ID__|$L2_ID|g; s|__BKD_URL__|$BKD_URL|g; s|__L1_ID__|$L1_SESSION_ID|g" /tmp/bkd-prompt.txt
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
+# Queue the complete dispatch package while the new L2 is still todo.
 L2_FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$L2_ID/follow-up" \
   -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json) || exit 1
 printf '%s\n' "$L2_FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 
+# Start the first execution and consume the queued dispatch package.
 L2_START=$(curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$L2_ID" \
   -H 'Content-Type: application/json' \
   -d '{"statusId":"working"}') || exit 1
@@ -393,7 +397,9 @@ turn ends. **No `sleep`, ever. Never touch main.**
 3. Dispatch eligible L3s (upstream deps in DAG state `merged`); same-stage L3s parallel subject to capacity + file-overlap. **Upstream-sync for dependent L3s (mandatory):** BKD cuts `bkd/{L3_ID}` from the base branch, NOT from `bkd/{L2_ID}`, so a fresh dependent worktree does NOT contain upstream work already merged into `bkd/{L2_ID}`. Worktrees share local refs; the dependent L3's spec must open with `git merge --no-ff bkd/{L2_ID}` into its worktree branch, resolving conflicts, **before** implementation. Never use `origin/bkd/{L2_ID}` unless that remote ref was explicitly pushed and verified (see the Upstream Sync section of the [L3 Dispatch Payload](#l3-dispatch-payload-sent-by-l2)).
 4. Evaluate completions immediately (do not batch) via `logs/filter` — classify green/yellow/red using only the logs-filter assessment in `quality-review.md`; this pattern relies on the L3's project checks rather than any specific external review skill:
    - **green** → merge phase.
-   - **red** → if the L3 is still running, stop → follow-up → start (see [Loop Engine](#loop-engine)). Retry ≤ `N=2`; on exceed, set DAG state `blocked` + follow-up L1.
+   - **red** → if the L3 is still running, stop → verify review → follow-up
+     (see [Loop Engine](#loop-engine)). Retry ≤ `N=2`; on exceed, set DAG
+     state `blocked` + follow-up L1.
    - **yellow** → follow-up L1 for a human decision; do not guess.
 5. Emit fresh `[dag-state ...]`. End turn.
 
@@ -404,7 +410,9 @@ turn ends. **No `sleep`, ever. Never touch main.**
    unexpected source changes exist, stop and escalate; L2 must not commit or
    stash changes it did not author.
 3. `git merge bkd/{L3_ID} --no-ff -m "L2 merge: {L3 title} (bkd/{L3_ID}) [{campaignId}]"`. On conflict → `git merge --abort` + escalate to L1.
-4. Build/test after each merge. On failure → `git revert -m 1 HEAD --no-edit`, follow-up the L3 with the error, return BKD status to `working`.
+4. Build/test after each merge. On failure → `git revert -m 1 HEAD --no-edit`,
+   then follow-up the L3 with the error. Its `review` status is eligible: the
+   follow-up moves it to `working` and wakes rework.
 5. On success, set the L3's DAG state to `merged`. Leave its BKD status in `review` — `done` is human-only and triggers worktree auto-cleanup.
 6. After each batch, follow-up L1 with a progress rollup referencing `bkd/{L2_ID}`.
 
@@ -554,10 +562,12 @@ Report JSON shape:
 PROMPT
 sed -i "s|__CAMPAIGN_ID__|$CAMPAIGN_ID|g; s|__SUB_ID__|$SUB_ID|g; s|__L2_ID__|$L2_ID|g; s|__BKD_URL__|$BKD_URL|g" /tmp/bkd-prompt.txt
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
+# Queue the complete spec while the new L3 is still todo.
 SUB_FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$SUB_ID/follow-up" \
   -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json) || exit 1
 printf '%s\n' "$SUB_FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 
+# Start the first execution and consume the queued spec.
 SUB_START=$(curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
   -H 'Content-Type: application/json' \
   -d '{"statusId":"working"}') || exit 1
@@ -579,6 +589,11 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
 - Each L2 remains campaign-active while its cron is live. It is `working`
   during execution but may appear in `review` between wakes depending on BKD
   lifecycle settings; only the verified termination sequence marks completion.
+- BKD status and process state are related but not equivalent. Only an actual
+  transition to `working` invokes the fire-and-forget auto-execute/flush hook;
+  PATCHing an already-`working` issue does nothing. `/restart` directly spawns
+  only for failed/cancelled sessions and replays the stored prompt. Use
+  follow-up as the deterministic wake for new instructions.
 - L3 subtasks land in `review` and stay there. While they sit in `review`, L1
   reviews `bkd/{L2_ID}` and merges it into main (git-level integration,
   orthogonal to BKD status). Issues move to `done` only when the user says so —
@@ -595,18 +610,29 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
 - **Never** use `sleep`. **Never** poll inside a turn.
 - `follow-up` to a `working` + idle issue triggers its next turn immediately.
 - If the process has exited, follow-up auto-restarts a new process.
-- **Stop → follow-up → start for a changed requirement (HARD RULE).** If a
+- A follow-up to `todo` or `done` only queues and cannot wake a process. For
+  `todo`, POST the complete follow-up first, then PATCH to `working` so the
+  transition consumes it. For `done`, PATCH to `review` first, then POST the
+  follow-up; that request auto-moves it to `working`.
+- A follow-up to `review` auto-moves the issue to `working` and wakes it; do not
+  PATCH first.
+- PATCHing an already-`working` issue does not wake it. `/restart` is only for
+  failed/cancelled sessions and is not a general wake with a new instruction.
+- **Stop → verify review → follow-up for a changed requirement (HARD RULE).** If a
   target issue is still actively running (`working`, mid-turn) and you need to
   change what it is doing — rework, new requirement, scope change — do NOT just
   follow-up (that queues behind the in-flight, now-discarded turn). Instead:
-  1. `POST /issues/{id}/cancel` — request a graceful stop. If it
-     does not stop (hung), escalate to `POST /issues/{id}/terminate`. Re-read
-     once and require `turnInFlight:false`; if still true, end and retry on a
-     later event rather than polling.
-  2. `POST /issues/{id}/follow-up` — send the new/changed requirement (queued
-     while the issue is stopped).
-  3. `PATCH /issues/{id} {statusId:"working"}` — start a fresh turn that picks
-     up the queued follow-up.
+  1. `POST /issues/{id}/cancel` — request a soft interrupt. BKD clears the
+     process's pending inputs and schedules retry/escalation in the background.
+  2. Re-read once and require `statusId:review`. If it is still `working` and
+     the correction cannot wait, call `POST /issues/{id}/terminate`; it clears
+     inputs, force-kills the process, marks the session cancelled, and moves
+     the issue to `review`.
+  3. Verify `review`, then `POST /issues/{id}/follow-up` with the replacement
+     requirement. That follow-up auto-moves the issue to `working` and starts
+     the replacement turn.
+  For an immediate hard stop, skip cancel and call `terminate` directly, then
+  verify `review` before following up.
   (A plain progress-neutral follow-up to an *idle* `working` issue needs none
   of this — that path triggers immediately.)
 
@@ -637,8 +663,8 @@ cost grows linearly with campaign length. These rules keep wakes O(1):
    missing, this is a bug — escalate to L1 (`yellow`).
 
 3. **Snapshot supersedes, not appends.** A scope change arrives as a fresh
-   turn (L1 uses stop → follow-up → start, so it is never queued behind stale
-   work). L2 re-runs the read-source step **once**, emits
+   turn (L1 uses stop → verify review → follow-up, so the replacement is not
+   queued behind stale work). L2 re-runs the read-source step **once**, emits
    `[L2-plan-snapshot v2 ...]` superseding v1, and returns to snapshot-only
    wakes. Each superseding emission is a "non-idle action" that resets the
    idle counter.
@@ -685,8 +711,9 @@ command finishes.
 - **L3 gate:** before ending, follow-up L2 with `[gate-pending l3Id=... pid=...
   log=... commit=...]`. L3 has no cron, so L2 owns collection: while the PID is
   alive it keeps the DAG actionable; after exit it follow-ups the same L3 to
-  collect and report the result, starting it only if BKD does not auto-start
-  the follow-up. Never assume an L3 has an independent next wake.
+  collect and report the result. That follow-up is the wake operation; do not
+  substitute a status PATCH or `/restart`. Never assume an L3 has an
+  independent next wake.
 
 A detached run survives its parent turn being killed; an in-turn wait does not.
 A killed turn may move the issue to `review` with no report. Before believing
@@ -766,16 +793,17 @@ Branch bkd/$L2_ID is ready for L1 review and ordered merge into main. Check sibl
   the count.
 - User explicit stop bypasses the countdown — delete all campaign L2 crons by
   ID, assert success, and verify `isDeleted:true` immediately.
-- Restart-safe: a new process reads the same trailing markers and continues
-  the streak; restart alone does not reset it.
+- Process-replacement-safe: a newly woken process reads the same trailing
+  markers and continues the streak. Do not use `/restart` as a generic wake;
+  it is limited to failed/cancelled sessions and replays the stored prompt.
 
 ## Exceptions and Escalation
 
 - Subtask failure / timeout / red: retry up to `N` (default 2). On exceed: set
   DAG state `blocked` and follow-up L1.
 - Changed requirement / rework / scope change for a still-running issue:
-  stop → follow-up → start — never bare-follow-up a busy issue with a changed
-  requirement. See [Loop Engine](#loop-engine).
+  stop → verify review → follow-up — never bare-follow-up a busy issue with a
+  changed requirement. See [Loop Engine](#loop-engine).
 - Merge conflict, ambiguous acceptance criteria, or scope changes: L2 does not
   guess — set DAG state `blocked` or classify `yellow` and escalate to L1,
   which aggregates and asks the user.
@@ -810,5 +838,8 @@ Compact checklist — the full rules live in the sections referenced.
     gate (see [L1 Responsibilities](#l1-responsibilities)).
 12. **L2 never implements** — every unit, however trivial, becomes an L3 issue; a plan snapshot with zero L3 ids is invalid (see [L2 Responsibilities](#l2-responsibilities)).
 13. **Context discipline** — decompose once, snapshot, reference paths not contents (see [Context Discipline](#context-discipline-lightweight-wake-ups)).
-14. **Stop → follow-up → start** for changing a still-running issue (see [Loop Engine](#loop-engine)); applies to L2→L3 rework and L1→L2 scope changes alike.
+14. **Stop → verify review → follow-up** for changing a still-running issue.
+    Try `cancel`, or use `terminate` directly for an immediate force-kill; never
+    send the correction until `statusId:review` is confirmed (see [Loop
+    Engine](#loop-engine)).
 15. **Dependent L3 branches are cut from the base branch, not `bkd/{L2_ID}`** — the L3 spec must open with the upstream-sync merge of the shared local `bkd/{L2_ID}` ref; do not assume a remote ref exists (see [L3 Dispatch Payload](#l3-dispatch-payload-sent-by-l2)).

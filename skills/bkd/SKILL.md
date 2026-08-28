@@ -16,7 +16,14 @@ Keep this entry file small. Load only the references needed for the current turn
 2. Use `curl -sS --fail-with-body` and check its exit status before parsing.
    For mutations, also assert `.success == true`; never rely on `curl -s | jq`
    because HTTP errors and failure envelopes can otherwise pass silently.
-3. Use the safe issue execution flow: create in `todo` -> follow-up -> move to `working`.
+3. Route by `statusId`: `todo` -> POST the complete follow-up, then PATCH to
+   `working`; `done` -> PATCH to `review`, then POST the follow-up;
+   `review`/`working` -> POST the follow-up directly. A follow-up auto-moves
+   `review` to `working`. PATCHing an already-`working` issue does nothing.
+   `/restart` is limited to failed/cancelled sessions and replays the stored
+   prompt. For a required immediate wake, `{success:true}` is not enough:
+   `queued:true` means no wake is proven; check `executionId`, `turnInFlight`,
+   or `/processes`.
 4. Check `/processes/capacity` before starting any execution.
 5. Move finished work to `review`, not `done`. Use `done` only after human confirmation.
 6. Use follow-up for all inter-issue communication.
@@ -27,6 +34,14 @@ Keep this entry file small. Load only the references needed for the current turn
    fail closed if either check fails.
 9. Never use `sleep` to wait for subtasks or long-running operations. In the three-tier pattern, L1 never creates a cron: user messages and L2 follow-ups wake it. Each L2 owns its own `issue-follow-up` cron and ends the current turn between rounds. For non-three-tier orchestration, use the coordinator cron described in `references/orchestration.md`.
 10. **The never-inline rule**: never inline free-form text (prompts, descriptions) into `-d '{...}'` — quotes, `$`, backticks, and newlines get mangled by shell + JSON escaping. Write the text to a temp file outside the repository, build the body with `jq`, and POST it with `--data-binary @file`. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely). Fixed-value bodies (e.g. `{"statusId":"working"}`) are safe to inline.
+11. To urgently correct a `working` issue, stop the current turn before sending
+    the correction. Try `cancel` for a soft interrupt, or use `terminate` for
+    an immediate force-kill. Re-read the issue and require `statusId:review`;
+    never send the correction while it is still `working`. If a cancel has not
+    reached `review` and the correction cannot wait, terminate it. Once it is
+    in `review`, send the follow-up; BKD moves it to `working` and starts the
+    replacement turn. A `done` issue follows the same final path: move it to
+    `review`, then follow up.
 
 ## Core Workflow
 
@@ -52,7 +67,7 @@ if ! printf '%s\n' "$ISSUE" | jq -e '.success == true and (.data.id | type == "s
 fi
 ISSUE_ID=$(printf '%s\n' "$ISSUE" | jq -er '.data.id')
 
-# 2. Send details — write the prompt to a file, never inline (the never-inline rule)
+# 2. Queue the complete instruction while the issue is still todo
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
 full implementation details
 PROMPT
@@ -62,7 +77,7 @@ FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issu
   --data-binary @/tmp/bkd-body.json) || exit 1
 printf '%s\n' "$FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 
-# 3. Start execution
+# 3. Start the first execution; this transition consumes the queued instruction
 START=$(curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID" \
   -H 'Content-Type: application/json' \
   -d '{"statusId":"working"}') || exit 1

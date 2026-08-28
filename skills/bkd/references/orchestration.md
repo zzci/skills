@@ -48,7 +48,7 @@ curl -sS --fail-with-body "$BKD_URL/processes/capacity" | bkd_check
 ```
 
 - `$BKD_URL` missing: ask the user for it
-- `availableSlots` is 0: do not create or start tasks; end the turn and wait
+- `availableSlots` is 0: do not create or wake tasks; end the turn and wait
   for a later user/system event to retry pre-flight
 - Re-check capacity before each new subtask
 
@@ -70,7 +70,8 @@ fi
 ORCH_ID=$(printf '%s\n' "$ORCH" | jq -er '.data.id')
 ```
 
-Send task details and subtask breakdown:
+Queue task details and the subtask breakdown while the coordinator is still in
+`todo`:
 
 ```bash
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
@@ -94,7 +95,8 @@ FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issu
 printf '%s\n' "$FOLLOWUP" | jq -e '.success == true' >/dev/null || exit 1
 ```
 
-Start the coordinator:
+Start the first execution after the complete instruction is queued. This real
+transition consumes the pending follow-up:
 
 ```bash
 curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_ID" \
@@ -145,7 +147,7 @@ printf '%s\n' "$SUB" | jq -e '.success == true and (.data.id | type == "string")
 SUB_ID=$(printf '%s\n' "$SUB" | jq -er '.data.id')
 ```
 
-### 4.2 Send Implementation Details
+### 4.2 Prepare and Send Implementation Details
 
 The follow-up **must** include:
 - Implementation requirements and acceptance criteria
@@ -191,21 +193,26 @@ Strict requirements:
 PROMPT
 sed -i "s|__BKD_URL__|$BKD_URL|g; s|__ORCH_ID__|$ORCH_ID|g" /tmp/bkd-prompt.txt
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
+
+# Queue the complete spec while the subtask is still todo.
 curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$SUB_ID/follow-up" \
   -H 'Content-Type: application/json' \
   --data-binary @/tmp/bkd-body.json | bkd_check
-```
 
-### 4.3 Start Execution
-
-```bash
-# Re-check capacity
+# Re-check capacity, then start the first execution and consume the queued spec.
 curl -sS --fail-with-body "$BKD_URL/processes/capacity" | bkd_check | jq -er '.data.availableSlots'
-
 curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
   -H 'Content-Type: application/json' \
   -d '{"statusId":"working"}' | bkd_check
 ```
+
+### 4.3 Activation Semantics
+
+For a new `todo` subtask, the actual transition to `working` starts the first
+execution and consumes the queued follow-up. For an eligible existing issue,
+send a follow-up to wake or continue it; PATCHing an already-`working` issue
+does nothing. `/restart` only accepts failed/cancelled sessions and replays
+their stored prompt.
 
 ### 4.4 Monitor
 
@@ -267,15 +274,20 @@ printf '%s\n' "$REPORT" | jq -e '.success == true' >/dev/null || exit 1
 | `working` and idle (between turns) | **Immediate**: triggers coordinator's next turn |
 | `working` and busy (turn in progress) | **Queued**: processed after current turn ends |
 | `review` | **Immediate**: the issue is auto-moved to `working` and a turn starts |
-| `todo` or `done` | **Queued**: waits for status change |
+| `todo` | **Queued first**: POST the complete follow-up, then PATCH to `working` to consume it |
+| `done` | **Do not follow up yet**: PATCH to `review`, then POST the follow-up; it auto-moves to `working` |
 
 Key behaviors:
 
 - Follow-up **actively triggers** the coordinator to continue, not a passive log
 - Multiple queued follow-ups are **merged** and delivered together
 - If the coordinator process has exited, follow-up **auto-starts a new process**
+- PATCHing an already-`working` issue does not start a process; `/restart` is
+  only valid for failed/cancelled session state and is not a general wake
 - A bare follow-up to a `review` issue is enough to begin rework; no separate
   `PATCH {statusId:"working"}` is needed (see `rest-api.md` → Follow-up issue)
+- Route by status: `todo` -> POST follow-up -> PATCH `working`; `done` -> PATCH
+  `review` -> POST follow-up; `review`/`working` -> POST follow-up directly
 
 ## 6. Final Confirmation
 
@@ -308,22 +320,19 @@ curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID
 ```
 Coordinator:  todo -> working -> (await subtasks) -> merge branches -> review -> done (human)
 
+First start:  POST follow-up (queue full spec) -> PATCH working (consume + execute)
+Continuation: POST follow-up -> reliable wake
+
 Subtask:      todo -> working -> self-review + fix -> review (auto) + report to coordinator
-                                                        |
-                                              Coordinator: logs filter assessment
-                                               /       |        \
-                                          red:reject  yellow:   green:pass
-                                          -> working  human       |
-                                                      decision  merge bkd/{issueId}
-                                                                /        \
-                                                            conflict    success
-                                                              |           |
-                                                        merge --abort   build/test verify
-                                                        + escalate       /        \
-                                                                      fail      pass
-                                                                       |          |
-                                                                revert + reject  -> done (with coordinator)
-                                                                   -> working
+
+Coordinator assessment:
+  red    -> POST follow-up (review auto-moves to working)
+  yellow -> human decision
+  green  -> merge bkd/{issueId}
+              conflict -> merge --abort + escalate
+              success  -> build/test verify
+                            fail -> revert -> follow-up (review auto-moves to working)
+                            pass -> done with coordinator
 ```
 
 ### Simple Mode
@@ -331,19 +340,25 @@ Subtask:      todo -> working -> self-review + fix -> review (auto) + report to 
 ```
 Coordinator:  todo -> working -> (await subtasks) -> review -> done (human)
 
+First start:  POST follow-up (queue full spec) -> PATCH working (consume + execute)
+Continuation: POST follow-up -> reliable wake
+
 Subtask:      todo -> working -> self-review + fix -> review (auto) + report to coordinator
-                                                        |
-                                              Coordinator: logs filter assessment
-                                               /       |        \
-                                          red:reject  yellow:   green:pass
-                                          -> working  human       |
-                                                      decision  -> done (with coordinator)
+
+Coordinator assessment:
+  red    -> POST follow-up (review auto-moves to working)
+  yellow -> human decision
+  green  -> done with coordinator
 ```
 
 ## Key Constraints
 
 1. **Follow-up only** - use `POST /projects/{pid}/issues/{iid}/follow-up` for all inter-issue communication
-2. **Follow-up queue** - messages to `todo`/`done` issues are queued; `working` + idle = immediate; `review` = immediate (auto-moves to `working`); multiple queued messages are merged
+2. **Follow-up queue** - messages to `todo`/`done` issues are queued and cannot
+   wake them; `working` + idle = immediate; `review` = immediate (auto-moves to
+   `working`); multiple queued messages are merged. Use `todo` -> POST follow-up
+   -> PATCH `working`; `done` -> PATCH `review` -> POST follow-up; and send
+   directly to `review`/`working`.
 3. **Report instructions are mandatory** - subtask follow-up details must include the full report API path to prevent agents from using wrong endpoints
 4. **Capacity first** - check `/processes/capacity` before every new subtask
 5. **autoMoveToReview** - BKD auto-moves completed subtasks to `review`; do not manually change status
@@ -352,3 +367,12 @@ Subtask:      todo -> working -> self-review + fix -> review (auto) + report to 
 8. **review != done** - `review` awaits human confirmation; only move to `done` after human approval
 9. **Soft delete** - project and issue deletions are soft-delete by default
 10. **No sleep** - never use `sleep` to wait for subtasks or long-running operations; create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, capture `.data.id`, and let the current turn end. Persist that cron ID in the coordinator's final state. On completion or user stop, delete the cron by ID, assert `.success`, and verify `isDeleted:true` before moving the coordinator to `review`.
+11. **Separate first start from continuation** - queue a new `todo` issue's
+    complete instruction, then move it to `working`; the actual transition
+    starts its first execution. For eligible existing issues, use follow-up to
+    wake or continue them. `/restart` is limited to failed/cancelled sessions.
+12. **Redirect safely** - for an urgent correction to a `working` issue, try
+    `cancel` or use `terminate` for an immediate force-kill. Re-read and require
+    `statusId:review` before sending the replacement follow-up. If cancel has
+    not reached `review` and the correction cannot wait, terminate it. Never
+    queue the correction behind the old `working` turn.
