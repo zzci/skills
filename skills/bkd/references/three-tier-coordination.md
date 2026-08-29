@@ -151,7 +151,8 @@ Do this every time L1 starts, before anything else:
    proceed via plain HTTP.
 2. Auto-detect `$BKD_URL` and `projectId`. If either cannot be confirmed, ask
    the user. **Never guess.**
-3. Run health and capacity checks; record `availableSlots`.
+3. Run health and capacity checks; record `canStartNewExecution` (and
+   `availableSlots`, which is `null` on an unlimited server).
    ```bash
    set -o pipefail
    curl -sS --fail-with-body "$BKD_URL/health" | jq
@@ -228,7 +229,9 @@ matter; only BKD HTTP semantics do.
   4. If unsalvageable, `git merge --abort`, report to the user, follow-up L2
      for a rebase/fix. Never leave main broken or half-merged.
   5. Report the outcome. Issues move to `done` only on the user's say-so (it
-     triggers worktree auto-cleanup).
+     triggers worktree auto-cleanup, cancels any still-running session, and
+     breaks any cron still targeting the issue). Before moving an L2 to
+     `done`, verify its self cron is deleted (`isDeleted:true`).
 - **Event-driven progress only.** L1 creates no cron. A user message wakes L1
   for an on-demand aggregate report. Every L2 progress, yellow/blocked, and
   completion follow-up also wakes L1 immediately; L1 queries the sibling L2
@@ -378,7 +381,7 @@ turn ends. **No `sleep`, ever. Never touch main.**
 
 **Bootstrap (first wake, single turn):**
 
-1. Make bootstrap idempotent: query `GET /cron?deleted=false` for
+1. Make bootstrap idempotent: query `GET /cron?deleted=false&limit=100` for
    `l2-dispatch-{L2_ID}` and the project issue list for existing campaign L3s,
    following all cursor pages. Reuse exactly one active cron and all matching
    L3 IDs; more than one active cron is an error to escalate, not permission to
@@ -393,7 +396,7 @@ turn ends. **No `sleep`, ever. Never touch main.**
 **Steady-state wake (one decision round per cron fire):**
 
 1. Pull latest snapshot via `logs/filter/types/assistant-message/turn/last5` and BKD issue states. DO NOT re-read source.
-2. Check `/processes/capacity`; `availableSlots == 0` → skip this round.
+2. Check `/processes/capacity`; `canStartNewExecution == false` → skip this round (`availableSlots` may be `null`; never test it for `0`).
 3. Dispatch eligible L3s (upstream deps in DAG state `merged`); same-stage L3s parallel subject to capacity + file-overlap. **Upstream-sync for dependent L3s (mandatory):** BKD cuts `bkd/{L3_ID}` from the base branch, NOT from `bkd/{L2_ID}`, so a fresh dependent worktree does NOT contain upstream work already merged into `bkd/{L2_ID}`. Worktrees share local refs; the dependent L3's spec must open with `git merge --no-ff bkd/{L2_ID}` into its worktree branch, resolving conflicts, **before** implementation. Never use `origin/bkd/{L2_ID}` unless that remote ref was explicitly pushed and verified (see the Upstream Sync section of the [L3 Dispatch Payload](#l3-dispatch-payload-sent-by-l2)).
 4. Evaluate completions immediately (do not batch) via `logs/filter` — classify green/yellow/red using only the logs-filter assessment in `quality-review.md`; this pattern relies on the L3's project checks rather than any specific external review skill:
    - **green** → merge phase.
@@ -451,7 +454,7 @@ Capture `.data.id` from the create response and persist it as `cronId` in the
 L2 plan snapshot and DAG state. Deletion and any schedule change need the ID,
 not the name. To change the schedule, delete by ID, assert success, and recreate
 under the same name; no update route exists. If the stored ID is lost, recover
-it with `GET /cron?deleted=false`, match `.name`, and require exactly one active
+it with `GET /cron?deleted=false&limit=100`, match `.name`, and require exactly one active
 result across all cursor pages before acting.
 
 ## L3 - Subtask Issues (short lifecycle)
@@ -587,8 +590,14 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
 ```
 
 - Each L2 remains campaign-active while its cron is live. It is `working`
-  during execution but may appear in `review` between wakes depending on BKD
-  lifecycle settings; only the verified termination sequence marks completion.
+  during a turn and **always** sits in `review` between wakes: BKD moves an
+  issue to `review` about 3 s after any turn ends with nothing queued. The
+  next cron follow-up moves it back to `working`. Only the verified
+  termination sequence marks completion.
+- An idle process is killed after 30 min unless `keepAlive:true`. With the
+  15-min cron the L2 process normally survives between wakes; if you lengthen
+  the interval past 30 min, create the L2 with `keepAlive:true` or accept a
+  fresh spawn (session resumed via its external session id) on every wake.
 - BKD status and process state are related but not equivalent. Only an actual
   transition to `working` invokes the fire-and-forget auto-execute/flush hook;
   PATCHing an already-`working` issue does nothing. `/restart` directly spawns
@@ -623,11 +632,13 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
   change what it is doing — rework, new requirement, scope change — do NOT just
   follow-up (that queues behind the in-flight, now-discarded turn). Instead:
   1. `POST /issues/{id}/cancel` — request a soft interrupt. BKD clears the
-     process's pending inputs and schedules retry/escalation in the background.
-  2. Re-read once and require `statusId:review`. If it is still `working` and
-     the correction cannot wait, call `POST /issues/{id}/terminate`; it clears
-     inputs, force-kills the process, marks the session cancelled, and moves
-     the issue to `review`.
+     process's pending inputs and schedules retry/escalation in the background;
+     the issue reaches `review` only 3–20 s later, so `cancel` fits when the
+     correction can go out on a later wake (L2's next cron round).
+  2. Re-read and require `statusId:review`. If it is still `working` and the
+     correction cannot wait until a later wake, call
+     `POST /issues/{id}/terminate`; it clears inputs, force-kills the process,
+     marks the session cancelled, and moves the issue to `review`.
   3. Verify `review`, then `POST /issues/{id}/follow-up` with the replacement
      requirement. That follow-up auto-moves the issue to `working` and starts
      the replacement turn.
@@ -717,14 +728,23 @@ command finishes.
 
 A detached run survives its parent turn being killed; an in-turn wait does not.
 A killed turn may move the issue to `review` with no report. Before believing
-completion, check commit count, `turnInFlight`, and the last assistant turn.
+completion, check commit count, the issue's `sessionStatus` (`failed` or
+`cancelled` = killed; `completed` = clean), and the last assistant turn.
 `review` + live cron + no valid final `[dag-state]`, `[gate-pending]`, or
 `[idle-tick]` marker is a killed turn, not completion: resume it with a
-follow-up rather than re-dispatching. A clean L2 wake may also sit in `review`
-between turns depending on server lifecycle settings, so status alone is never
-a completion signal. Per-batch commits bound the loss to one batch. To distinguish an
-account-limit kill from a turn-duration or inactivity kill, search dead turns
-for the literal `You've hit your session limit`.
+follow-up rather than re-dispatching. A clean L2 wake also sits in `review`
+between turns (BKD settles every finished turn to `review`), so status alone
+is never a completion signal. Per-batch commits bound the loss to one batch.
+To distinguish an account-limit kill from a turn-duration or inactivity kill,
+search dead turns for the literal `You've hit your session limit`; BKD's own
+stall/idle kills appear as `[BKD] ...` `system-message` entries.
+
+A loop that stops waking is usually a dead cron, not a finished campaign: BKD
+auto-pauses a job (`enabled:false`) after 3 consecutive failed runs, and
+`issue-follow-up` fails whenever its target is `todo` or `done`. L1 checks
+`GET /cron?deleted=false&limit=100` for `enabled:false` + `lastRun.error` on
+every campaign L2 cron before concluding an L2 is idle, and resumes it with
+`POST /cron/{id}/resume` once the L2 is back in `review`/`working`.
 
 ## Idle Termination Countdown
 
@@ -769,7 +789,7 @@ The terminating L2 follows this 4-step pattern:
 1. **Final outbound message.** Follow-up L1 with the payload below. This wakes
    L1, which aggregates the full multi-L2 campaign state.
 2. **Delete own cron by ID** (captured at creation; if lost, recover via
-   `GET /cron?deleted=false` by matching `.name` across all cursor pages and
+   `GET /cron?deleted=false&limit=100` by matching `.name` across all cursor pages and
    requiring one active result): `DELETE /cron/{cronId}`. Assert `.success` in the response; a
    by-name delete fails with `Job not found` and leaves the cron alive. Re-read
    it through `GET /cron?deleted=only` and verify `isDeleted:true`, the only

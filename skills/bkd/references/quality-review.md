@@ -37,11 +37,24 @@ See `references/rest-api.md` for filter path syntax and available entry types.
 
 ### 1.1 Check Error Signals
 
+The filter API accepts only `user-message`, `assistant-message`, `tool-use`,
+`system-message`, and `thinking`; `types/error-message` returns HTTP 400. Read
+the session outcome from the issue itself, then look for BKD diagnostics:
+
 ```bash
-curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/error-message" | bkd_check
+# sessionStatus: completed | failed | cancelled (running/pending = not finished)
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/{iid}" \
+  | bkd_check | jq -r '.data | "\(.statusId) \(.sessionStatus)"'
+
+# BKD diagnostics ("[BKD] ..." lines: stalls, kills, settle events) in the last turn
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/{iid}/logs/filter/types/system-message/turn/last" \
+  | bkd_check | jq -r '.data.logs[].content | select(startswith("[BKD]"))'
 ```
 
-- Error messages present = yellow signal; check subsequent steps for recovery
+- `sessionStatus:"failed"` or `"cancelled"` with no completion report = red
+  (killed or failed turn; do not treat `review` as success)
+- `[BKD]` stall/kill diagnostics present but the turn recovered = yellow;
+  check subsequent steps for recovery
 
 ### 1.2 Check Final Output
 

@@ -39,7 +39,9 @@ BKD auto-creates branch `bkd/{issueId}` for `useWorktree: true` issues.
 
 Worktree path: `<WORKTREE_BASE>/<projectId>/<issueId>/`
 
-Base branch priority: `origin/main` > `origin/master` > `main` > `master`
+Base branch priority (local refs first): `main` > `master` > `origin/main` >
+`origin/master`. BKD refuses to cut from a bare `HEAD`, so a repository with
+none of these refs cannot use worktree mode.
 
 Branches are always cut from the base branch — in the three-tier pattern this
 means a dependent L3 dispatched after upstream work merged into `bkd/{L2_ID}`
@@ -64,11 +66,19 @@ work. If known user-owned changes would remain dirty, do not merge in that
 worktree; ask the user or create a separate clean integration worktree.
 
 ```bash
-# Check file overlap between coordinator changes and subtask changes
-curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/$SUB_ID/changes" | bkd_check | jq -er '.data[].path'
+# Check file overlap between coordinator changes and subtask changes.
+# The subtask's committed work is on its branch; the /changes API only shows
+# uncommitted files in the worktree (.data.files[], usually empty after a commit).
+MERGE_BASE=$(git rev-parse HEAD)
+git diff --name-only "$MERGE_BASE"...bkd/{subIssueId}          # what the merge brings in
+curl -sS --fail-with-body "$BKD_URL/projects/{pid}/issues/$SUB_ID/changes" \
+  | bkd_check | jq -r '.data.files[].path'                    # anything the subtask left uncommitted
 git diff --name-only
 git diff --cached --name-only
 ```
+
+If the `/changes` list is non-empty, the subtask has uncommitted work; send it
+back to commit before merging rather than merging a partial branch.
 
 ```bash
 # Option A: No file overlap (common case)

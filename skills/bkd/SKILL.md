@@ -22,10 +22,15 @@ Keep this entry file small. Load only the references needed for the current turn
    `review` to `working`. PATCHing an already-`working` issue does nothing.
    `/restart` is limited to failed/cancelled sessions and replays the stored
    prompt. For a required immediate wake, `{success:true}` is not enough:
-   `queued:true` means no wake is proven; check `executionId`, `turnInFlight`,
-   or `/processes`.
+   `queued:true` means no wake is proven; check `executionId`, the issue's
+   `sessionStatus` (`pending`/`running`), or `/processes`. The `todo` ->
+   `working` PATCH is fire-and-forget: re-read the issue and, if
+   `sessionStatus` is `failed`, POST a follow-up to flush the pending input.
 4. Check `/processes/capacity` before starting any execution.
-5. Move finished work to `review`, not `done`. Use `done` only after human confirmation.
+5. Move finished work to `review`, not `done`. Use `done` only after human
+   confirmation. The `done` transition cancels a running session and makes any
+   cron that targets the issue fail (auto-paused after 3 failures): delete
+   owned crons first.
 6. Use follow-up for all inter-issue communication.
 7. Treat project and issue deletions as soft-delete unless the API says otherwise.
 8. Successful API calls normally use `{ success, data }` and application
@@ -35,10 +40,11 @@ Keep this entry file small. Load only the references needed for the current turn
 9. Never use `sleep` to wait for subtasks or long-running operations. In the three-tier pattern, L1 never creates a cron: user messages and L2 follow-ups wake it. Each L2 owns its own `issue-follow-up` cron and ends the current turn between rounds. For non-three-tier orchestration, use the coordinator cron described in `references/orchestration.md`.
 10. **The never-inline rule**: never inline free-form text (prompts, descriptions) into `-d '{...}'` — quotes, `$`, backticks, and newlines get mangled by shell + JSON escaping. Write the text to a temp file outside the repository, build the body with `jq`, and POST it with `--data-binary @file`. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely). Fixed-value bodies (e.g. `{"statusId":"working"}`) are safe to inline.
 11. To urgently correct a `working` issue, stop the current turn before sending
-    the correction. Try `cancel` for a soft interrupt, or use `terminate` for
-    an immediate force-kill. Re-read the issue and require `statusId:review`;
-    never send the correction while it is still `working`. If a cancel has not
-    reached `review` and the correction cannot wait, terminate it. Once it is
+    the correction. Try `cancel` for a soft interrupt (it settles to `review`
+    in roughly 3–20 s), or use `terminate` for an immediate force-kill.
+    Re-read the issue and require `statusId:review`; never send the correction
+    while it is still `working`. If a cancel has not reached `review` within
+    that window and the correction cannot wait, terminate it. Once it is
     in `review`, send the follow-up; BKD moves it to `working` and starts the
     replacement turn. A `done` issue follows the same final path: move it to
     `review`, then follow up.
@@ -102,9 +108,9 @@ curl -sS --fail-with-body "$BKD_URL/processes/capacity" | jq
 # Monitor logs (last 3 turns, assistant messages only)
 curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/logs/filter/types/assistant-message/turn/last3" | jq
 
-# Cron jobs
+# Cron jobs (always filter: a bare /cron also returns soft-deleted jobs)
 curl -sS --fail-with-body "$BKD_URL/cron/actions" | jq
-curl -sS --fail-with-body "$BKD_URL/cron" | jq
+curl -sS --fail-with-body "$BKD_URL/cron?deleted=false" | jq
 ```
 
 ## Reference Packs

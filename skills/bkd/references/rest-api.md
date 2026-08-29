@@ -4,9 +4,11 @@ Use this file when the `bkd` skill needs exact BKD routes, payload shapes, or
 operational examples.
 
 The original edge-case behavior documented here was verified against BKD
-v0.0.90. Process control, status transitions, and follow-up guards were
-re-verified against BKD v0.1.0 source at commit `93df96a`. Read `/health` first
-and re-verify version-sensitive behavior after a server upgrade.
+v0.0.90. Process control, status transitions, follow-up guards, logs-filter
+entry types, `/changes` and `/processes/capacity` response shapes, and cron
+listing/auto-pause behavior were re-verified against BKD v0.1.0 source at
+commit `93df96a` and a live v0.1.0 server. Read `/health` first and re-verify
+version-sensitive behavior after a server upgrade.
 
 ## Table of Contents
 
@@ -128,9 +130,15 @@ Response fields:
 - `summary.byState`
 - `summary.byEngine`
 - `summary.byProject`
-- `maxConcurrent`
-- `availableSlots`
-- `canStartNewExecution`
+- `maxConcurrent` — `0` means unlimited
+- `availableSlots` — integer, or `null` when `maxConcurrent` is `0`
+- `canStartNewExecution` — boolean; the only field safe to gate on
+
+Gate on `canStartNewExecution`, not `availableSlots`: `jq -e '.data.availableSlots'`
+exits non-zero on `null` and aborts a pipefail script on an unlimited server.
+The limit is enforced server-side (`engine:maxConcurrentExecutions`); a spawn
+over the limit fails with `Concurrency limit reached` (see
+[Update issue](#update-issue) for the recovery path).
 
 Force-terminate the engine process for one issue:
 
@@ -216,12 +224,14 @@ curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
 
 Useful fields:
 
-- `title`
-- `statusId`: `todo|working|review|done`
+- `title` — also stored as the issue `prompt`; the first execution sends
+  `systemPrompt + title + queued follow-ups`, so keep it a meaningful one-liner
+- `statusId`: `todo|working|review|done` (`working`/`review` auto-execute at
+  create time with only the title as prompt; `review` is downgraded to `working`)
 - `engineType`
 - `model`
 - `useWorktree`
-- `keepAlive`
+- `keepAlive` — exempts an idle process from the 30-minute idle kill
 - `tags`
 - `permissionMode`
 
@@ -232,9 +242,11 @@ curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues" | bkd_check
 curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}" | bkd_check
 ```
 
-Before treating an issue as completed, inspect its `turnInFlight` field together
-with status, commits, and the last assistant turn. Status alone cannot
-distinguish a clean completion from a killed turn.
+Before treating an issue as completed, inspect its `sessionStatus`
+(`pending|running|completed|failed|cancelled|null`) together with `statusId`,
+commits, and the last assistant turn. `statusId` alone cannot distinguish a
+clean completion from a killed turn. The issue object has no `turnInFlight`
+field; that flag lives on `/processes` entries.
 
 ### Update issue
 
@@ -244,13 +256,28 @@ curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/{issueI
   -d '{"statusId":"working"}' | bkd_check
 ```
 
-`statusId` is lifecycle metadata with one transition side effect in v0.1.0: an
-actual non-`working` -> `working` transition may asynchronously start the
-initial execution or flush queued messages. PATCHing an issue that is already
-`working` does not wake it. For an eligible existing issue with no queued
-input, send a follow-up instead of depending on the fire-and-forget transition
-hook. For a new `todo` issue, queue the full input before the transition as
-described above.
+`statusId` is lifecycle metadata with two transition side effects in v0.1.0:
+
+- An actual non-`working` -> `working` transition asynchronously starts the
+  initial execution (when `sessionStatus` is `null`/`pending`) or flushes queued
+  messages as a follow-up (when it is `completed`/`failed`/`cancelled`). It does
+  nothing when `sessionStatus` is `running`. PATCHing an issue that is already
+  `working` does not wake it. For an eligible existing issue with no queued
+  input, send a follow-up instead of depending on the fire-and-forget hook. For
+  a new `todo` issue, queue the full input before the transition as described
+  above.
+- An actual transition to `done` cancels any active session for that issue.
+  Delete any cron that targets the issue first; a later `issue-follow-up` run
+  against a `done` issue fails and eventually auto-pauses the job.
+
+The `working` hook is fire-and-forget: the PATCH returns `success:true` even if
+the spawn later fails (concurrency limit, workspace check, engine spawn error).
+On failure the issue stays `working` with `sessionStatus:"failed"` and the
+queued message is restored to pending. Recovery: re-read the issue after the
+PATCH and require `sessionStatus` in `pending|running`; if it is `failed`, POST
+any follow-up — a `working` issue with pending messages flushes them all
+immediately (merged) into a fresh process. Do not PATCH `working` again (no-op)
+and do not `/restart` (it replays only the title prompt).
 
 Common fields:
 
@@ -305,12 +332,13 @@ Keep board state and process state separate:
 | `statusId: todo` | Planned or queued work | No |
 | `statusId: working` | Board says the issue is active | Only as an actual transition; not when already `working` |
 | `statusId: review` | Work awaits evaluation or rework | No |
-| `statusId: done` | Human-confirmed completion | No |
+| `statusId: done` | Human-confirmed completion; the transition cancels an active session | No (stops one) |
 | `POST .../restart` | Replay the stored prompt for a `failed`/`cancelled` session | Conditionally; rejects other session states |
 | `POST .../follow-up` | Deliver input and ask BKD to resume the issue session | Yes, when the issue is eligible |
 
-Use `turnInFlight` and `/processes`, not `statusId`, to determine whether an
-engine process actually exists.
+Use the issue's `sessionStatus` and `/processes` (whose entries carry
+`turnInFlight`), not `statusId`, to determine whether an engine process
+actually exists.
 
 Recommended sequence:
 
@@ -326,8 +354,9 @@ only accepts `failed`/`cancelled` session state and replays the stored prompt;
 it rejects `completed`, `running`, and `pending`.
 `execute` is a lower-level primitive that starts a turn in one call,
 pinning the engine/model/prompt at start time; reach for it only when you
-specifically need that. Unlike `follow-up`, `execute` **requires** `engineType`
-and `prompt`:
+specifically need that. It rejects `todo` and `done` issues (HTTP 400),
+auto-moves `review` to `working`, and fails if the issue already has an active
+process. Unlike `follow-up`, `execute` **requires** `engineType` and `prompt`:
 
 ```bash
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
@@ -372,9 +401,13 @@ Behavior (by current `statusId`):
 - `done`: returns `queued:true` before the wake path and must not receive the
   new follow-up yet. PATCH the issue to `review`, then POST the follow-up;
   `review` is auto-moved to `working` by that request
-- `working` during an active turn (or with messages already queued): queued,
-  processed after the current turn ends
+- `working` during an active turn: queued (`queued:true`), merged with any
+  other queued input and delivered after the current turn ends
+- `working` when idle but with messages already pending: returns `queued:true`,
+  yet BKD immediately flushes all pending messages (merged) as one follow-up
 - `working` when idle: immediate, triggers the next turn
+- Any status: a `model` that differs from the issue's current model is rejected
+  with HTTP 409 while `sessionStatus` is `running`/`pending`
 - `review`: immediate — the issue is auto-moved to `working` and a turn starts.
   A bare follow-up to a `review` issue is therefore enough to begin rework; no
   separate `PATCH {statusId:"working"}` is needed.
@@ -392,7 +425,8 @@ Do not interpret HTTP 200 plus `.success:true` as proof that a process started.
 An immediate wake normally returns `.data.executionId`; `.data.queued:true`
 means only that the message was persisted or queued. In particular, `done`
 returns `queued:true` and remains non-executable. When execution is required,
-verify `executionId`, `turnInFlight`, or the issue in `/processes`.
+verify `executionId`, the issue's `sessionStatus` (`pending`/`running`), or the
+issue in `/processes`.
 
 The `prompt` field is limited to 32768 characters. A larger payload returns a
 bare HTTP 400. Keep the target in `todo` or explicitly stopped while sending
@@ -400,6 +434,20 @@ ordered, numbered chunks. Queue a final numbered chunk such as "All parts sent;
 begin", then move a `todo` issue to `working` to consume the full batch. Never
 send chunk 1 to a `working` + idle issue: it can start before later chunks
 arrive.
+
+### Pending (queued) messages
+
+Follow-ups that could not start a turn are stored as pending user messages.
+Use these to verify a queued batch before the `todo` -> `working` transition,
+or to recall a wrongly queued chunk:
+
+```bash
+# List queued messages: [{ messageId, content, metadata, createdAt }]
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/pending" | bkd_check
+
+# Recall one queued message by its ULID (hard-deletes the pending row)
+curl -sS --fail-with-body -X DELETE "$BKD_URL/projects/{projectId}/issues/{issueId}/pending?messageId={messageId}" | bkd_check
+```
 
 ### Restart, cancel, terminate, or clear session
 
@@ -413,12 +461,17 @@ curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId
 - `restart`: directly spawns only when `sessionStatus` is `failed` or
   `cancelled`, using the stored original prompt. It is not the normal way to
   deliver changed requirements, and it rejects completed/running/pending
-  sessions.
+  sessions. Side effect: the route moves a `review` issue to `working` *before*
+  that check, so a rejected restart strands the issue in `working` with no
+  process. Read `sessionStatus` first; never probe with `/restart`.
 - `cancel`: soft-interrupt the current turn, clear its in-memory pending
-  inputs, and schedule background escalation (repeat interrupts, then hard
-  kill if the turn never settles). This is the default first attempt. The
-  response status is `interrupted` when an active process received the soft
-  interrupt, or `cancelled` when no active process existed.
+  inputs, and schedule background escalation (up to 3 interrupts 5 s apart,
+  then hard kill). Settlement then waits a 3 s grace period before the issue
+  moves to `review`, so expect roughly 3–20 s between the request and
+  `statusId:"review"`; a re-read immediately after `cancel` will still show
+  `working`. The response status is `interrupted` when an active process
+  received the soft interrupt, or `cancelled` when no active process existed
+  (that path does not move the issue to `review`).
 - `terminate`: force-kill immediately. Use it directly when an immediate stop
   is required, or after a graceful cancel did not settle. It clears in-memory
   inputs, records the session as cancelled, and moves the issue to `review`.
@@ -427,17 +480,20 @@ curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId
   or corrupted.
 
 To urgently correct a `working` issue, use **stop -> verify review ->
-follow-up**. Try `cancel` when a graceful interrupt is acceptable. Re-read the
-issue once and require `statusId:"review"` before sending the correction. If it
-is still `working` and the correction cannot wait, call `terminate`; that route
-force-kills the process and moves the issue to `review`. Never send the changed
-requirement while the issue is still `working`, because it can queue behind the
-turn being discarded. Do not use `/restart` for this workflow:
+follow-up**. Choose the stop up front: `cancel` is graceful but needs 3–20 s
+to settle into `review`, so it only fits when you can end the turn and
+continue on a later wake (an L2 cron round, a user reply). When the correction
+must go out in the same turn, call `terminate` directly. After either stop,
+re-read the issue and require `statusId:"review"` before sending the
+correction; a re-read immediately after `cancel` will still show `working`,
+and if it does and you cannot wait, `terminate`. Never send the changed
+requirement while the issue is still `working`, because it can queue behind
+the turn being discarded. Do not use `/restart` for this workflow:
 
 ```bash
-# 1. Stop the in-flight turn (graceful)
+# 1. Stop the in-flight turn (graceful; settles in 3-20 s)
 curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/cancel" | bkd_check
-# 2. Re-read once. If it is not review and the correction cannot wait, force-kill.
+# 2. Re-read. If it is not review yet and the correction cannot wait, force-kill.
 ISSUE=$(curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}") || exit 1
 if ! printf '%s\n' "$ISSUE" | jq -e '.success == true and .data.statusId == "review"' >/dev/null; then
   curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/terminate" | bkd_check
@@ -462,10 +518,24 @@ issue is `done`, PATCH it to `review`, verify, then send the new follow-up.
 
 ## Issue Changes
 
-Get files changed by an issue (useful before merging worktree branches):
+Get the **uncommitted** working-tree changes in an issue's directory (its
+worktree when `useWorktree`, else the project directory). This is
+`git status --porcelain`, not a branch diff:
 
 ```bash
-curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/changes" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/changes" \
+  | bkd_check | jq -r '.data.files[].path'
+```
+
+Response `.data` is an object: `{ root, gitRepo, files: [{ path, status, type,
+staged, unstaged, additions, deletions }], additions, deletions }` (plus
+`timedOut:true` when git took longer than 15 s). `.data` is **not** an array.
+
+Once a subtask has committed, `files` is empty. To see what a worktree branch
+will merge, use git directly from the project directory:
+
+```bash
+git diff --name-only "$MERGE_BASE"...bkd/{issueId}
 ```
 
 ## Issue Logs
@@ -507,7 +577,16 @@ When `hasMore` is true, repeat the same filter request with the returned
 | Last N turns | `turn/last{N}` | `turn/last3` |
 | Combined | concatenate | `types/tool-use/turn/last3` |
 
-Available entry types: `user-message` `assistant-message` `tool-use` `system-message` `thinking` `error-message` `token-usage`
+Available entry types: `user-message` `assistant-message` `tool-use`
+`system-message` `thinking`. Other stored types (`error-message`,
+`token-usage`) are **not** accepted by the filter and return HTTP 400
+`Invalid types`; detect failures via the issue's `sessionStatus:"failed"`, the
+`[BKD]` diagnostic lines in `system-message` entries, or the last
+`assistant-message`.
+
+Any `turn/...` filter on an issue that has no turns yet returns HTTP 400
+`No turns exist for this issue`; treat that as "empty", not as a transport
+failure, when probing a freshly created issue.
 
 ## Worktrees
 
@@ -534,14 +613,24 @@ Use `GET /cron/actions` when you need the current server help text.
 ### List cron jobs
 
 ```bash
-curl -sS --fail-with-body "$BKD_URL/cron" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/cron?deleted=false" | bkd_check
 ```
 
 Useful query params:
 
-- `limit`
-- `cursor`
-- `deleted=false|true|only`
+- `deleted=false|true|only` — **always pass it**: a bare `GET /cron` with no
+  params returns every row including soft-deleted ones (hundreds on a busy
+  server)
+- `limit` (1–100) and `cursor`
+
+The response shape depends on pagination: without `limit`/`cursor`, `.data` is
+a plain array of jobs; with either, `.data` is `{ jobs, hasMore, nextCursor }`.
+A cursor is only issued in the paginated form, so "follow all pages" means
+`?deleted=false&limit=100` and then `&cursor=<nextCursor>` until `hasMore` is
+false.
+
+Job fields worth checking: `enabled`, `status`, `nextExecution`, `isDeleted`,
+and `lastRun: { status, error }`.
 
 ### List cron actions
 
@@ -586,8 +675,19 @@ Generic fields:
 - `config`
 
 Keep `.data.id`; deletion and schedule replacement require the cron ID. If it
-is lost, query `GET /cron?deleted=false`, match `.name`, and require exactly one
-active result across all cursor pages before acting.
+is lost, query `GET /cron?deleted=false&limit=100`, match `.name`, and require
+exactly one active result across all cursor pages before acting. Names are
+unique among non-deleted jobs: creating a duplicate active name returns HTTP
+409, so "recreate under the same name" only works after the old job is
+soft-deleted.
+
+**Auto-pause.** After 3 consecutive failed runs BKD sets `enabled:false`
+(`status:"stopped"`) and the job never fires again until `POST /cron/{id}/resume`.
+`issue-follow-up` and `issue-execute` fail whenever the target issue is `todo`
+or `done` (`Cannot execute a done issue`), so a coordinator cron whose issue was
+closed dies silently within three ticks. When a cron-driven loop stops waking,
+check `enabled` and `lastRun.error` before assuming the issue is idle, and
+delete the cron before any transition to `done`.
 
 ### Issue cron actions
 
@@ -615,6 +715,11 @@ CRON_ID=$(printf '%s\n' "$CRON" | jq -er '.data.id')
 
 Required config: `projectId`, `issueId`, `prompt`
 Optional config: `model`
+
+Each run behaves like `POST .../follow-up` on a `working`/`review` issue
+(`review` is auto-moved to `working`; a busy turn queues the input). Unlike the
+HTTP route it does **not** queue for `todo`/`done` targets — it throws, the run
+is logged as `failed`, and three such runs auto-pause the job.
 
 ```bash
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
@@ -685,11 +790,13 @@ curl -sS --fail-with-body -X POST "$BKD_URL/cron/{jobId}/resume" | bkd_check
 curl -sS --fail-with-body -X DELETE "$BKD_URL/cron/{jobId}" | bkd_check
 ```
 
-Assert `.success` on deletion, then re-read the job through the cron list and
-verify `isDeleted:true`. That is the only truthful deletion field: `enabled`,
-`status`, and `nextExecution` remain misleading after soft deletion. There is
-no cron update route; change a schedule by deleting the job by ID, verifying
-the deletion, and recreating it under the same name.
+Assert `.success` on deletion, then re-read the job through
+`GET /cron?deleted=only` and verify `isDeleted:true`. That is the only truthful
+deletion field: `enabled` stays `true` and `status` becomes `not_loaded` after
+soft deletion. There is no cron update route; change a schedule by deleting
+the job by ID, verifying the deletion, and recreating it under the same name.
+`resume` re-enables a job that was paused manually or auto-paused after
+consecutive failures.
 
 ### Get cron job logs
 

@@ -48,8 +48,9 @@ curl -sS --fail-with-body "$BKD_URL/processes/capacity" | bkd_check
 ```
 
 - `$BKD_URL` missing: ask the user for it
-- `availableSlots` is 0: do not create or wake tasks; end the turn and wait
-  for a later user/system event to retry pre-flight
+- `canStartNewExecution` is `false`: do not create or wake tasks; end the turn
+  and wait for a later user/system event to retry pre-flight. Gate on this
+  boolean, not on `availableSlots`, which is `null` on an unlimited server
 - Re-check capacity before each new subtask
 
 > **The never-inline rule.** Send every free-form prompt via a temp file + `jq`
@@ -200,10 +201,22 @@ curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$SUB_ID/
   --data-binary @/tmp/bkd-body.json | bkd_check
 
 # Re-check capacity, then start the first execution and consume the queued spec.
-curl -sS --fail-with-body "$BKD_URL/processes/capacity" | bkd_check | jq -er '.data.availableSlots'
+curl -sS --fail-with-body "$BKD_URL/processes/capacity" \
+  | bkd_check | jq -e '.data.canStartNewExecution == true' >/dev/null || exit 1
 curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
   -H 'Content-Type: application/json' \
   -d '{"statusId":"working"}' | bkd_check
+
+# The PATCH hook is fire-and-forget: confirm the spawn actually happened.
+# sessionStatus failed => spawn failed (e.g. concurrency limit); the spec is
+# still pending, so any follow-up flushes it into a fresh process.
+SUB_STATE=$(curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
+  | bkd_check | jq -er '.data.sessionStatus') || exit 1
+if [ "$SUB_STATE" = "failed" ]; then
+  jq -n '{prompt:"Start with the queued specification above."}' > /tmp/bkd-body.json
+  curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$SUB_ID/follow-up" \
+    -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json | bkd_check
+fi
 ```
 
 ### 4.3 Activation Semantics
@@ -220,8 +233,9 @@ their stored prompt.
 # Last 3 turns, assistant messages only
 curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/$SUB_ID/logs/filter/types/assistant-message/turn/last3" | bkd_check
 
-# Or check for errors
-curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/$SUB_ID/logs/filter/types/error-message" | bkd_check
+# Or check for a failed/killed session (the filter API has no error-message type)
+curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/$SUB_ID" \
+  | bkd_check | jq -r '.data | "\(.statusId) \(.sessionStatus)"'
 ```
 
 If monitoring must span turns, create one `issue-follow-up` cron for the
@@ -229,7 +243,10 @@ coordinator using the ID-capturing pattern in `rest-api.md`. Persist
 `coordinatorCronId` in the coordinator's final state. Bootstrap is idempotent:
 reuse exactly one active same-name cron and treat duplicates as an error. On
 completion or user stop, delete by ID, assert `.success`, and verify
-`isDeleted:true` before leaving `working`.
+`isDeleted:true` before leaving `working`. A cron auto-pauses after 3
+consecutive failed runs (for example once its target issue is `done`), so if
+the coordinator stops waking, read the job's `enabled` and `lastRun.error`
+before assuming there is nothing to do.
 
 ## 5. Subtask Self-Review, Fix, and Reporting
 
@@ -300,7 +317,9 @@ curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/$ORCH_I
   -d '{"statusId":"review"}' | bkd_check
 ```
 
-After human confirmation, close everything:
+After human confirmation, close everything. Delete the coordinator cron first
+(a `done` target makes every later run fail), and remember that the `done`
+transition cancels any session still running on that issue:
 
 ```bash
 # Move coordinator and all subtasks to done
@@ -371,8 +390,11 @@ Coordinator assessment:
     complete instruction, then move it to `working`; the actual transition
     starts its first execution. For eligible existing issues, use follow-up to
     wake or continue them. `/restart` is limited to failed/cancelled sessions.
-12. **Redirect safely** - for an urgent correction to a `working` issue, try
-    `cancel` or use `terminate` for an immediate force-kill. Re-read and require
-    `statusId:review` before sending the replacement follow-up. If cancel has
-    not reached `review` and the correction cannot wait, terminate it. Never
+12. **Redirect safely** - for an urgent correction to a `working` issue, use
+    `terminate` (immediate) or `cancel` (graceful, settles to `review` in
+    3–20 s, so only when you can come back on a later wake). Re-read and
+    require `statusId:review` before sending the replacement follow-up. Never
     queue the correction behind the old `working` turn.
+13. **Verify the spawn** - `PATCH {statusId:"working"}` succeeds even when the
+    engine never starts; re-read `sessionStatus` and flush with a follow-up if
+    it is `failed` (see 4.2).
