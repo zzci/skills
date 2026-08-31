@@ -54,10 +54,14 @@ Repository audit:
 1. Detect review mode, in this order:
    - PR reference first: a bare PR number, or a URL containing `/pull/` or `/pulls/` -> PR review
    - else `audit`, `repo`, or `--repo` as an exact standalone argument (never a substring of a word, path, or URL — `.../audit-service/pull/12` is a PR, not an audit) -> repository audit
+   - else an argument naming an existing branch (`git rev-parse --verify <arg>` on a local or `origin/` ref) -> local review of `git diff $(git merge-base <base> <arg>)...<arg>`, with `<base>` resolved by the local-mode base procedure
+   - else an argument naming an existing file or directory -> local diff review restricted to that path
+   - any other argument -> ask what was meant; never guess a mode
    - no argument -> local diff review
 2. Read `references/core-review-policy.md`.
 3. For repository audit, also read `references/repository-audit.md`.
 4. Detect stack from changed files and project manifests.
+   Also note which quality gates are actually enforced (CI workflows, lint/typecheck/test scripts, pre-commit hooks): the confidence filter skips findings a mandatory gate already guarantees, and that skip is only valid for gates that verifiably run.
 5. Read only the matching stack packs:
    - `references/typescript-frontend.md`
    - `references/typescript-backend.md`
@@ -96,8 +100,9 @@ Use local mode for a deterministic working-tree or branch scope.
 - review `git diff $(git merge-base HEAD <base>)...HEAD`; if no trustworthy base can be resolved, or multiple remotes/bases make intent ambiguous, ask the user
 - never substitute an arbitrary recent-commit window such as `git log -5`
 - read enough surrounding code to validate behavior
+- for very large diffs, triage by risk (trust boundaries, data writes, concurrency first) and state explicitly which areas were not reviewed
 - produce a findings-first report ordered by severity
-- block approval for critical issues
+- close with the verdict per the severity-to-verdict mapping in `references/core-review-policy.md`
 
 ## PR Review Mode
 
@@ -106,7 +111,8 @@ Use PR mode for GitHub or a verified Gitea instance.
 - derive the forge from `origin`: `github.com` uses `gh`; any other host must return HTTP 200 JSON with a `version` field from `https://<host>/api/v1/version` before using the `gitea` skill and REST endpoints
 - if the non-GitHub probe fails, stop and ask; do not guess the forge or API
 - inspect PR metadata, head SHA, changed files, and diff with the selected forge client
-- skip ineligible PRs such as closed or draft PRs
+- merged or closed PR -> report its state and stop unless the user explicitly asks for a retrospective review
+- draft PR -> review normally, note the draft state in the report, and never post to the forge (posting requires the PR to be open for review and the user's confirmation)
 - gather relevant `CLAUDE.md` / `AGENTS.md` guidance
 - review only changed behavior and nearby context, not unrelated legacy code
 - when useful, split the audit by concern or stack, then merge only high-confidence findings

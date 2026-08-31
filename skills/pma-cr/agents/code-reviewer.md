@@ -21,13 +21,11 @@ For repository audit mode, also read `<pma-cr>/references/repository-audit.md`. 
 
 ## Mode routing
 
-- A bare PR number or URL containing `/pull/` or `/pulls/` selects PR mode.
-- Exact standalone `audit`, `repo`, or `--repo` selects repository audit mode.
-- Otherwise use local mode.
+Follow the mode-detection order and per-mode rules in `SKILL.md` exactly; do not re-derive them here. Non-negotiables regardless of mode:
 
-For local mode, review staged and unstaged changes first. If both are empty, use the deterministic upstream/remote-default merge-base procedure in `SKILL.md`; never review an arbitrary recent-commit window.
-
-For PR mode, derive the forge from `origin`. Use `gh` only for `github.com`. For another host, verify `/api/v1/version`, then load and follow the `gitea` skill; if verification fails, ask instead of guessing. Present findings before posting anything, and post only after user confirmation.
+- Never review an arbitrary recent-commit window as a substitute for a resolvable diff base.
+- Derive the forge from `origin`; `gh` is for `github.com` only, and an unverified non-GitHub forge means ask, not guess.
+- Present findings to the user before posting anything to a forge, and post only after explicit confirmation.
 
 ## Output
 

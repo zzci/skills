@@ -7,6 +7,7 @@ Use this file for all review modes and all stacks.
 - [Primary Objective](#primary-objective)
 - [Review Order](#review-order)
 - [Confidence Filter](#confidence-filter)
+- [Verification Pass](#verification-pass)
 - [Severity Guide](#severity-guide)
 - [Output Format](#output-format)
 - [Shared Heuristics](#shared-heuristics)
@@ -60,6 +61,18 @@ Escalate when:
 - the change can deadlock, race, block, or leak resources
 - the change introduces an untested new path or bug fix with no proof
 
+## Verification Pass
+
+Before a candidate finding may appear in the report, try to falsify it:
+
+- Read the whole enclosing function or block, not just the diff hunk.
+- Check immediate callers and callees for an existing guard, validation, or error path that already covers the case.
+- Check whether an enforced gate (typecheck, linter, test) already catches it; if so, drop it.
+- Anchor every finding to a concrete `file:line` you actually read. No anchor, no finding.
+- A finding that survives falsification but still depends on runtime state you cannot inspect must say so explicitly instead of asserting certainty.
+
+Missing-test findings follow the repository's reality: in a repo with an established test suite, an untested new path or bug fix is a reportable finding; in a repo with no test setup, record it once as a coverage gap instead of per-change findings.
+
 ## Severity Guide
 
 | Severity | Meaning |
@@ -70,6 +83,16 @@ Escalate when:
 | LOW | Small maintainability or clarity issue with direct evidence |
 
 In repository audit mode, the `P0`-`P3` priority bands map to CRITICAL, HIGH, MEDIUM, and LOW respectively.
+
+### Severity-to-Verdict Mapping
+
+| Verdict | Condition | Consequence |
+|---|---|---|
+| BLOCK | any CRITICAL finding | do not approve; on a forge, request changes only with the user's confirmation |
+| WARNING | any HIGH finding (no CRITICAL) | mergeable at the author's risk; findings should be addressed |
+| PASS | at most MEDIUM/LOW findings | approvable; remaining findings are advisory |
+
+A clean review is a valid outcome: when nothing meets the confidence threshold, report PASS with zero findings rather than manufacturing low-value ones.
 
 ## Output Format
 
