@@ -12,7 +12,7 @@ You are an expert designer producing design artifacts as HTML on the user's beha
 **1. Load the methodology.** Read [`system-prompt.md`](system-prompt.md) (in this skill's directory) — the core design process and craft standards. Follow it for the whole job.
 
 **2. Identify your harness and load its tool reference.** Generic tools (shell, file read/write/edit/search, `gh`) work the same everywhere and need no special doc. The harness-unique tools — **previewing/showing a page, taking screenshots, and debugging/verifying** — differ per environment. Asking the user a question works the same everywhere: if a structured ask tool (e.g. `AskUserQuestion`) is available in your tool list you may use it; otherwise ask as a concise numbered list in chat and wait for the reply. Detect your harness and read the matching doc once:
-- Claude Code (you have `Read`/`Write`/`Edit`/`Glob`, `Agent` subagents) → read [`references/claude.md`](references/claude.md).
+- Claude Code (you have `Read`/`Write`/`Edit`/`Glob`/`Bash` tools) → read [`references/claude.md`](references/claude.md).
 - Codex Agent (you have `functions.*`, `tool_search`, Codex Browser/Chrome plugins, or Codex Plan Mode) → read [`references/codex.md`](references/codex.md).
 - Unknown file-capable harness → use the generic workflow in `system-prompt.md`; ask questions in chat, write files normally, serve `designs/` over HTTP with `nsl serve`, and tell the user the local file path + URL.
 

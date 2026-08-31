@@ -4,6 +4,8 @@ The harness-specific tools `system-prompt.md` relies on, for when you are runnin
 
 **Capability-first rule.** Claude Code sessions differ: optional tools (`AskUserQuestion`, `SendUserFile`, a preview MCP) may or may not be present. For every capability below, **check your actual tool list first — if the named tool is there, use it; otherwise use the stated fallback.** Never call a tool you can't see in your tool list, and never invent one.
 
+**Inline-first rule.** Do all probing, previewing, and verification yourself in the current agent. Spawn an `Agent` subagent only when the user explicitly asks for one (a parallel verification pass, a review pass, "use a subagent"); the `agents/*.md` prompts exist for that case, not as the default path.
+
 ## Web tool → Claude Code capability map
 
 The upstream prompt references claude.ai web tools that do not exist in Claude Code. Substitute as follows everywhere — prose and code alike:
@@ -11,7 +13,7 @@ The upstream prompt references claude.ai web tools that do not exist in Claude C
 | Web tool | Claude Code equivalent |
 |---|---|
 | `questions_v2` | If `AskUserQuestion` is in your tool list, use it; otherwise a concise numbered list of questions in chat — see "Clarifying questions" below |
-| `done`, `fork_verifier_agent` | Surface the deliverable (below) + an `Agent` subagent (prompt: [`../agents/fork-verifier-agent.md`](../agents/fork-verifier-agent.md)) for thorough checks — see "Verification & debug" |
+| `done`, `fork_verifier_agent` | Surface the deliverable (below) and verify inline with your browser tooling — see "Verification & debug". An `Agent` subagent (prompt: [`../agents/fork-verifier-agent.md`](../agents/fork-verifier-agent.md)) only when the user explicitly asks for one |
 | `write_file` (and its `asset:` param) | `Write` — drop the "asset review pane" concept entirely |
 | `copy_files` | `Bash cp` |
 | `read_file`, `list_files`, `view_image` | `Read` (it renders images too — but run the vision probe first, below), `Glob` / `Bash ls`, `Grep` |
@@ -53,11 +55,13 @@ nsl list   # confirm the route and URL
 
 ## Vision input probe (before reading any image)
 
-Some Claude Code sessions run on models/providers that reject image input. Probe **once per session**, before the first action that would put image bytes into the conversation (`Read` on a PNG/JPG/WebP, a screenshot inspection, or a subagent asked to judge a screenshot):
+Some Claude Code sessions run on models/providers that reject image input. Probe **once per session**, before the first action that would put image bytes into the conversation (`Read` on a PNG/JPG/WebP, or a screenshot inspection):
 
 1. Resolve the committed probe image: `<skill-dir>/agents/assets/vision-probe.png`.
-2. Spawn an `Agent` subagent with the prompt in [`../agents/vision-probe-agent.md`](../agents/vision-probe-agent.md), passing only that absolute path (same model/provider as this session — the default). The probe is intentionally isolated: a provider that rejects images should fail inside the disposable subtask.
-3. Treat only an exact final response of `VISION_OK` as image support. Anything else means **non-visual mode** for the rest of the session: don't `Read` raster images or pull screenshots into the model; still write screenshot files to disk and report their paths, and verify with the text/DOM checks below. Tell the user visual review was skipped.
+2. `Read` that path directly. The probe is a tiny colorful square with a dark X/border — if the tool call succeeds and you can describe it, image input works. If the tool call errors, the provider rejects the image, or you cannot see it, image input is unsupported.
+3. Only a clearly visible probe counts as image support. Anything else means **non-visual mode** for the rest of the session: don't `Read` raster images or pull screenshots into the model; still write screenshot files to disk and report their paths, and verify with the text/DOM checks below. Tell the user visual review was skipped.
+
+Only if the user has asked for subagent use, run the probe isolated instead: spawn an `Agent` with the prompt in [`../agents/vision-probe-agent.md`](../agents/vision-probe-agent.md), passing only the probe path, and treat only an exact `VISION_OK` as support.
 
 ## Verification & debug
 
@@ -70,7 +74,7 @@ Preview flow (the nsl server from above is already running in tmux):
 3. If the vision probe passed, screenshot to inspect layout (`preview_screenshot`, or agent-browser's screenshot command); fix errors and surface again. In non-visual mode, verify with text/DOM evidence instead: the URL loads, console has no blocking errors, expected root elements exist, the main container has non-zero size (`document.body.innerText.trim()`, `document.querySelectorAll('*').length`, key `getBoundingClientRect()` values via the browser tooling's eval).
 4. Hand off: surface the file, the final screenshot (visual mode only), and the served URL.
 
-For thorough or directed checks ("screenshot and check the spacing"), spawn an `Agent` subagent to load the file, take screenshots, probe the JS, and report back — useful when you don't want to clutter your own context. Use the prompt in [`../agents/fork-verifier-agent.md`](../agents/fork-verifier-agent.md) (pass the project dir, the file path(s), the served URL, and the image-input status from the vision probe).
+For thorough or directed checks ("screenshot and check the spacing"), do the same flow yourself with more probes (spacing rects, unresolved `var(--*)` tokens, console). Only when the user explicitly asks for a subagent or a separate review pass, spawn an `Agent` with the prompt in [`../agents/fork-verifier-agent.md`](../agents/fork-verifier-agent.md) (pass the project dir, the file path(s), the served URL, and the image-input status from the vision probe).
 
 **Preview-harness gotchas (React + Babel prototypes)** — quirks of agent-driven browsers, not your code:
 
@@ -78,10 +82,10 @@ For thorough or directed checks ("screenshot and check the spacing"), spawn an `
 - Global `keydown` listeners DO fire via `window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',metaKey:true,bubbles:true}))` — use this to test ⌘K / Esc / shortcuts.
 - Screenshot surfaces can desync after an in-page `location.reload()` or repeated custom resizes. Re-set the viewport size (e.g. `preview_resize` to a preset then back, or agent-browser's viewport command) and prefer `location.href = …` over `reload()`.
 
-**If no browser tooling is available at all,** fall back by file type. A fully self-contained single file can be opened with `open <path>` (`file://`); a multi-file prototype (`<script src="…jsx">`) will NOT load over `file://` and needs HTTP — make sure the nsl designs server is running and give the user the URL, or spawn an `Agent` to verify. Never leave the user on a view that silently failed to load its components.
+**If no browser tooling is available at all,** fall back by file type. A fully self-contained single file can be opened with `open <path>` (`file://`); a multi-file prototype (`<script src="…jsx">`) will NOT load over `file://` and needs HTTP — make sure the nsl designs server is running, give the user the URL, and verify with shell checks (the file exists, referenced `.jsx`/asset paths resolve, `node --check` on plain JS). Never leave the user on a view that silently failed to load its components.
 
 ## Design-system checker subagent
 
-Only when **authoring a design system** — the compiler (`compile-design-system.mjs`) and checker (`check-design-system.mjs`) commands and the full flow live in [`design-system-authoring-guide.md`](../built-in-skills/design-system-authoring-guide.md). Both are plain `Bash` `node <skill>/scripts/…` calls and run inline. Harness-specific bit: to run the read-only checker as an **isolated subagent**, spawn an **`Agent`** (any read-capable type, e.g. `Explore` or `general-purpose`) with the prompt in [`../agents/design-system-checker.md`](../agents/design-system-checker.md), passing the project directory and this skill's `scripts/` path — it only runs `check-design-system.mjs` and relays output; it must not edit files or compile.
+Only when **authoring a design system** — the compiler (`compile-design-system.mjs`) and checker (`check-design-system.mjs`) commands and the full flow live in [`design-system-authoring-guide.md`](../built-in-skills/design-system-authoring-guide.md). Both are plain `Bash` `node <skill>/scripts/…` calls and run **inline by default**. Only if the user asks for a subagent, run the read-only checker isolated: spawn an **`Agent`** (any read-capable type, e.g. `Explore` or `general-purpose`) with the prompt in [`../agents/design-system-checker.md`](../agents/design-system-checker.md), passing the project directory and this skill's `scripts/` path — it only runs `check-design-system.mjs` and relays output; it must not edit files or compile.
 
 When **consuming a design system** in a regular project, the importer (`import-design-system.mjs`) is likewise a plain `Bash` `node <skill>/scripts/import-design-system.mjs <dsDir> <projectDir> [--primary]` call that runs inline — full flow in [`use-design-system.md`](../built-in-skills/use-design-system.md). No subagent is needed.

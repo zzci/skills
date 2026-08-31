@@ -26,4 +26,4 @@ After any edit, recompile (above), then run the **read-only design-system checke
 node <skill>/scripts/check-design-system.mjs designs/<project>
 ```
 
-To run it as an isolated read-only subagent (recommended after a batch of edits), launch it with the prompt at [`../agents/design-system-checker.md`](../agents/design-system-checker.md) — see your harness reference (`references/<harness>.md`) for the exact launch tool. Fix what it reports and run again until clean.
+Run it inline after a batch of edits. Only if the user asks for a subagent, run it as an isolated read-only subagent with the prompt at [`../agents/design-system-checker.md`](../agents/design-system-checker.md) — see your harness reference (`references/<harness>.md`) for the launch tool. Fix what it reports and run again until clean.
