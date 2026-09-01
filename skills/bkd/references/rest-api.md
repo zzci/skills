@@ -407,7 +407,11 @@ Behavior (by current `statusId`):
   yet BKD immediately flushes all pending messages (merged) as one follow-up
 - `working` when idle: immediate, triggers the next turn
 - Any status: a `model` that differs from the issue's current model is rejected
-  with HTTP 409 while `sessionStatus` is `running`/`pending`
+  with HTTP 409 while `sessionStatus` is `running`/`pending`. To switch models
+  on a running issue: stop it first (`terminate`, or `cancel` plus the settle
+  wait), verify `statusId:"review"`, then send the follow-up with the new
+  `model` — the model persists on the issue and the replacement turn starts
+  on it
 - `review`: immediate — the issue is auto-moved to `working` and a turn starts.
   A bare follow-up to a `review` issue is therefore enough to begin rework; no
   separate `PATCH {statusId:"working"}` is needed.
