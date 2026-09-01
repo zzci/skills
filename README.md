@@ -20,6 +20,8 @@ npx skills add zzci/skills --skill pma-rust --global
 npx skills add zzci/skills --skill pma-go --global
 npx skills add zzci/skills --skill pma-bun --global
 npx skills add zzci/skills --skill pma-design --global
+npx skills add zzci/skills --skill react-spectrum-s2 --global
+npx skills add zzci/skills --skill spectrum-audit --global
 npx skills add zzci/skills --skill bkd --global
 npx skills add zzci/skills --skill gitea --global
 ```
@@ -38,6 +40,8 @@ npx skills add zzci/skills --skill pma-rust
 npx skills add zzci/skills --skill pma-go
 npx skills add zzci/skills --skill pma-bun
 npx skills add zzci/skills --skill pma-design
+npx skills add zzci/skills --skill react-spectrum-s2
+npx skills add zzci/skills --skill spectrum-audit
 npx skills add zzci/skills --skill bkd
 npx skills add zzci/skills --skill gitea
 
@@ -149,6 +153,9 @@ For operating BKD kanban boards via REST API:
 
 ## Available Skills
 
+Upstream provenance and refresh instructions for the Adobe skills are documented
+in [React Spectrum Skills Source](docs/sources/react-spectrum.md).
+
 | Skill | Description |
 |-------|-------------|
 | [pma](skills/pma/) | Project development lifecycle — complexity-tiered three-phase workflow + task tracking + docs + multi-agent |
@@ -158,5 +165,7 @@ For operating BKD kanban boards via REST API:
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
 | [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend service conventions, optional monorepo promotion, `src/modules` API layout, SQLite-first Drizzle patterns, OpenAPIHono/Bun.serve runtime split, compile-time embedded assets, and validated env config |
 | [pma-design](skills/pma-design/) | Design artifact creator — self-contained HTML mockups, interactive prototypes, wireframes, decks, and design-system authoring/consumption with nsl-served tmux previews and local vendor React/Babel runtime |
+| [react-spectrum-s2](skills/react-spectrum-s2/) | React Spectrum S2 implementation guide — component selection, usage, styling, testing, and bundled React Aria references |
+| [spectrum-audit](skills/spectrum-audit/) | Spectrum adherence audit — deterministic checks, scoring, and report generation for React Spectrum S2 projects |
 | [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, event-driven L1 plus multiple cron-driven L2 workstreams and L3 execution, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
 | [gitea](skills/gitea/) | Gitea REST API operator — curl-based `/api/v1` reference for repos, files, issues, PRs, releases, labels, milestones, actions, packages, wiki, search, server setup, and forced non-GitHub to Gitea routing |
