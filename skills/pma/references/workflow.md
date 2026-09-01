@@ -3,6 +3,7 @@
 ## Table of Contents
 
 - [Hard Rules](#hard-rules)
+- [Task Tiers](#task-tiers)
 - [Three-Phase Workflow](#three-phase-workflow)
 - [Claim-Before-Work](#claim-before-work)
 - [Sync Rules](#sync-rules)
@@ -15,21 +16,53 @@
 2. Read before write: inspect call chains, config, tests, and changelog context before editing logic.
 3. Make only the minimal requested change.
 4. Do not use plan mode. Plans live only in `docs/plan/`.
-5. Do not implement before explicit confirmation such as `proceed`.
+5. Do not implement before explicit confirmation such as `proceed`, except on the trivial tier (see *Task Tiers*).
 6. Use English filenames only.
 7. When the goal is unclear, stop and ask.
 8. Trace root causes instead of patching symptoms.
 9. Output only what changes the next decision.
 10. When introducing or upgrading a dependency, default to the latest stable version verified at the registry — see *Dependency Freshness* below.
 
+## Task Tiers
+
+Ceremony scales with complexity. Decide the tier before Phase 1, name it in the first reply, and never argue a task down a tier after the fact.
+
+### Trivial (fast path)
+
+All of the following must hold:
+
+- The change touches one source file, or only non-executable files (docs, comments, formatting, typos, config with no semantic change).
+- The intended result is unambiguous from the request; there is no design choice to make.
+- No risk area is touched: auth/authz, secrets and env, DB schema or migrations, dependencies, CI/build config, public API contracts, concurrency, persistence semantics.
+- It can be verified immediately with an existing gate (test, typecheck, lint) or by running the code.
+
+What is skipped: the task entry, the plan file, and the Phase 2 stop. What still applies: read before write, RED -> GREEN for any behavior change in a repo with tests, the relevant quality gate, and a one-line statement of what changed and why the fast path applied.
+
+### Standard
+
+Everything else with fewer than 3 files and within one module: claim a task, give the Phase 2 items inline (compact), wait for approval, no plan file.
+
+### Full
+
+`>=3` files, cross-module, or the user asks for a plan: claim a task, write `PLAN-NNN.md`, wait for approval.
+
+### Escalation and overrides
+
+- A trivial change that grows past its criteria (a second source file with behavior change, a risk area, an unexpected design choice) stops immediately and re-enters at the standard tier: claim the task, propose, wait.
+- The user can disable the fast path for a session, and a project can disable it in `AGENTS.md` (*Project-specific facts*, `Fast path: disabled`). Then every change is at least standard.
+- Approval granted in the request itself (an explicit "just do it" with a fully specified change) satisfies the Phase 2 gate for a standard task, but the task entry and status sync still happen.
+- When in doubt about the tier, it is not trivial.
+
 ## Three-Phase Workflow
+
+Tier deviations are defined in *Task Tiers*; the steps below describe the standard and full tiers.
 
 ### Phase 1: Investigation
 
 1. Trace upstream and downstream call chains, symbol references, and types.
 2. Search related code, config, tests, migrations, and docs.
 3. Read the tail of `docs/changelog.md`.
-4. Find or create the matching task in `docs/task/index.md` and claim it with `[-]`.
+4. Find or create the matching task in `docs/task/index.md` and claim it through the *Claim-Before-Work* procedure below (`task-state.sh claim`); never flip the `[-]` marker by hand.
 
 Non-trivial task rule:
 
@@ -55,9 +88,9 @@ For non-trivial tasks:
 
 Only after approval:
 
-1. If a plan exists, set the plan index marker to `[-]` and detail status to `implementing`.
+1. If a plan exists, set the plan index marker to `[-]`, detail status to `implementing`, and `approvedAt` to the current timestamp.
 2. For a new feature or bug fix, write the smallest test that demonstrates the missing or broken behavior and run it to establish RED. Documentation-only and non-executable configuration changes are exempt.
-3. Implement only the approved scope until the new test passes (GREEN), then simplify without changing behavior (IMPROVE).
+3. Implement only the approved scope until the new test passes (GREEN), then simplify without changing behavior (IMPROVE). Problems discovered outside the approved scope become new `[ ]` entries in `docs/task/index.md`, not silent scope expansion.
 4. Run the focused test, the relevant suite, and the stack quality gates. Target 80% or higher coverage unless the repository defines a stricter threshold; explain any material gap instead of hiding it.
 5. Set the task index marker to `[x]` and task detail status to `completed`.
 6. If a plan exists, set the plan index marker to `[x]` and plan detail status to `completed`.
@@ -65,7 +98,7 @@ Only after approval:
 
 ## Claim-Before-Work
 
-Before writing implementation code:
+Claim when investigation starts (Phase 1), and never write implementation code on an unclaimed task:
 
 1. Read `docs/task/index.md` and inspect `[-]` items.
 2. If another agent owns the in-progress task, skip it.

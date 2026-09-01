@@ -151,7 +151,7 @@ For operating BKD kanban boards via REST API:
 
 | Skill | Description |
 |-------|-------------|
-| [pma](skills/pma/) | Project development lifecycle — three-phase workflow + task tracking + docs + multi-agent |
+| [pma](skills/pma/) | Project development lifecycle — complexity-tiered three-phase workflow + task tracking + docs + multi-agent |
 | [pma-cr](skills/pma-cr/) | Stack-aware code review — shared policy plus TypeScript frontend, TypeScript backend/Bun, Go, Rust, and Python review packs for local diffs, PRs, and repository audits |
 | [pma-web](skills/pma-web/) | Frontend implementation guide — PMA-managed React 19 + TypeScript + Vite 8 SPA conventions, TanStack Router/Query, Tailwind CSS v4, shadcn/ui base-nova, and quality gates |
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, SQLx/SeaORM/diesel-async data access, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |

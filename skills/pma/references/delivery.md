@@ -16,7 +16,7 @@
 
 - Prefer `bash` for all command execution. Do not use `zsh` unless explicitly requested.
 - When a tool supports explicit shell selection, set it to `bash`.
-- Never use `kill $(lsof -ti:PORT)` without `-sTCP:LISTEN`.
+- Never kill by port as a first move; manage process lifecycle through tmux (below). As a last resort use a filtered form only: `fuser -k PORT/tcp`, or resolve the PID first with `ss -lptnH 'sport = :PORT'` and kill that PID. Never `kill $(lsof -ti:PORT)` — it is unfiltered, and busybox `lsof` builds accept no options at all.
 
 ### Tmux Persistent Sessions
 
@@ -105,7 +105,7 @@ Each PMA-managed repository should establish a baseline set of project-level con
 
 | File | Purpose | How to populate |
 |---|---|---|
-| `.gitignore` | Exclude build artifacts, dependency caches, secrets, IDE/OS files | Start from <https://github.com/github/gitignore> for the stack (`Rust.gitignore`, `Node.gitignore`, `Go.gitignore`), then append global ignores (`Global/macOS.gitignore`, `Global/Linux.gitignore`, `Global/JetBrains.gitignore`, `Global/VisualStudioCode.gitignore`). Always include `.env`, `*.key`, `*.pem`, `*.log`, coverage outputs, and DB dump paths. |
+| `.gitignore` | Exclude build artifacts, dependency caches, secrets, IDE/OS files | Start from <https://github.com/github/gitignore> for the stack (`Rust.gitignore`, `Node.gitignore`, `Go.gitignore`), then append global ignores (`Global/macOS.gitignore`, `Global/Linux.gitignore`, `Global/JetBrains.gitignore`, `Global/VisualStudioCode.gitignore`). Always include `.env`, `*.key`, `*.pem`, `*.log`, coverage outputs, DB dump paths, and `tmp/` (the scratch directory PMA uses for temporary files). |
 | `.gitattributes` | Normalize line endings, mark binaries, mark generated files | Minimum: `* text=auto eol=lf`. Mark generated/vendored files with `<path> linguist-generated=true` so they do not pollute the language stats and review diff. |
 | `.editorconfig` | Editor-agnostic indentation, charset, trailing whitespace | One root file matching the stack's formatter (rustfmt / gofmt / Prettier-equivalent width). |
 | `LICENSE` | Make license explicit | OSI identifier (MIT / Apache-2.0 / BSL-1.1 / etc.) with year and copyright holder; commercial-only projects state "All rights reserved" explicitly. Never leave the project unlicensed by accident. |
@@ -116,7 +116,7 @@ Each PMA-managed repository should establish a baseline set of project-level con
 
 | File | When |
 |---|---|
-| `docs/changelog.md` | Once the project has releases or shipped behavior changes (timestamped work-log entries — see `docs-and-tracking.md` *Changelog Conventions*). |
+| `docs/changelog.md` | Created at PMA initialization (see `docs-and-tracking.md`); entries accumulate once behavior ships (timestamped work-log entries — see *Changelog Conventions* there). |
 | `docs/decisions/` | Once any default has been relaxed (e.g. a Hard Lock exception) or a non-default design decision needs to outlive a PR description. |
 | `.github/CODEOWNERS` | Once review ownership is non-trivial (multiple maintainers or teams). |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Once the PR Summary / Test plan format below is used consistently. |

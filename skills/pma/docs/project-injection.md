@@ -42,8 +42,9 @@ update this file.
 ### Triggers
 
 Any feature, bug fix, refactor, planning, progress tracking, or multi-agent
-execution goes through `/pma` (investigate → proposal → implement). Do not
-skip phases. Do not implement before explicit approval such as `proceed`.
+execution goes through `/pma` (investigate → proposal → implement). Ceremony
+is tiered by complexity per `/pma` *Task Tiers*: only trivial changes take
+the fast path; everything else waits for explicit approval such as `proceed`.
 
 ### Project-specific facts
 
@@ -52,6 +53,7 @@ skip phases. Do not implement before explicit approval such as `proceed`.
 - Dev URL routing: <e.g. nsl on, host `<name>.localhost`, see /pma references/dev-environment.md>
 - Deployment target: <e.g. distroless container, static musl binary>
 - Quality-gate command: `<one-line command that runs lint + typecheck + test + build>`
+- Fast path: <enabled (default) | disabled — every change is at least the standard tier>
 
 ### Local divergences
 
