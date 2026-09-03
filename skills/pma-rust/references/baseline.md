@@ -253,12 +253,12 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 | Serialization | **`serde`** + `serde_with` | derive-based |
 | Validation | **`validator`** or **`garde`** | derive-based, post-deserialize |
 | Config layering | **`figment`** (TOML/YAML + env + CLI) | quickwit rolls a versioned variant for >100-field configs |
-| HTTP client | **`reqwest`** with `default-features = false, features = ["rustls-tls", "json"]` | never `native-tls` |
+| HTTP client | **`reqwest`** with `default-features = false, features = ["rustls", "json"]` (0.13 renamed `rustls-tls` → `rustls`) | never `native-tls` |
 | Caching | **`moka`** | in-process, TTL + size bounds |
 | Concurrency | `parking_lot`, `dashmap`, `arc-swap` | only when stdlib primitives don't fit |
 | Observability | **`opentelemetry-otlp`** (gRPC + HTTP-JSON) + `tracing-opentelemetry` + `metrics` or `prometheus` | quickwit pins `opentelemetry = 0.31`, `tracing-opentelemetry = 0.32` |
 | Runtime metrics | **`tokio-metrics`** | quickwit's `scrape_tokio_runtime_metrics` pattern |
-| OpenAPI | **`utoipa`** | quickwit pattern; pin until v5 ecosystem stabilizes |
+| OpenAPI | **`utoipa`** 5.x | quickwit pattern |
 | Snapshot tests | **`insta`** (`cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest`) | ruff's exact CI line |
 | Property tests | **`proptest`** | quickwit |
 | Bench | **`criterion`** (or **`divan`** for newer projects) | |

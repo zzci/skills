@@ -546,7 +546,7 @@ fn install_panic_hook() {
 
 ```toml
 [target.'cfg(unix)'.dependencies]
-rlimit = "0.10"
+rlimit = "0.11"
 ```
 
 For containers and systemd, see `references/delivery.md` "Disable Core Dumps" for the matching outer-layer config — this in-process call is the inner belt of a belt-and-suspenders defense.
@@ -593,7 +593,7 @@ pub async fn serve(state: AppState, http: HttpConfig) -> anyhow::Result<()> {
 
     let app = router(state).layer(
         // Pair TimeoutLayer with graceful_shutdown so requests don't hang forever.
-        // (tower-http 0.6 API; times out with 408 Request Timeout.)
+        // (tower-http 0.7 API; times out with 408 Request Timeout.)
         TimeoutLayer::new(Duration::from_secs(10)),
     );
 
@@ -613,7 +613,7 @@ pub async fn serve(state: AppState, http: HttpConfig) -> anyhow::Result<()> {
         tracing::error!("background task drain timed out — forcing exit");
     }
 
-    // Telemetry flush: pinned opentelemetry 0.31 has no global shutdown free
+    // Telemetry flush: pinned opentelemetry 0.32 has no global shutdown free
     // function (the 0.1x-era one was removed in the 0.2x line). Shutdown goes
     // through the retained `SdkTracerProvider` handle — the `TelemetryGuards`
     // returned by `telemetry::init` (see delivery.md's `TelemetryGuards::otlp`

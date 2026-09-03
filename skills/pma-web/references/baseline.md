@@ -36,7 +36,7 @@ Use `/pma` for workflow control. Use this pack for implementation defaults.
 | Build tool | Vite | 8 | `host: "0.0.0.0"`. `server.allowedHosts` decision depends on the nsl deployment — see *Vite Configuration* in `runtime-and-data.md`. |
 | Styling | Tailwind CSS | 4 | `@theme` plus CSS variables in oklch |
 | Server state | TanStack Query | 5 | owns request lifecycle |
-| Lint / format | ESLint + @antfu/eslint-config | 9+ | no Prettier; see notes below |
+| Lint / format | ESLint + @antfu/eslint-config | 10 / 9+ | no Prettier; see notes below |
 | Test | Vitest | 4 | unit and integration tests |
 
 #### @antfu/eslint-config notes

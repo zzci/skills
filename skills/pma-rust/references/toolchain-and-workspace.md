@@ -80,7 +80,7 @@ tokio       = { version = "1", features = ["macros", "rt-multi-thread", "signal"
 tokio-util  = { version = "0.7", features = ["rt"] }      # for TaskTracker, CancellationToken
 axum        = { version = "0.8", default-features = false, features = ["macros", "json", "tokio", "http1", "http2"] }
 tower       = { version = "0.5", features = ["util", "retry", "timeout", "limit", "load-shed"] }
-tower-http  = { version = "0.6", features = ["trace", "cors", "compression-gzip", "timeout", "limit", "sensitive-headers"] }
+tower-http  = { version = "0.7", features = ["trace", "cors", "compression-gzip", "timeout", "limit", "sensitive-headers"] }
 hyper       = { version = "1", features = ["server", "http1", "http2"] }
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
@@ -89,20 +89,20 @@ thiserror   = "2"                  # uv/ruff/quickwit confirmed thiserror 2.0
 anyhow      = "1"
 tracing     = "0.1"
 tracing-subscriber  = { version = "0.3", features = ["env-filter", "json", "fmt"] }
-tracing-opentelemetry = "0.32"
-opentelemetry       = "0.31"
-opentelemetry-otlp  = { version = "0.31", features = ["grpc-tonic", "http-json"] }
-opentelemetry_sdk   = { version = "0.31", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.33"
+opentelemetry       = "0.32"
+opentelemetry-otlp  = { version = "0.32", features = ["grpc-tonic", "http-json", "tls-aws-lc"] }  # tls-aws-lc: 0.32 rejects https:// tonic endpoints without a TLS feature
+opentelemetry_sdk   = { version = "0.32", features = ["rt-tokio"] }
 clap        = { version = "4", features = ["derive", "env"] }
 clap_complete_command = "0.6"      # uv + ruff use this for shell completions
 figment     = { version = "0.10", features = ["toml", "env", "yaml"] }
-sqlx        = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "macros", "migrate"] }
-reqwest     = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+sqlx        = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "macros", "migrate"] }
+reqwest     = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }  # 0.13 renamed rustls-tls → rustls
 rustls      = "0.23"
 secrecy     = "0.10"
 zeroize     = { version = "1", features = ["derive"] }
 subtle      = "2"
-validator   = { version = "0.18", features = ["derive"] }
+validator   = { version = "0.21", features = ["derive"] }
 
 # === Lock 4 — workspace lints (canonical place for deny-warnings policy) ===
 # Rule of thumb: list only what deviates from rustc/clippy defaults.
@@ -294,7 +294,7 @@ edition.workspace = true
 [dependencies]
 # "Avoid adding more dependencies to this crate" — comment in rust-analyzer's real file.
 xshell = "0.2"
-xflags = "0.4"
+xflags = "0.3"                     # 0.4 has only pre-releases on crates.io; r-a pins 0.3.2
 anyhow = "1"
 ```
 
@@ -547,7 +547,7 @@ So for the canonical Linux service target the only prerequisite beyond the Rust 
 
 **FIPS (`aws-lc-rs` `fips` feature → `aws-lc-fips-sys`):** only when a compliance requirement demands it (discharge via ADR, see `baseline.md` Lock 2 backfire row). Build now also needs **CMake** and **Go**, and on some targets `bindgen`/`libclang`. It is slower and not cross-friendly — run FIPS builds on a native runner per target, not under `cross`.
 
-**Dependency alignment:** `reqwest` (`rustls-tls` feature) and `sqlx` (`tls-rustls-aws-lc-rs` feature) both resolve to the same `aws-lc-rs` provider, so a single `install_default()` call covers every TLS path. Do **not** mix a `ring`-flavored feature on one dependency with `aws-lc-rs` on another — linking both providers makes the process default ambiguous and the explicit `install_default()` is what disambiguates it.
+**Dependency alignment:** `reqwest` (`rustls` feature) and `sqlx` (`tls-rustls-aws-lc-rs` feature) both resolve to the same `aws-lc-rs` provider, so a single `install_default()` call covers every TLS path. Do **not** mix a `ring`-flavored feature on one dependency with `aws-lc-rs` on another — linking both providers makes the process default ambiguous and the explicit `install_default()` is what disambiguates it.
 
 quickwit installs the **ring** provider at startup (`install_default_crypto_ring_provider()`); reuse its *startup-install timing* pattern but with `rustls::crypto::aws_lc_rs::default_provider()` (see `baseline.md` Lock 2).
 

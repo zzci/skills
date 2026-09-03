@@ -64,7 +64,7 @@ Lives in `main` before any panic-able code runs. See the canonical template in `
 }
 ```
 
-`rlimit = "0.10"` is pure Rust (no C bindings) — satisfies Hard Lock 1. This call survives container restarts, systemd reload, and outer ulimit changes; the in-process policy is the inner defense.
+`rlimit = "0.11"` is pure Rust (no C bindings) — satisfies Hard Lock 1. This call survives container restarts, systemd reload, and outer ulimit changes; the in-process policy is the inner defense.
 
 #### Layer 2 — systemd unit (bare-metal / VM)
 
@@ -445,7 +445,7 @@ The musl variants are why uv works in `FROM scratch` containers and on Alpine. S
 
 ```toml
 [dist]
-cargo-dist-version = "0.31.0"
+cargo-dist-version = "0.32.0"
 ci                 = ["github"]
 installers         = ["shell", "powershell", "homebrew"]   # add npm if Node ecosystem
 targets            = [
@@ -515,7 +515,7 @@ RUN cargo build --profile dist --target x86_64-unknown-linux-musl --locked
 | **`gcr.io/distroless/static:debug-nonroot`** | Same as above, but with a busybox shell for ops/`kubectl exec` | Slightly larger; **acceptable** for staging or services that need on-call debug access |
 | **`gcr.io/distroless/cc-debian12`** | Binary needs glibc (e.g. depends on `libsqlite3-sys`, OS-level dlopen) | Larger, but still locked-down; pair with `*-unknown-linux-gnu` build, not musl |
 | **`gcr.io/distroless/cc-debian12:debug`** | glibc + shell for debug | |
-| **`alpine:3.20`** | Need package manager at runtime (e.g. `apk add curl` for healthcheck), or org standardizes on Alpine | musl libc; slight allocator perf hit; full shell + apk |
+| **`alpine:3.24`** | Need package manager at runtime (e.g. `apk add curl` for healthcheck), or org standardizes on Alpine | musl libc; slight allocator perf hit; full shell + apk |
 | **`debian:bookworm-slim`** | Org standard, glibc binary + shell + apt at runtime | Larger; still maintained; well understood by ops teams |
 | **Canonical chiselled Ubuntu (`ubuntu/chiselled`)** | Compliance with corporate Ubuntu LTS support | Smaller than `debian:slim`, supported by Canonical; choose chisels per dependency |
 | **`cgr.dev/chainguard/static`** / **`cgr.dev/chainguard/glibc-dynamic`** | Want continuously-rebuilt-with-zero-CVE base; FedRAMP/SOC2 contexts | Pull rate limits; learn Wolfi |
