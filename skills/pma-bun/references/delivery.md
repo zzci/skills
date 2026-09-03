@@ -16,50 +16,43 @@
 
 When the repository ships a standalone binary:
 
-- build the frontend first when static assets are embedded
-- generate asset maps and embedded migration modules as explicit steps
-- restore stub files after compilation, including interrupted runs
-- keep compile-time file rewriting confined to dedicated scripts
+- build the frontend first when the SPA is embedded
+- embed directories with `--asset` (Bun 1.4+): `--asset ./drizzle` for migrations, `--asset ./web/dist` for the SPA; the runtime resolves them through `root.asset()` (`runtime.md` *ROOT_DIR And Compiled Mode*)
+- do not rewrite source modules at build time. The older stub-swap pattern (generated asset and migration modules restored in a `finally`) only exists for Bun < 1.4; remove it when upgrading
+- keep compile flags in `scripts/compile.ts`, not in shell history or CI YAML
 - write checksums or release metadata as part of the build output when distribution needs it
+- run the compiled-mode smoke test on the produced binary before publishing it
 
 ### `scripts/compile.ts` skeleton
 
 ```typescript
-// scripts/compile.ts — standalone binary with embedded SPA assets and migrations
-import { copyFileSync, writeFileSync } from "node:fs";
+// scripts/compile.ts — standalone binary with embedded migrations and, optionally, SPA assets
 import { $ } from "bun";
 
-const swaps = [
-  { module: "src/shared/static-assets.ts", generate: generateAssetMap },
-  { module: "src/db/embedded-migrations.ts", generate: generateMigrationMap },
-];
+const withSpa = await Bun.file("web/package.json").exists();
+if (withSpa) await $`bun run --cwd web build`; // 1. build the SPA first
 
-function generateAssetMap(): string {
-  // walk web/dist, emit a module exporting { "/index.html": <bytes/base64>, ... }
-  return "/* generated */";
+const result = await Bun.build({
+  entrypoints: ["src/index.ts"],
+  minify: true,
+  compile: {
+    outfile: "dist/app",
+    assets: ["drizzle", ...(withSpa ? ["web/dist"] : [])], // 2. embed directories under their relative paths
+  },
+});
+if (!result.success) {
+  for (const log of result.logs) console.error(log);
+  process.exit(1);
 }
 
-function generateMigrationMap(): string {
-  // read drizzle/*.sql in order, emit a module exporting [{ name, sql }, ...]
-  return "/* generated */";
-}
-
-await $`bun run --cwd web build`;                       // 1. build the SPA first
-for (const s of swaps) copyFileSync(s.module, `${s.module}.stub`); // 2. back up stubs
-try {
-  for (const s of swaps) writeFileSync(s.module, s.generate());    // 3. swap in generated maps
-  await $`bun build --compile src/index.ts --outfile dist/app`;    // 4. compile
-}
-finally {
-  for (const s of swaps) copyFileSync(`${s.module}.stub`, s.module); // 5. ALWAYS restore stubs
-}
+// 3. smoke test: start dist/app with a temp DATA_DIR and a free PORT, hit /health and /openapi.json
 ```
 
-The `finally` block is the load-bearing part: stubs must be restored even when the build fails or is interrupted, so the working tree never keeps generated content.
+Cross-compile for release matrices with the CLI form, one target per job: `bun build --compile --target=bun-linux-x64 --asset ./drizzle src/index.ts --outfile dist/app-linux-x64`.
 
 ## Hooks And Tooling
 
-- lint and typecheck must stay fast enough to run on every change (ESLint cache, incremental `tsc`); a gate slow enough that developers skip it locally is a bug
+- lint and typecheck must stay fast enough to run on every change (ESLint cache, `tsc --noEmit`); a gate slow enough that developers skip it locally is a bug
 - add repo-local hooks (pre-commit, post-tool) only when they run the same commands as the CI gates — no hook-only logic
 - hooks may apply deterministic formatting (`eslint --fix`) but must not otherwise rewrite code
 
@@ -67,22 +60,24 @@ The `finally` block is the load-bearing part: stubs must be restored even when t
 
 Review these areas before merge:
 
-- password hashing
+- password hashing (`Bun.password`)
 - constant-time secret comparison
 - rate limiting for public endpoints
 - CSRF protection when serving browser-facing state-changing routes
 - XSS avoidance by rejecting raw HTML injection paths
 - secret redaction in logs
 - safe handling of local encryption keys, bootstrap tokens, or lock files when the project uses them
+- `/docs` gated in production; `/openapi.json` never leaks internal-only routes (exclude them)
 
 Pre-commit checklist:
 
 - no hardcoded secrets
-- all user inputs validated
+- all user inputs validated through the route contract
 - SQL injection blocked through parameterized access
 - auth and authorization checked
 - rate limits applied where needed
 - error messages do not leak internals
+- `bun audit` clean or triaged
 
 ## Observability
 
@@ -90,31 +85,32 @@ Adopt only when the deployment context needs it.
 
 Recommended shape:
 
-- OpenTelemetry for traces and metrics
+- OpenTelemetry: start `@opentelemetry/sdk-node` in `index.ts` before `createApp()`, then `app.use(httpInstrumentationMiddleware({ serviceName, serviceVersion }))` from `@hono/otel`
 - pino logs with request correlation
 - health endpoint for liveness
 - human-readable local logs for developer workflows when the service is frequently run interactively
 
 ## CI Pipeline
 
-Typical jobs:
+Typical jobs, in order:
 
-- lint
-- test
-- coverage
-- build
-- compile when the repository distributes binaries
+1. `bun install --frozen-lockfile`
+2. `bun run lint` and `bun run typecheck`
+3. `bun test --coverage` (threshold from `bunfig.toml`; add `--parallel` when the suite is large)
+4. `bun run build`
+5. `bun audit`
+6. `bun run compile` plus the compiled-mode smoke test when the repository distributes binaries; one job per `--target` for cross-platform releases
 
-If the project needs security audit or DB bootstrap jobs, keep them explicit and reproducible.
+If the project needs security audit or DB bootstrap jobs beyond this, keep them explicit and reproducible.
 
 ## Docker
 
 When containerizing:
 
-- use reproducible Bun images
-- copy only necessary build inputs
+- use the official image pinned to the baseline minor (`oven/bun:1.4-slim` for source mode; a distroless or scratch-like base for a compiled binary)
+- copy only necessary build inputs; `bun install --frozen-lockfile --production` for source mode
 - set non-root execution where possible
-- keep env injection external to the image
+- keep env injection external to the image; mount `DATA_DIR` as a volume
 - document whether the container runs source mode or precompiled binary mode
 
 ## Workspaces
@@ -130,15 +126,17 @@ Only relevant in the *Monorepo* layout (see `baseline.md`).
 
 - English for commit messages and all remote-visible metadata
 - conventional commits format
+- dependency bumps ship as their own `chore(deps)` commit, never inside a feature diff
 - no AI-assistant or agent mentions in commit messages, PR text, or other remote-visible content
 
 ## API Review Checklist
 
 Before merge, verify:
 
-- request and response schemas match behavior
-- docs match runtime validation
-- error mapping is consistent
-- auth boundaries are explicit
-- migration impact is understood
-- compile-time embedded assets and migrations stay in sync with source behavior
+- every contract endpoint is declared through `createRoute`; plain Hono routes only where OpenAPI does not apply (*Routing Hard Lock*), never as a shortcut around the contract
+- the `/openapi.json` snapshot changed on purpose and the diff matches the handler change (status codes, envelope, named schemas, `operationId`)
+- error mapping is consistent (`defaultHook` for validation, `onError` for everything else)
+- auth boundaries are explicit; `/docs` gated in production
+- migration impact is understood; migrations are added, never edited
+- embedded assets and migrations stay in sync with source behavior — the compiled-mode smoke test passed
+- added or bumped dependencies were verified at the registry; pins carry a reason
