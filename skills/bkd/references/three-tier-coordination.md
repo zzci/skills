@@ -232,6 +232,19 @@ matter; only BKD HTTP semantics do.
   by every L2 to wake L1 with progress, decisions, and completion reports. L1
   never registers a cron. If the session issue id cannot be obtained, ask the
   user and do not dispatch L2s until it is known; otherwise L2 cannot report.
+- **An issue-based L1 must be started by its creator.** BKD never auto-starts
+  a `todo` issue: creating an L1 issue and posting follow-ups to it only
+  queues them, and since L1 has no cron, nothing else will ever wake it — a
+  `todo` L1 is inert and produces no value. Whoever creates an L1 issue (a
+  user, another issue, an external script) owns the standard start flow:
+  queue the complete L1 charter as a follow-up while the issue is still
+  `todo` (role, this reference, campaign scope, confirmation-gate and
+  reporting expectations), then PATCH it to `working` and verify
+  `sessionStatus` reaches `pending`/`running` (the hook is fire-and-forget;
+  `failed` means the spawn did not happen — send a follow-up to flush).
+  After that first start the normal event loop applies: user messages and L2
+  follow-ups wake it, including out of the `review` it settles into between
+  turns.
 - **Gather requirements** from the user; read code and docs for context. Do
   not write code and do not perform L3-level decomposition. Capture findings
   as **file paths + line ranges + brief notes**, NOT pasted contents — keeps
