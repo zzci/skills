@@ -22,10 +22,10 @@ new_fixture() {
   printf '%s\n' \
     '# Tasks' \
     '' \
-    '- [ ] [**API-001 Add endpoint**](API-001.md) `P1`' \
+    '- [ ] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`' \
     > "$root/docs/task/index.md"
   printf '%s\n' \
-    '# API-001 Add endpoint' \
+    '# add-endpoint-20260906T1430Z Add endpoint' \
     '' \
     '- **status**: pending' \
     '- **priority**: P1' \
@@ -34,38 +34,38 @@ new_fixture() {
     '## Notes' \
     '' \
     '(none)' \
-    > "$root/docs/task/API-001.md"
+    > "$root/docs/task/add-endpoint-20260906T1430Z.md"
 }
 
 test_claim_and_transitions() {
   local root="$TMP_ROOT/transitions"
   new_fixture "$root"
 
-  "$SCRIPT" claim "$root/docs/task/API-001.md" 'worker-a/session-1'
-  assert_contains "$root/docs/task/index.md" '- [-] [**API-001 Add endpoint**](API-001.md) `P1`'
-  assert_contains "$root/docs/task/API-001.md" '- **status**: in_progress'
-  assert_contains "$root/docs/task/API-001.md" '- **owner**: worker-a/session-1'
+  "$SCRIPT" claim "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-a/session-1'
+  assert_contains "$root/docs/task/index.md" '- [-] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" '- **status**: in_progress'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" '- **owner**: worker-a/session-1'
 
-  if "$SCRIPT" claim "$root/docs/task/API-001.md" 'worker-b/session-2' >/dev/null 2>&1; then
+  if "$SCRIPT" claim "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-b/session-2' >/dev/null 2>&1; then
     fail 'a second owner claimed an in-progress task'
   fi
-  assert_contains "$root/docs/task/API-001.md" '- **owner**: worker-a/session-1'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" '- **owner**: worker-a/session-1'
 
-  if "$SCRIPT" unclaim "$root/docs/task/API-001.md" 'worker-b/session-2' 'wrong owner' >/dev/null 2>&1; then
+  if "$SCRIPT" unclaim "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-b/session-2' 'wrong owner' >/dev/null 2>&1; then
     fail 'a non-owner unclaimed the task'
   fi
 
-  "$SCRIPT" unclaim "$root/docs/task/API-001.md" 'worker-a/session-1' 'Proposal was rejected.'
-  assert_contains "$root/docs/task/index.md" '- [ ] [**API-001 Add endpoint**](API-001.md) `P1`'
-  assert_contains "$root/docs/task/API-001.md" '- **status**: pending'
-  assert_contains "$root/docs/task/API-001.md" '- **owner**: (unassigned)'
-  assert_contains "$root/docs/task/API-001.md" 'Proposal was rejected.'
+  "$SCRIPT" unclaim "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-a/session-1' 'Proposal was rejected.'
+  assert_contains "$root/docs/task/index.md" '- [ ] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" '- **status**: pending'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" '- **owner**: (unassigned)'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" 'Proposal was rejected.'
 
-  "$SCRIPT" claim "$root/docs/task/API-001.md" 'worker-b/session-2'
-  "$SCRIPT" complete "$root/docs/task/API-001.md" 'worker-b/session-2' 'Verified focused tests.'
-  assert_contains "$root/docs/task/index.md" '- [x] [**API-001 Add endpoint**](API-001.md) `P1`'
-  assert_contains "$root/docs/task/API-001.md" '- **status**: completed'
-  assert_contains "$root/docs/task/API-001.md" 'Verified focused tests.'
+  "$SCRIPT" claim "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-b/session-2'
+  "$SCRIPT" complete "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-b/session-2' 'Verified focused tests.'
+  assert_contains "$root/docs/task/index.md" '- [x] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" '- **status**: completed'
+  assert_contains "$root/docs/task/add-endpoint-20260906T1430Z.md" 'Verified focused tests.'
   [ -z "$(find "$root/docs/task" -maxdepth 1 -name '.task-state.*' -print -quit)" ] || fail 'transaction left temporary files in docs/task'
 }
 
@@ -74,9 +74,9 @@ test_concurrent_claim_is_serialized() {
   new_fixture "$root"
 
   set +e
-  "$SCRIPT" claim "$root/docs/task/API-001.md" 'worker-a/session-1' >/dev/null 2>&1 &
+  "$SCRIPT" claim "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-a/session-1' >/dev/null 2>&1 &
   local pid_a=$!
-  "$SCRIPT" claim "$root/docs/task/API-001.md" 'worker-b/session-2' >/dev/null 2>&1 &
+  "$SCRIPT" claim "$root/docs/task/add-endpoint-20260906T1430Z.md" 'worker-b/session-2' >/dev/null 2>&1 &
   local pid_b=$!
   wait "$pid_a"; rc_a=$?
   wait "$pid_b"; rc_b=$?
@@ -85,7 +85,7 @@ test_concurrent_claim_is_serialized() {
   [ $((rc_a + rc_b)) -ne 0 ] || fail 'both concurrent claims succeeded'
   [ "$rc_a" -eq 0 ] || [ "$rc_b" -eq 0 ] || fail 'both concurrent claims failed'
   [ "$(grep -Ec '^- \[-\] ' "$root/docs/task/index.md")" -eq 1 ] || fail 'index does not contain exactly one active claim'
-  [ "$(grep -Ec '^- \*\*owner\*\*: worker-[ab]/session-[12]$' "$root/docs/task/API-001.md")" -eq 1 ] || fail 'detail does not contain exactly one owner'
+  [ "$(grep -Ec '^- \*\*owner\*\*: worker-[ab]/session-[12]$' "$root/docs/task/add-endpoint-20260906T1430Z.md")" -eq 1 ] || fail 'detail does not contain exactly one owner'
   [ -z "$(find "$root/docs/task" -maxdepth 1 -name '.task-state.*' -print -quit)" ] || fail 'concurrent claim left temporary files in docs/task'
 }
 

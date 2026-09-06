@@ -6,10 +6,10 @@
 docs/
 ├── task/
 │   ├── index.md
-│   └── PREFIX-NNN.md
+│   └── <feature-slug>-<timestamp>.md
 ├── plan/
 │   ├── index.md
-│   └── PLAN-NNN.md
+│   └── <feature-slug>-<timestamp>.md
 ├── decisions/        # when applicable — recorded decisions, pinned-version justifications
 ├── architecture.md
 └── changelog.md
@@ -18,9 +18,9 @@ docs/
 ## Required Files
 
 - `docs/task/index.md`: one-line task entries
-- `docs/task/PREFIX-NNN.md`: task detail files
+- `docs/task/<feature-slug>-<timestamp>.md`: task detail files
 - `docs/plan/index.md`: one-line plan entries
-- `docs/plan/PLAN-NNN.md`: plan detail files
+- `docs/plan/<feature-slug>-<timestamp>.md`: plan detail files
 - `docs/architecture.md`
 - `docs/changelog.md`
 

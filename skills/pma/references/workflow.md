@@ -44,7 +44,7 @@ Everything else with fewer than 3 files and within one module: claim a task, giv
 
 ### Full
 
-`>=3` files, cross-module, or the user asks for a plan: claim a task, write `PLAN-NNN.md`, wait for approval.
+`>=3` files, cross-module, or the user asks for a plan: claim a task, write `<feature-slug>-<timestamp>.md`, wait for approval.
 
 ### Escalation and overrides
 
@@ -66,7 +66,7 @@ Tier deviations are defined in *Task Tiers*; the steps below describe the standa
 
 Non-trivial task rule:
 
-- If the change touches `>=3` files or crosses modules, create `docs/plan/PLAN-NNN.md` and write findings into the context section.
+- If the change touches `>=3` files or crosses modules, create `docs/plan/<feature-slug>-<timestamp>.md` and write findings into the context section.
 
 ### Phase 2: Proposal
 
@@ -80,7 +80,7 @@ Output these items, then stop:
 
 For non-trivial tasks:
 
-- complete the remaining sections in `PLAN-NNN.md`
+- complete the remaining sections in `<feature-slug>-<timestamp>.md`
 - append one line to `docs/plan/index.md` with `[ ]`
 - wait for approval and address annotations before implementation
 
@@ -106,7 +106,7 @@ Claim when investigation starts (Phase 1), and never write implementation code o
 4. Claim through the bundled serializer:
 
    ```bash
-   <pma-skill>/scripts/task-state.sh claim docs/task/PREFIX-NNN.md worker-a/session-123
+   <pma-skill>/scripts/task-state.sh claim docs/task/add-endpoint-20260906T1430Z.md worker-a/session-123
    ```
 
    The script takes an exclusive lock, validates the index and detail preconditions, stages both updates, commits them with rollback, and rejects a competing owner.
@@ -118,7 +118,7 @@ All cooperating workers must use `task-state.sh`; direct multi-file edits bypass
 Unclaim (proposal rejected or work abandoned):
 
 ```bash
-<pma-skill>/scripts/task-state.sh unclaim docs/task/PREFIX-NNN.md worker-a/session-123 "Proposal was rejected."
+<pma-skill>/scripts/task-state.sh unclaim docs/task/add-endpoint-20260906T1430Z.md worker-a/session-123 "Proposal was rejected."
 ```
 
 The reason is required; the script resets the marker, status, and owner together and appends the note.
@@ -128,7 +128,7 @@ Staleness heuristic: a `[-]` task whose owner session is gone and whose notes ha
 On completion:
 
 ```bash
-<pma-skill>/scripts/task-state.sh complete docs/task/PREFIX-NNN.md worker-a/session-123 "Focused and relevant suites passed."
+<pma-skill>/scripts/task-state.sh complete docs/task/add-endpoint-20260906T1430Z.md worker-a/session-123 "Focused and relevant suites passed."
 ```
 
 Then sync tool state if task tools exist.
@@ -136,7 +136,7 @@ Then sync tool state if task tools exist.
 On close:
 
 ```bash
-<pma-skill>/scripts/task-state.sh close docs/task/PREFIX-NNN.md worker-a/session-123 "Superseded by PREFIX-002."
+<pma-skill>/scripts/task-state.sh close docs/task/add-endpoint-20260906T1430Z.md worker-a/session-123 "Superseded by add-endpoint-20260906T1500Z."
 ```
 
 ## Sync Rules

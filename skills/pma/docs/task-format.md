@@ -17,8 +17,8 @@ This document defines the task management format for the `docs/task/` directory,
 
 ```text
 docs/task/
-├── index.md          # Task index (one line per task)
-└── PREFIX-NNN.md     # Task detail files (one per task)
+├── index.md                         # Task index (one line per task)
+└── <feature-slug>-<timestamp>.md     # Task detail files (one per task)
 ```
 
 ## Index Entry Format
@@ -26,7 +26,7 @@ docs/task/
 Each task in `index.md` is a single-line link with no sub-fields.
 
 ```markdown
-- [ ] [**PREFIX-001 Short imperative title**](PREFIX-001.md) `P1`
+- [ ] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`
 ```
 
 All detailed information goes in the corresponding detail file. `index.md` must not contain description, owner, or other sub-fields.
@@ -38,7 +38,7 @@ Create the detail file atomically when adding a new task line to `index.md`. Thi
 ### English Template
 
 ```markdown
-# PREFIX-001 Short imperative title
+# add-endpoint-20260906T1430Z Add endpoint
 
 - **status**: pending
 - **priority**: P1
@@ -75,11 +75,14 @@ Present-continuous description for spinner display.
 
 ## Task ID Rules
 
-- Format: `PREFIX-NNN` (uppercase category prefix + hyphen + zero-padded 3-digit sequence)
-- Prefix is a short category abbreviation, for example: `AUTH`, `UI`, `API`, `BUG`, `PERF`, `FEAT`, `REFACTOR`
-- Sequence numbers are per-prefix, starting from `001`
-- Once assigned, never reuse or renumber
-- Each ID maps to exactly one file: `docs/task/PREFIX-NNN.md`
+- Filename format: `<feature-slug>-<timestamp>.md`; the ID is the filename without `.md`.
+- Use a concise English feature slug in lowercase kebab-case, such as `add-endpoint` or `fix-login-redirect`.
+- Use the creation time in UTC with minute precision: `YYYYMMDDTHHmmZ` (`HH` is the 24-hour clock, `mm` is minutes, `Z` means UTC); omit seconds and milliseconds, for example `20260906T1430Z`.
+- Example: `docs/task/add-endpoint-20260906T1430Z.md`.
+- Do not allocate category or global sequence numbers, or scan existing IDs to choose the next number.
+- Create the detail file exclusively (fail if it exists). If the name collides, wait until the next UTC minute and retry with its timestamp; never overwrite an existing task. Append its index entry only after successful creation.
+- Once created, keep the ID and filename stable. Existing numbered files remain valid; do not rename them unless explicitly requested.
+- Use the full ID in dependency references and links, never the feature slug alone.
 
 ## Status Markers
 
@@ -119,11 +122,11 @@ The `TaskCreate` / `TaskUpdate` / `ActiveForm` references apply only in harnesse
 
 ## Usage
 
-Each task is a single line linking to its detail file. All detailed information lives in `docs/task/PREFIX-NNN.md`.
+Each task is a single line linking to its detail file. All detailed information lives in `docs/task/<feature-slug>-<timestamp>.md`.
 
 ### Format
 
-- [ ] [**PREFIX-001 Short imperative title**](PREFIX-001.md) `P1`
+- [ ] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`
 
 ### Status Markers
 
@@ -140,7 +143,7 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - Only update the checkbox marker; never delete the line.
 - New tasks append to the end.
-- See each `PREFIX-NNN.md` for full details.
+- See each `<feature-slug>-<timestamp>.md` for full details.
 
 ---
 

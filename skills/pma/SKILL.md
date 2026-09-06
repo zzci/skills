@@ -16,7 +16,7 @@ Keep this entry file small. Load only the references needed for the current turn
 3. Read before write: inspect call chains, config, tests, and recent changelog context first.
 4. Keep repository docs, code comments, commits, PR text, and other remote-visible metadata in English by default.
 5. Do not use plan mode. Track plans only in `docs/plan/`.
-6. Update task and plan files immediately; do not defer state sync.
+6. Update task and plan files immediately; do not defer state sync. Name new detail files `<feature-slug>-<timestamp>.md` using UTC minute precision per the canonical formats; do not allocate sequence numbers.
 7. Apply the Coding Principles below to every code change.
 8. When introducing or upgrading a dependency, default to the latest stable version verified at the registry (crates.io / npmjs.com / pkg.go.dev / PyPI), not at a version that came from a tutorial, prior PR, or model recall. Pin to a non-latest version only with a recorded reason. See `references/workflow.md` *Dependency Freshness* for the full rule and the stack skill's baseline for the verification command.
 9. Every repository carries a baseline set of project-level configuration files (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, plus stack-pinned toolchain files). See `references/delivery.md` *Repository Hygiene*.
