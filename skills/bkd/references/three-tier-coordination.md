@@ -82,7 +82,8 @@ two-tier flow: three tiers must not add a ceremonial single L2.
 Compact overview; the per-tier Responsibilities sections below are canonical.
 
 ```
-L1 (current agent session, any engine; main worktree; no cron)
+L1 (current agent session, or a BKD issue its creator started; any engine;
+    main worktree; no cron)
   - talks to the user; gathers context; partitions each campaign into 2+ L2s
   - wakes only on user messages or L2 follow-ups
   - owns cross-L2 scope, dependencies, progress aggregation, and merge order
@@ -688,6 +689,11 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
   15-min cron the L2 process normally survives between wakes; if you lengthen
   the interval past 30 min, create the L2 with `keepAlive:true` or accept a
   fresh spawn (session resumed via its external session id) on every wake.
+  Trade-off: an idle process still occupies a concurrency slot
+  (`/processes/capacity` counts it as active), so N idle L2s permanently
+  reserve N slots under `keepAlive`. Prefer the default (no `keepAlive`) on a
+  server with a small `maxConcurrent`, and budget L3 dispatch against the
+  slots the L2s themselves hold.
 - BKD status and process state are related but not equivalent. Only an actual
   transition to `working` invokes the fire-and-forget auto-execute/flush hook;
   PATCHing an already-`working` issue does nothing. `/restart` directly spawns

@@ -126,6 +126,11 @@ Choose before creating subtasks based on task characteristics:
 
 ### 4.1 Create
 
+Add `engineType`/`model` to the create body when a subtask should not run on
+the project default; use only ids from `/engines/available` (an unknown id
+silently falls back to the engine default). The tiering heuristics in
+`three-tier-coordination.md` → Model Selection apply to subtasks here too.
+
 **Worktree mode:**
 
 ```bash
@@ -218,6 +223,12 @@ if [ "$SUB_STATE" = "failed" ]; then
     -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json | bkd_check
 fi
 ```
+
+The immediate re-read usually sees `pending` because the PATCH sets it
+synchronously while the spawn runs in the background; a spawn failure lands
+a moment later. Repeat the same check on the next monitoring pass: the
+signature of a dead start is `statusId:"working"` + `sessionStatus:"failed"`
++ a non-empty `GET .../pending` list, and the fix is the same follow-up.
 
 ### 4.3 Activation Semantics
 

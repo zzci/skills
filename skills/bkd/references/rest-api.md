@@ -83,7 +83,7 @@ for short strings, `--argjson` for booleans/objects):
 
 ```bash
 jq -n --rawfile prompt /tmp/bkd-prompt.txt \
-      --arg engine "claude-code" --arg model "claude-sonnet-4-6" \
+      --arg engine "claude-code" --arg model "claude-opus-5" \
   '{engineType: $engine, prompt: $prompt, model: $model}' > /tmp/bkd-body.json
 ```
 
@@ -101,9 +101,12 @@ curl -sS --fail-with-body "$BKD_URL/status" | bkd_check    # detailed server sta
 
 ## Engines
 
-An engine (`claude-code`, `codex`, `gemini`, ...) is the CLI that executes an
+An engine (`claude-code` or `codex` in v0.1.0) is the CLI that executes an
 issue. `POST .../execute` requires an `engineType`, so use these to discover what
-is installed and which models are available before dispatching.
+is installed and which models are available before dispatching. Model ids are
+only validated against this list at spawn time and an unknown id silently
+resolves to the engine default, so copy ids from `/engines/available` rather
+than typing them from memory.
 
 ```bash
 # Detected engines + their models (installed, version, authStatus)
@@ -139,6 +142,14 @@ exits non-zero on `null` and aborts a pipefail script on an unlimited server.
 The limit is enforced server-side (`engine:maxConcurrentExecutions`); a spawn
 over the limit fails with `Concurrency limit reached` (see
 [Update issue](#update-issue) for the recovery path).
+
+**Idle processes hold slots.** A conversational engine process stays alive
+(and counted in `totalActive` / `summary.byState.running`) after its turn
+ends, until the 30-minute idle kill — indefinitely with `keepAlive:true`. Only
+`/processes` entries tell idle from busy: `turnInFlight:false` plus a
+`lastIdleAt` timestamp means an idle slot-holder. When capacity is tight,
+`terminate` an idle issue you own (it settles to `review` and any later
+follow-up respawns it) rather than waiting for the idle timeout.
 
 Force-terminate the engine process for one issue:
 
@@ -363,12 +374,12 @@ cat > /tmp/bkd-prompt.txt <<'PROMPT'
 Implement the change described above.
 PROMPT
 jq -n --rawfile prompt /tmp/bkd-prompt.txt \
-      --arg engine "claude-code" --arg model "claude-sonnet-4-6" \
+      --arg engine "claude-code" --arg model "claude-opus-5" \
   '{engineType: $engine, prompt: $prompt, model: $model}' > /tmp/bkd-body.json
 curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/execute" \
   -H 'Content-Type: application/json' \
   --data-binary @/tmp/bkd-body.json | bkd_check
-# -> { executionId, issueId, messageId, queued }
+# -> { executionId, issueId, messageId }
 ```
 
 Discover valid `engineType`/`model` values via [`/engines/available`](#engines).
@@ -818,6 +829,9 @@ Supported query params:
 
 Additional built-in endpoint groups outside the orchestration core:
 
+- **Global review list** — `GET /issues/review` returns every `review` issue
+  across projects (with `projectName`/`projectAlias`); handy for an aggregate
+  "what is waiting on me" view without iterating projects
 - **Notes** — scratch notes: `GET/POST /notes`, `PATCH/DELETE /notes/{noteId}`
 - **Settings** — `server-info`, `max-concurrent-executions`, `log-page-size`,
   `workspace-path`, `write-filter-rules` under `/settings/...`
