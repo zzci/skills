@@ -49,7 +49,7 @@ explicitly performed and verified.
 - [Tier Map](#tier-map)
 - [Campaign and DAG State](#campaign-and-dag-state)
 - [Pre-Flight (every session)](#pre-flight-every-session)
-- [Model Selection (L1 policy)](#model-selection-l1-policy)
+- [Model Selection (user-directed only)](#model-selection-user-directed-only)
 - [L1 - Master Coordinator](#l1---master-coordinator-current-agent-session)
 - [L2 - Scheduling Issue](#l2---scheduling-issue-one-per-workstream-own-worktree)
 - [L3 - Subtask Issues](#l3---subtask-issues-short-lifecycle)
@@ -160,8 +160,10 @@ Do this every time L1 starts, before anything else:
    curl -sS --fail-with-body "$BKD_URL/health" | jq
    curl -sS --fail-with-body "$BKD_URL/processes/capacity" | jq
    ```
-4. Discover installed engines and exact model ids; record them for the
-   campaign's model policy (see [Model Selection](#model-selection-l1-policy)).
+4. Only if the user named an engine or model: resolve it to an exact id via
+   `/engines/available` (see [Model Selection](#model-selection-user-directed-only)).
+   Otherwise skip this step — every issue is created without `engineType`/
+   `model` and the defaults apply.
    ```bash
    curl -sS --fail-with-body "$BKD_URL/engines/available" \
      | jq '{engines: [.data.engines[] | {engineType, installed, authStatus}],
@@ -170,10 +172,17 @@ Do this every time L1 starts, before anything else:
 5. If the scope of work is unclear, ask the user. **Never broaden scope on
    your own.**
 
-## Model Selection (L1 policy)
+## Model Selection (user-directed only)
 
-L1 decides which engine/model runs each L2 and, via the dispatch package,
-which model each L3 gets. Mechanics first:
+**Default: do not choose a model.** Unless the user explicitly names an engine
+or model — for the whole campaign, for a specific L2, or for a class of L3s —
+create every L2 and L3 **without** `engineType`/`model`, so BKD applies the
+project default and then the server's engine default. L1 never picks a model
+on its own judgment, never "upgrades" a task it considers hard, and never
+switches models on a retry; L2 inherits the same rule for its L3s. If a model
+choice seems to matter, say so to the user and ask — do not decide.
+
+When the user does specify a model, the mechanics:
 
 - Engine and model are **pinned per issue at creation** (`engineType` +
   `model` on `POST /issues`). An unknown model id does not error — BKD
@@ -186,33 +195,32 @@ which model each L3 gets. Mechanics first:
   (or `cancel` when the switch can wait for a later wake), verify
   `statusId:"review"`, then send the follow-up with the new `model` — that
   one request records the model and starts the replacement turn on it.
-- Omitted `model` resolves through project/engine defaults; a deliberate
-  campaign pins models explicitly so the policy survives server settings.
+- Omitted `model` resolves through project/engine defaults; that is the
+  normal state of a campaign.
 
-Reference tiers (ids as verified on BKD v0.1.0; re-check per server):
+Resolving the user's wording to exact ids (as verified on BKD v0.1.0;
+re-check per server with `/engines/available`):
 
-| Task profile | `engineType` | `model` |
-|--------------|--------------|---------|
-| Hard reasoning: ambiguous or cross-module L2 workstreams; L3s doing design-sensitive refactors, tricky debugging, concurrency work | `claude-code` | `claude-fable-5-1` |
-| Default tier: routine L2 coordination; ordinary L3 implementation | `claude-code` | `claude-opus-5` |
-| Well-specified mechanical L3s (bulk edits, migrations, test scaffolding) and independent second-engine verification subtasks | `codex` | `gpt-5.6-sol` |
+| User says | `engineType` | `model` |
+|-----------|--------------|---------|
+| "Claude Fable 5.1" | `claude-code` | `claude-fable-5-1` |
+| "Opus 5" | `claude-code` | `claude-opus-5` |
+| "Codex 5.6 Sol" | `codex` | `gpt-5.6-sol` |
 
-Append `[1m]` to a claude-code id (e.g. `claude-fable-5-1[1m]`) only when a
-single L3 must hold an unusually large context; it is not the default.
+Use a `[1m]` variant (e.g. `claude-fable-5-1[1m]`) only when the user asks for
+the 1M-context model by name.
 
-How the tiers flow through the pattern:
+How a user-specified directive flows through the pattern:
 
-- **L1** classifies each workstream when drafting the dispatch package and
-  pins the L2's own engine/model at create time. The dispatch package's Model
-  Policy section tells that L2 which model its L3s get by default and which
-  to escalate to.
-- **L2** applies the policy mechanically at L3 creation — it classifies each
-  L3 against the policy's profiles, never invents ids, and records the chosen
-  model per subtask in the plan snapshot.
-- **Escalation on red:** when a red L3 is retried (retry ≤ N=2), L2 attaches
-  the policy's escalation model to the rework follow-up (allowed: the L3 sits
-  in `review`, session settled). A subtask that failed twice on the default
-  tier is exactly the case for `claude-fable-5-1`.
+- **L1** records the directive verbatim in the dispatch package (which tier,
+  which L2s, which class of L3s it covers) and pins an L2's engine/model at
+  create time only when the directive covers that L2.
+- **L2** applies the directive literally at L3 creation and records the
+  assigned engine/model per subtask in the plan snapshot. Anything the
+  directive does not cover stays at the default; L2 does no profile-based
+  classification of its own.
+- **Retries keep the model.** A red L3 is retried on the same engine/model
+  unless the user's directive explicitly names an escalation model.
 - Mixed engines are expected (engine-agnostic by design): a codex L3
   reporting to a claude-code L2 is normal; all coordination stays in BKD
   HTTP calls.
@@ -270,8 +278,8 @@ matter; only BKD HTTP semantics do.
   1. Draft the dispatch package: classification (new vs continuation), shared
      `campaignId`, the complete L2 set or affected L2 ids, and for each L2
      `{ workstream goal, acceptance criteria, impact scope (paths),
-     out-of-scope, cross-L2 dependencies, engine/model tier and L3 model
-     policy }`, plus open questions.
+     out-of-scope, cross-L2 dependencies, engine/model only if the user
+     specified one }`, plus open questions.
   2. Present it in plain text; resolve every open question by asking.
   3. Wait for an **explicit affirmative** — `proceed`/`ok`/`go`/`confirm`.
      Silence, "thanks", or a partial answer is NOT confirmation.
@@ -345,16 +353,13 @@ reading source or decomposing its L3 DAG.
 
 ```bash
 L2_TITLE="[L2] {workstream}: {short goal} [{campaignId}]"
-# engine/model per the campaign model policy (see Model Selection), e.g.
-# claude-code + claude-fable-5-1 for an ambiguous workstream,
-# claude-code + claude-opus-5 for a routine one.
+# No engineType/model: the project/server default applies. Only when the user
+# named a model for this L2, add `--arg engine ... --arg model ...` and
+# `engineType:$engine,model:$model` (ids from /engines/available).
 L2=$(jq -n \
   --arg title "$L2_TITLE" \
   --arg campaign "campaign:{campaignId}" \
-  --arg engine "{l2EngineType}" \
-  --arg model "{l2ModelId}" \
-  '{title:$title,statusId:"todo",useWorktree:true,tags:["l2",$campaign],
-    engineType:$engine,model:$model}' \
+  '{title:$title,statusId:"todo",useWorktree:true,tags:["l2",$campaign]}' \
   | curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
   -H 'Content-Type: application/json' \
   -d @-) || exit 1
@@ -401,14 +406,16 @@ contains the prerequisite L2 work already merged by L1.
 - In: {paths/modules}
 - Out: {paths/modules}
 
-## Model Policy (apply at L3 creation; ids already verified by L1)
-Default L3 tier: engineType={defaultEngine} model={defaultModel}
-Hard-reasoning L3s (design-sensitive refactor, tricky debugging): engineType=claude-code model={hardModel}
-Mechanical/verification L3s (bulk edits, migrations, second-engine checks): engineType=codex model={mechModel}
-Escalation: when retrying a red L3, attach the hard-reasoning model to the
-rework follow-up. Use ONLY these ids — an unknown id silently falls back to
-the engine default. Record each L3's assigned engine/model in the plan
-snapshot.
+## Model Policy
+(L1: include this section only when the user explicitly specified a model for
+L3s; delete it otherwise. Without it, create every L3 with no engineType/model
+so the project/server default applies, and never pick one yourself.)
+User directive: {verbatim user wording}
+Applies to: {all L3s | the L3s matching: ...}
+engineType={engineType} model={modelId}   (ids already verified by L1)
+Retries keep the same model unless stated here: {none | escalation model}
+Use ONLY these ids — an unknown id silently falls back to the engine default.
+Record each L3's assigned engine/model in the plan snapshot.
 
 ## End-of-Turn Markers
 Emit `[dag-state campaignId=__CAMPAIGN_ID__ l2Id=__L2_ID__]` every turn. Emit
@@ -486,9 +493,10 @@ turn ends. **No `sleep`, ever. Never touch main.**
 4. Evaluate completions immediately (do not batch) via `logs/filter` — classify green/yellow/red using only the logs-filter assessment in `quality-review.md`; this pattern relies on the L3's project checks rather than any specific external review skill:
    - **green** → merge phase.
    - **red** → if the L3 is still running, stop → verify review → follow-up
-     (see [Loop Engine](#loop-engine)). Retry ≤ `N=2`, attaching the Model
-     Policy's escalation model to the rework follow-up; on exceed, set DAG
-     state `blocked` + follow-up L1.
+     (see [Loop Engine](#loop-engine)). Retry ≤ `N=2` on the same
+     engine/model (attach a `model` to the rework follow-up only if the user's
+     Model Policy names an escalation model); on exceed, set DAG state
+     `blocked` + follow-up L1.
    - **yellow** → follow-up L1 for a human decision; do not guess.
 5. Emit fresh `[dag-state ...]`. End turn.
 
@@ -570,15 +578,13 @@ in summary an L3:
 ```bash
 SUB_TITLE="[L3] {subtask title} [{campaignId}]"
 
-# engine/model from the L2 dispatch package's Model Policy, matched to this
-# subtask's profile (default / hard-reasoning / mechanical-verification).
+# No engineType/model: the project/server default applies. Only when the
+# dispatch package's Model Policy (a user directive) covers this L3, add
+# `--arg engine ... --arg model ...` and `engineType:$engine,model:$model`.
 SUB=$(jq -n \
   --arg title "$SUB_TITLE" \
   --arg campaign "campaign:{campaignId}" \
-  --arg engine "{l3EngineType}" \
-  --arg model "{l3ModelId}" \
-  '{title:$title,statusId:"todo",useWorktree:true,tags:["l3",$campaign],
-    engineType:$engine,model:$model}' \
+  '{title:$title,statusId:"todo",useWorktree:true,tags:["l3",$campaign]}' \
   | curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues" \
   -H 'Content-Type: application/json' \
   -d @-) || exit 1
@@ -959,9 +965,10 @@ Compact checklist — the full rules live in the sections referenced.
     send the correction until `statusId:review` is confirmed (see [Loop
     Engine](#loop-engine)).
 15. **Dependent L3 branches are cut from the base branch, not `bkd/{L2_ID}`** — the L3 spec must open with the upstream-sync merge of the shared local `bkd/{L2_ID}` ref; do not assume a remote ref exists (see [L3 Dispatch Payload](#l3-dispatch-payload-sent-by-l2)).
-16. **L1 owns the model policy** — engine/model are pinned at issue creation
-    using only ids verified via `/engines/available`; L2 applies the policy
-    per L3 and escalates a red L3's retry to the hard-reasoning model.
-    Unknown ids silently fall back to the engine default, and a model change
-    is rejected (409) while the session is running (see [Model
-    Selection](#model-selection-l1-policy)).
+16. **Models default unless the user says otherwise** — create L2/L3 issues
+    without `engineType`/`model` so project/server defaults apply; neither L1
+    nor L2 chooses a model on its own, and retries keep the same model. Only
+    an explicit user directive pins an engine/model, using ids verified via
+    `/engines/available` (unknown ids silently fall back; a model change is
+    rejected with 409 while the session is running — stop first). See [Model
+    Selection](#model-selection-user-directed-only).

@@ -126,10 +126,11 @@ Choose before creating subtasks based on task characteristics:
 
 ### 4.1 Create
 
-Add `engineType`/`model` to the create body when a subtask should not run on
-the project default; use only ids from `/engines/available` (an unknown id
-silently falls back to the engine default). The tiering heuristics in
-`three-tier-coordination.md` → Model Selection apply to subtasks here too.
+Create subtasks without `engineType`/`model` so the project/server defaults
+apply; do not pick a model yourself. Only when the user names one, add it
+using an id from `/engines/available` (an unknown id silently falls back to
+the engine default; see `three-tier-coordination.md` → Model Selection for
+the id table).
 
 **Worktree mode:**
 
