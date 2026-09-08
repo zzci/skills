@@ -6,10 +6,10 @@
 docs/
 ├── task/
 │   ├── index.md
-│   └── <feature-slug>-<timestamp>.md
+│   └── <timestamp>-<feature-slug>.md
 ├── plan/
 │   ├── index.md
-│   └── <feature-slug>-<timestamp>.md
+│   └── <timestamp>-<feature-slug>.md
 ├── decisions/        # when applicable — recorded decisions, pinned-version justifications
 ├── architecture.md
 └── changelog.md
@@ -18,9 +18,9 @@ docs/
 ## Required Files
 
 - `docs/task/index.md`: one-line task entries
-- `docs/task/<feature-slug>-<timestamp>.md`: task detail files
+- `docs/task/<timestamp>-<feature-slug>.md`: task detail files
 - `docs/plan/index.md`: one-line plan entries
-- `docs/plan/<feature-slug>-<timestamp>.md`: plan detail files
+- `docs/plan/<timestamp>-<feature-slug>.md`: plan detail files
 - `docs/architecture.md`
 - `docs/changelog.md`
 
@@ -36,6 +36,13 @@ Use these format references:
 - Keep filenames in English even when content is Chinese.
 - Write investigation findings into the relevant plan context section.
 - Do not create extra report files; temporary files belong in `./tmp/`.
+
+## Tracking History
+
+- Task and plan files describe current work and may be revised or deleted as requirements change; keeping closed or rejected records is optional.
+- Preserve history in `docs/changelog.md`. Before deleting a record or replacing historical content, record the affected ID/title, what changed, why, and any replacement task or plan ID. A concise summary is enough; copying the entire old record is not required.
+- When deleting a task or plan, remove its index entry and detail file together. Update or remove affected dependency references, `relatedTask` values, and links so retained records do not point to deleted files.
+- Coordinate changes to actively owned records with the owner so cleanup does not race with ongoing work or status updates.
 
 ## Changelog Conventions
 

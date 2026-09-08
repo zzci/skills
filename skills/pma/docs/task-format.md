@@ -18,7 +18,7 @@ This document defines the task management format for the `docs/task/` directory,
 ```text
 docs/task/
 ├── index.md                         # Task index (one line per task)
-└── <feature-slug>-<timestamp>.md     # Task detail files (one per task)
+└── <timestamp>-<feature-slug>.md     # Task detail files (one per task)
 ```
 
 ## Index Entry Format
@@ -26,7 +26,7 @@ docs/task/
 Each task in `index.md` is a single-line link with no sub-fields.
 
 ```markdown
-- [ ] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`
+- [ ] [**20260907-1428-add-endpoint Add endpoint**](20260907-1428-add-endpoint.md) `P1`
 ```
 
 All detailed information goes in the corresponding detail file. `index.md` must not contain description, owner, or other sub-fields.
@@ -38,7 +38,7 @@ Create the detail file atomically when adding a new task line to `index.md`. Thi
 ### English Template
 
 ```markdown
-# add-endpoint-20260906T1430Z Add endpoint
+# 20260907-1428-add-endpoint Add endpoint
 
 - **status**: pending
 - **priority**: P1
@@ -75,10 +75,10 @@ Present-continuous description for spinner display.
 
 ## Task ID Rules
 
-- Filename format: `<feature-slug>-<timestamp>.md`; the ID is the filename without `.md`.
+- Filename format: `<timestamp>-<feature-slug>.md`; the ID is the filename without `.md`.
 - Use a concise English feature slug in lowercase kebab-case, such as `add-endpoint` or `fix-login-redirect`.
-- Use the creation time in UTC with minute precision: `YYYYMMDDTHHmmZ` (`HH` is the 24-hour clock, `mm` is minutes, `Z` means UTC); omit seconds and milliseconds, for example `20260906T1430Z`.
-- Example: `docs/task/add-endpoint-20260906T1430Z.md`.
+- Use the creation time in UTC with minute precision: `YYYYMMDD-HHmm` (`HH` is the 24-hour clock, `mm` is minutes), for example `20260907-1428`. Do not include seconds, milliseconds, or `T`/`Z` separators.
+- Example: `docs/task/20260907-1428-add-endpoint.md`.
 - Do not allocate category or global sequence numbers, or scan existing IDs to choose the next number.
 - Create the detail file exclusively (fail if it exists). If the name collides, wait until the next UTC minute and retry with its timestamp; never overwrite an existing task. Append its index entry only after successful creation.
 - Once created, keep the ID and filename stable. Existing numbered files remain valid; do not rename them unless explicitly requested.
@@ -106,10 +106,11 @@ The `TaskCreate` / `TaskUpdate` / `ActiveForm` references apply only in harnesse
 
 ## Update Rules
 
-- **`index.md`**: Update only checkbox markers (for example, `[ ]` -> `[x]`). Never delete task lines.
-- **Detail files**: Update status, owner, and notes in place. Never delete existing fields.
+- **`index.md`**: Update markers, titles, links, and priorities as tasks change. Task lines may be deleted when no longer needed.
+- **Detail files**: Revise content or remove obsolete fields while keeping required fields on retained tasks. Task detail files may be deleted together with their index entries.
+- Record changes and deletions in `docs/changelog.md` and update affected references per [Tracking History](../references/docs-and-tracking.md#tracking-history).
 - New tasks append to the end of `index.md`.
-- Task IDs are permanent.
+- Keep IDs stable for retained tasks; deletion does not require keeping a placeholder record.
 
 ## Index Templates
 
@@ -122,11 +123,11 @@ The `TaskCreate` / `TaskUpdate` / `ActiveForm` references apply only in harnesse
 
 ## Usage
 
-Each task is a single line linking to its detail file. All detailed information lives in `docs/task/<feature-slug>-<timestamp>.md`.
+Each task is a single line linking to its detail file. All detailed information lives in `docs/task/<timestamp>-<feature-slug>.md`.
 
 ### Format
 
-- [ ] [**add-endpoint-20260906T1430Z Add endpoint**](add-endpoint-20260906T1430Z.md) `P1`
+- [ ] [**20260907-1428-add-endpoint Add endpoint**](20260907-1428-add-endpoint.md) `P1`
 
 ### Status Markers
 
@@ -141,9 +142,10 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ### Rules
 
-- Only update the checkbox marker; never delete the line.
+- Update or delete task entries and their detail files as needed; keep them consistent.
+- Record change history and deletion reasons in `docs/changelog.md`; update affected dependency and plan references.
 - New tasks append to the end.
-- See each `<feature-slug>-<timestamp>.md` for full details.
+- See each `<timestamp>-<feature-slug>.md` for full details.
 
 ---
 
