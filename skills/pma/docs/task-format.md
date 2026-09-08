@@ -92,6 +92,7 @@ Present-continuous description for spinner display.
 | `[-]` | In progress | `in_progress` |
 | `[x]` | Completed | `completed` |
 | `[~]` | Closed / Won't do | `deleted` |
+| `[d]` | Deleted detail file; index entry retained | `deleted` |
 
 The `TaskCreate` / `TaskUpdate` / `ActiveForm` references apply only in harnesses that expose Claude Code task tools; there, file-status `closed` maps to tool-status `deleted`.
 
@@ -106,11 +107,11 @@ The `TaskCreate` / `TaskUpdate` / `ActiveForm` references apply only in harnesse
 
 ## Update Rules
 
-- **`index.md`**: Update markers, titles, links, and priorities as tasks change. Task lines may be deleted when no longer needed.
-- **Detail files**: Revise content or remove obsolete fields while keeping required fields on retained tasks. Task detail files may be deleted together with their index entries.
+- **`index.md`**: Only update the checkbox marker on existing entries; never delete a line or change its other content. When a detail file is deleted, change its marker to `[d]` and retain the original entry.
+- **Detail files**: Revise content or remove obsolete fields while keeping required fields on retained tasks. Task detail files may be deleted; retain their index entries with the `[d]` marker.
 - Record changes and deletions in `docs/changelog.md` and update affected references per [Tracking History](../references/docs-and-tracking.md#tracking-history).
 - New tasks append to the end of `index.md`.
-- Keep IDs stable for retained tasks; deletion does not require keeping a placeholder record.
+- Keep IDs and index entries permanently; deleted details do not need placeholder files.
 
 ## Index Templates
 
@@ -137,15 +138,16 @@ Each task is a single line linking to its detail file. All detailed information 
 | `[-]`  | In progress |
 | `[x]`  | Completed |
 | `[~]`  | Closed / Won't do |
+| `[d]`  | Deleted detail file; index entry retained |
 
 ### Priority: P0 (blocking) > P1 (high) > P2 (medium) > P3 (low)
 
 ### Rules
 
-- Update or delete task entries and their detail files as needed; keep them consistent.
+- Only update the checkbox marker; never delete the line or change its other content. If the detail file is deleted, mark the entry `[d]`.
 - Record change history and deletion reasons in `docs/changelog.md`; update affected dependency and plan references.
 - New tasks append to the end.
-- See each `<timestamp>-<feature-slug>.md` for full details.
+- See each `<timestamp>-<feature-slug>.md` for full details, except `[d]` entries whose files have been deleted; consult `docs/changelog.md` for their history.
 
 ---
 

@@ -142,7 +142,7 @@ On close:
 ## Sync Rules
 
 - Task status updates are immediate.
-- Primary source of truth for current work is `docs/task/` and `docs/plan/`; change history lives in `docs/changelog.md`. Task and plan records may be revised or deleted per [Tracking History](docs-and-tracking.md#tracking-history).
+- Primary source of truth for current work is `docs/task/` and `docs/plan/`; change history lives in `docs/changelog.md`. Task and plan detail files may be revised or deleted per [Tracking History](docs-and-tracking.md#tracking-history); index entries are permanent and only their markers change (`[d]` for deleted details).
 - If task tools exist, keep tool state in sync with file state.
 - If task tools are unavailable, continue with file-only sync and state that explicitly.
 

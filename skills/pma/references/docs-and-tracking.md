@@ -39,9 +39,10 @@ Use these format references:
 
 ## Tracking History
 
-- Task and plan files describe current work and may be revised or deleted as requirements change; keeping closed or rejected records is optional.
+- Task and plan detail files may be revised or deleted as requirements change. Index entries are permanent: only change their checkbox markers, never delete lines or rewrite their other content.
 - Preserve history in `docs/changelog.md`. Before deleting a record or replacing historical content, record the affected ID/title, what changed, why, and any replacement task or plan ID. A concise summary is enough; copying the entire old record is not required.
-- When deleting a task or plan, remove its index entry and detail file together. Update or remove affected dependency references, `relatedTask` values, and links so retained records do not point to deleted files.
+- When deleting a task or plan detail file, change only its index marker to `[d]` (deleted). Keep the original title, link, and metadata. The retained index link intentionally names a deleted file; skip loading `[d]` details and consult `docs/changelog.md` for history.
+- Update or remove affected dependencies, `relatedTask` values, and links in retained detail files so current work does not depend on deleted records. Keep deleted IDs reserved for their original index entries.
 - Coordinate changes to actively owned records with the owner so cleanup does not race with ongoing work or status updates.
 
 ## Changelog Conventions

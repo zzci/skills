@@ -96,14 +96,15 @@ The Phase 2 output items map directly onto these sections: `current state` -> Co
 | `[-]` | Approved / Implementing | `implementing` |
 | `[x]` | Completed | `completed` |
 | `[~]` | Rejected / Abandoned | `rejected` |
+| `[d]` | Deleted detail file; index entry retained | (no detail file) |
 
 ## Update Rules
 
-- **`index.md`**: Update markers, titles, and links as plans change. Plan lines may be deleted when no longer needed.
-- **Detail files**: Revise content or remove obsolete sections while keeping required fields and applicable sections on retained plans. Plan detail files may be deleted together with their index entries.
+- **`index.md`**: Only update the checkbox marker on existing entries; never delete a line or change its other content. When a detail file is deleted, change its marker to `[d]` and retain the original entry.
+- **Detail files**: Revise content or remove obsolete sections while keeping required fields and applicable sections on retained plans. Plan detail files may be deleted; retain their index entries with the `[d]` marker.
 - Record changes and deletions in `docs/changelog.md` and update affected references per [Tracking History](../references/docs-and-tracking.md#tracking-history).
 - New plans append to the end of `index.md`.
-- Keep IDs stable for retained plans; deletion does not require keeping a placeholder record.
+- Keep IDs and index entries permanently; deleted details do not need placeholder files.
 
 ## Index Templates
 
@@ -130,13 +131,14 @@ Each plan is a single line linking to its detail file. All detailed information 
 | `[-]`  | Approved / Implementing |
 | `[x]`  | Completed |
 | `[~]`  | Rejected / Abandoned |
+| `[d]`  | Deleted detail file; index entry retained |
 
 ### Rules
 
-- Update or delete plan entries and their detail files as needed; keep them consistent.
+- Only update the checkbox marker; never delete the line or change its other content. If the detail file is deleted, mark the entry `[d]`.
 - Record change history and deletion reasons in `docs/changelog.md`; update affected task and plan references.
 - New plans append to the end.
-- See each `<timestamp>-<feature-slug>.md` for full details.
+- See each `<timestamp>-<feature-slug>.md` for full details, except `[d]` entries whose files have been deleted; consult `docs/changelog.md` for their history.
 
 ---
 
