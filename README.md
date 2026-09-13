@@ -19,7 +19,6 @@ npx skills add zzci/skills --skill pma-web --global
 npx skills add zzci/skills --skill pma-rust --global
 npx skills add zzci/skills --skill pma-go --global
 npx skills add zzci/skills --skill pma-bun --global
-npx skills add zzci/skills --skill pma-design --global
 npx skills add zzci/skills --skill react-spectrum-s2 --global
 npx skills add zzci/skills --skill spectrum-audit --global
 npx skills add zzci/skills --skill bkd --global
@@ -39,7 +38,6 @@ npx skills add zzci/skills --skill pma-web
 npx skills add zzci/skills --skill pma-rust
 npx skills add zzci/skills --skill pma-go
 npx skills add zzci/skills --skill pma-bun
-npx skills add zzci/skills --skill pma-design
 npx skills add zzci/skills --skill react-spectrum-s2
 npx skills add zzci/skills --skill spectrum-audit
 npx skills add zzci/skills --skill bkd
@@ -126,17 +124,6 @@ For Bun backend and full-stack projects:
 7. Standardize on OpenAPIHono on top of `Bun.serve()`, with `app.ts` / `index.ts` / `dev.ts` split by runtime role.
 8. Use a dedicated compile pipeline when shipping standalone binaries with embedded assets or migrations.
 
-## Add PMA-Design
-
-For HTML design artifacts (mockups, prototypes, wireframes, decks, design systems):
-
-1. Use `/pma-design` as a standalone skill — it does not require the `/pma` workflow.
-2. Output lives under `designs/<project>/` as self-contained HTML (React 18 + Babel multi-file prototypes), with React/Babel referenced locally from `designs/_vendor/`.
-3. Clarifying questions are asked as numbered lists in chat (structured ask tools are disabled).
-4. Preview is served with `nsl serve --list --name <project>-designs designs` inside a tmux session; deliverables are reviewed over `http://<name>.localhost/...`, never `file://`.
-5. Design systems are authored or consumed via the bundled compiler/importer scripts (`agents/*.mjs`), bound per project through `_ds/<slug>/` and `_d_meta.json`.
-6. Harness-specific preview/screenshot/verification tools are resolved from `references/claude.md` (Claude Code) or `references/codex.md` (Codex Agent).
-
 ## Add BKD
 
 For operating BKD kanban boards via REST API:
@@ -164,7 +151,6 @@ in [React Spectrum Skills Source](docs/sources/react-spectrum.md).
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, SQLx/SeaORM/diesel-async data access, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
 | [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend service conventions, optional monorepo promotion, `src/modules` API layout, SQLite-first Drizzle patterns, OpenAPIHono/Bun.serve runtime split, compile-time embedded assets, and validated env config |
-| [pma-design](skills/pma-design/) | Design artifact creator — self-contained HTML mockups, interactive prototypes, wireframes, decks, and design-system authoring/consumption with nsl-served tmux previews and local vendor React/Babel runtime |
 | [react-spectrum-s2](skills/react-spectrum-s2/) | React Spectrum S2 implementation guide — component selection, usage, styling, testing, and bundled React Aria references |
 | [spectrum-audit](skills/spectrum-audit/) | Spectrum adherence audit — deterministic checks, scoring, and report generation for React Spectrum S2 projects |
 | [bkd](skills/bkd/) | BKD kanban board operator — REST API workflows for projects, issues, cron jobs, event-driven L1 plus multiple cron-driven L2 workstreams and L3 execution, multi-subtask orchestration with worktree/simple modes, logs filter quality assessment, and branch merge strategies |
