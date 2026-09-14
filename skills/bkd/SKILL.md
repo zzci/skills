@@ -65,9 +65,9 @@ When the user says a phrase such as "start BKD multi-repo coordination" or
 repos, load `references/multi-repo-coordination.md`: one L1 master coordinator
 issue owns a PMA-format ledger in the workspace and does coordination and
 forwarding only (no diffs, no builds, no code judgement), one lane issue per
-repo (L2) does the work in that repo's own BKD project, and a per-repo
-integrator (L2M) merges and re-verifies — so no issue ever commits across
-repos.
+repo (L2) owns that repo end to end in its own BKD project — implement,
+check, and merge its own branch after the user approves — so no issue ever
+commits across repos.
 
 ### Single Issue Execution
 
@@ -138,9 +138,9 @@ Load only what the current task needs:
   Use for worktree branch merging, conflict resolution, post-merge verification, and cleanup after subtasks complete in worktree mode.
 - `references/multi-repo-coordination.md`
   Use for MR mode, when one workspace directory holds several git repos: a
-  coordination-only L1 master, one L2 lane per repo, an L2M integrator per repo
-  for merges and checks, a PMA-format workspace ledger, cross-repo contract
-  ordering, boundary checks, and per-repo rollback.
+  coordination-only L1 master plus one L2 lane per repo that implements,
+  checks, and merges its own branch, with a PMA-format workspace ledger,
+  cross-repo contract ordering, boundary checks, and per-repo rollback.
 - `references/three-tier-coordination.md`
   Use for event-driven L1, cron-driven L2, and short-lived L3 autonomous coordination: the user-facing L1 is woken only by the user or L2 follow-ups, every campaign is partitioned across multiple bounded L2 coordinators, each L2 owns its own DAG and 15-min self cron, and L3 issues execute short-lived subtasks. Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.); models stay at the server defaults unless the user names one. Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
 

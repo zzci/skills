@@ -6,8 +6,9 @@ that spans repos into **one lane issue per repo**, so every branch, commit,
 merge, and rollback stays inside a single repository, and keeps the cross-repo
 picture in a PMA-format **ledger** owned by a **master coordinator issue**.
 The master only coordinates: it dispatches, records, and forwards. All code
-work and all verification happen inside a repo — a lane implements and
-self-checks, a per-repo integration issue merges and re-verifies.
+work and all verification happen inside a repo — the lane implements,
+self-checks, and, once the merge is confirmed, merges its own branch into its
+repo's base branch and re-runs that repo's checks.
 
 Activation: short phrases such as "start BKD multi-repo coordination",
 "启动多仓库协调", or "multi-repo mode". Load `references/rest-api.md` first for
@@ -16,18 +17,21 @@ guarded transport; load this file for topology, ledger, and lane rules.
 ## Naming
 
 This mode is **multi-repo coordination** (MR mode); one run of it is an **MR
-campaign**. It is the same tier ladder as `three-tier-coordination.md`, with a
-workspace-wide topology and one added role:
+campaign**. It has exactly **two tiers**:
 
 | Tier | Role in MR mode | Relation to three-tier |
 |------|-----------------|------------------------|
 | **L1** | workspace coordinator (the master): user-facing, event-driven, owns the ledger, coordinates and forwards only | same L1, scoped to the workspace instead of one repo |
-| **L2** | repo lane: one per repo, its workstream is exactly one repository | an L2 whose scope is a repo |
-| **L2M** | repo integrator: one per repo, merge-only, the sole writer of that repo's base branch | new sibling of L2 (M = merge); it takes over the review-and-merge duty L1 holds in three-tier |
-| **L3** | repo subtask: dispatched by a lane inside its repo | unchanged |
+| **L2** | repo lane: one per repo — implements, self-checks, and merges its own branch into that repo's base branch once the merge is confirmed | an L2 whose workstream is exactly one repository, plus the merge duty L1 holds in three-tier |
 
-Issue titles carry the tier: `[L2 lane:{repo}] ...`, `[L2M integrate:{repo}] ...`.
-Tag every MR issue with `mr`, its tier, and `campaign:{campaignId}`.
+There is no third tier and no separate integrator: the repo is the unit of
+work, so one lane owns its repo end to end. The user talks to L1 for
+cross-repo decisions and can also talk to a lane directly on the board — a lane
+that agrees to anything with the user reports it to L1 so the ledger stays
+true.
+
+Issue titles carry the tier: `[L2 lane:{repo}] ...`. Tag every MR issue with
+`mr`, `l2`, and `campaign:{campaignId}`.
 
 Shell examples assume `set -o pipefail` and the `bkd_check` helper from
 `rest-api.md`, so HTTP and application failures abort instead of passing
@@ -49,7 +53,7 @@ file, wrap with `jq`, POST with `--data-binary @file` (see `rest-api.md` →
 - [Lane Responsibilities](#lane-responsibilities)
 - [Cross-Repo Dependencies and Ordering](#cross-repo-dependencies-and-ordering)
 - [Boundary Checks](#boundary-checks)
-- [Per-Repo Integration Issue](#per-repo-integration-issue)
+- [Lane Merge and Rollback](#lane-merge-and-rollback)
 - [Composing With the Other Patterns](#composing-with-the-other-patterns)
 - [Key Constraints](#key-constraints)
 
@@ -104,21 +108,20 @@ Workspace project (directory = workspace root, NOT a git repo)
     - coordination and forwarding only: no diffs, no builds, no code judgement
     - one lane per repo; records contracts, lane order, merge order, SHAs
         |  cross-project follow-up (URL carries the repo project id)
-        v
+        v            ^ user may also talk to a lane directly on the board
 Repo project A (directory = <workspace>/repo-a, isGitRepo:true)
   L2 lane issue A (useWorktree:true -> branch bkd/{laneA})
-    - writes only inside repo-a; self-checks; reports to the master
-    - may dispatch its own L3 subtasks inside repo-a (see three-tier)
-  L2M integration issue A (useWorktree:false -> runs on repo-a's base branch)
-    - the only writer of repo-a's base branch: merges bkd/{laneA}, runs the
-      repo's checks, reverts on failure, reports SHAs to the master
+    - implements and self-checks inside repo-a only; reports to the master
+    - on a confirmed merge: git -C <repo-a> merge bkd/{laneA}, re-run checks,
+      revert on failure, report the SHAs to the master
 Repo project B (directory = <workspace>/repo-b)
-  L2 lane issue B ..., L2M integration issue B ...
+  L2 lane issue B ...
 ```
 
 The master is L1 in the sense of `three-tier-coordination.md` (event-driven, no
 cron, two user-confirmation gates) minus the review-and-merge duties, which move
-into each repo's L2M. A lane is an L2 whose entire workstream is one repository.
+into the lane. A lane is an L2 whose entire workstream is one repository, from
+first commit to merged base branch.
 
 ## Hard Rules
 
@@ -136,12 +139,13 @@ into each repo's L2M. A lane is an L2 whose entire workstream is one repository.
    repo.
 5. **The master never verifies code.** No diff reading, no lint/test/build, no
    green/yellow/red quality classification, no hand-fixing. It dispatches,
-   records reports in the ledger, forwards them (to the user, to another lane,
-   to an integration issue), and asks when a decision is needed. Anything that
+   records reports in the ledger, forwards them (to the user, to another lane),
+   and asks when a decision is needed. Anything that
    requires looking at code is dispatched to an issue inside the owning repo.
-6. **A repo's base branch is written only by that repo's integration issue**
-   (`useWorktree:false` in the repo's project), one merge at a time, and only
-   after the master has forwarded an explicit user confirmation for that repo.
+6. **A lane merges only its own branch, only into its own repo, and only after
+   an explicit merge confirmation.** It merges with `git -C <repoRoot>` from
+   its worktree, never checks out the base branch, never merges another lane's
+   branch, and never pushes unless the payload says so.
 7. **Lanes never read sibling repos through relative paths** (fact 4). A lane
    needs either an absolute read-only path supplied by the master, or — better —
    the contract excerpt inlined in its dispatch payload.
@@ -275,9 +279,9 @@ issue reports it, and append decisions and rollbacks to `changelog.md`.
   forwarded into the dependent lanes' payloads unchanged.
 - **Gate 2 — merge.** For a lane that reports success with passing checks,
   present to the user: the lane's report, the branch name, and the merge plan
-  for that one repo; wait for explicit confirmation. Then dispatch that repo's
-  integration issue (see [Per-Repo Integration
-  Issue](#per-repo-integration-issue)) and record the SHAs it reports. The
+  for that one repo; wait for explicit confirmation. Then forward the merge
+  approval to that lane (see [Lane Merge and
+  Rollback](#lane-merge-and-rollback)) and record the SHAs it reports back. The
   master never merges, never reads the diff, and never runs the checks itself.
 - **Route failures instead of fixing them.** `failure`/`partial`/`blocked`, a
   failed check, a boundary violation, a merge conflict, or a post-merge revert
@@ -285,10 +289,10 @@ issue reports it, and append decisions and rollbacks to `changelog.md`.
   error), or to the user when it needs a decision. Rework is bounded (default 2
   attempts per lane); on exceed, set the lane state `blocked` and ask the user.
 - **Terminate** when every lane is `merged` or `blocked`: delete each lane's
-  cron by captured ID (assert success, verify `isDeleted:true`), move each
-  integration issue to `review`, set the plan status to `completed`, complete or
-  close each lane task, append a changelog entry, and move the master to
-  `review`. `done` stays human-only.
+  cron by captured ID if it registered one (assert success, verify
+  `isDeleted:true`), set the plan status to `completed`, complete or close each
+  lane task, append a changelog entry, and move the master to `review`. `done`
+  stays human-only.
 
 The master is woken by user messages and lane follow-ups; it creates **no
 cron** and never uses `sleep`.
@@ -311,8 +315,10 @@ cat > /tmp/bkd-prompt.txt <<'PROMPT'
 ## Role
 You are the L2 repo lane for __REPO_NAME__ in multi-repo campaign __CAMPAIGN_ID__.
 Your repo is __REPO_PATH__ and you run in your own worktree on branch
-bkd/__LANE_ID__. The master coordinator owns the workspace ledger and all
-merges.
+bkd/__LANE_ID__. You own this repo end to end: implementation, checks, and —
+after the master forwards the user's merge approval — the merge into this
+repo's base branch. The master owns the workspace ledger and the cross-repo
+decisions.
 
 ## Repo Boundary (hard)
 - Create, edit, or delete files ONLY under this repo. Never write to a sibling
@@ -321,9 +327,9 @@ merges.
 - Sibling repos are NOT reachable by relative path from this worktree. If you
   need something from another repo, use the read-only absolute paths listed
   below; if it is missing, report status=blocked instead of guessing.
-- Commit only your own repo's work. This repo's integration issue merges
-  bkd/__LANE_ID__ into the base branch after the user confirms; you never merge
-  and never switch to the base branch.
+- Commit only your own repo's work, and merge only your own branch, only into
+  this repo. Never `git checkout` the base branch: run merge and status through
+  `git -C __REPO_PATH__` from here.
 
 ## Goal
 {bounded goal for this repo}
@@ -345,16 +351,39 @@ Check command: {repo-defined lint/typecheck/test/build}
 Fix and re-run until it passes. If it cannot pass for a reason outside this
 spec, report status=blocked with the failing command and its output.
 
+## Merge Sequence — only after the master approves the merge
+Do NOT merge when you first report; wait for the master's merge approval
+follow-up. Then, in one turn:
+1. `git -C __REPO_PATH__ status --porcelain` must be empty, and the repo root
+   must be on its base branch. Never stash or commit work you did not author —
+   report and stop instead.
+2. Confirm `git -C __REPO_PATH__ diff --name-only <base>...bkd/__LANE_ID__`
+   stays inside this repo, and that every sibling repo under __WORKSPACE__ is
+   clean.
+3. `MERGE_BASE=$(git -C __REPO_PATH__ rev-parse HEAD)`, then
+   `git -C __REPO_PATH__ merge --no-ff bkd/__LANE_ID__ -m "merge: {goal} (bkd/__LANE_ID__) [__CAMPAIGN_ID__]"`.
+   On conflict: `git -C __REPO_PATH__ merge --abort`, report status=conflict
+   with the conflicting paths, stop.
+4. Re-run the check command on the base branch. On failure:
+   `git -C __REPO_PATH__ revert -m 1 HEAD --no-edit`, report status=reverted
+   with the failing output, then fix on your branch and wait for a new
+   approval.
+5. Report status=merged with MergeBase and MergeSha. Do not push unless this
+   payload says to.
+
 ## Report To The Master (exact URL — note the workspace project id)
 POST __BKD_URL__/projects/__MASTER_PROJECT_ID__/issues/__MASTER_ID__/follow-up
 Body JSON shape:
-{"prompt": "campaignId: __CAMPAIGN_ID__\nlane __LANE_ID__ repo __REPO_NAME__\nStatus: success|failure|partial|blocked\nBranch: bkd/__LANE_ID__ (commits: N)\nChanged files: ...\nContract delivered: {what the sibling repos can now rely on}\nChecks: {command} -> passed | {failing output}\nCross-repo needs: {work that belongs to another repo, or none}\nRemaining issues: ..."}
+{"prompt": "campaignId: __CAMPAIGN_ID__\nlane __LANE_ID__ repo __REPO_NAME__\nStatus: success|failure|partial|blocked|merged|conflict|reverted\nBranch: bkd/__LANE_ID__ (commits: N)\nChanged files: ...\nContract delivered: {what the sibling repos can now rely on}\nChecks: {command} -> passed | {failing output}\nMergeBase/MergeSha: {only in a merge report}\nCross-repo needs: {work that belongs to another repo, or none}\nRemaining issues: ..."}
+
+Report again after the merge turn, and report anything the user agrees with you
+directly on the board, so the master's ledger stays accurate.
 
 ## Strict Rules
 - Use ONLY that HTTP endpoint to talk to the master; do not assume any
   engine-local slash command exists.
-- Do not create issues in other projects, do not merge, do not touch the
-  workspace ledger. After reporting, exit.
+- Do not create issues in other projects, do not merge another lane's branch,
+  do not touch the workspace ledger. After reporting, exit.
 PROMPT
 sed -i "s|__CAMPAIGN_ID__|$CAMPAIGN_ID|g; s|__LANE_ID__|$LANE_ID|g; s|__REPO_NAME__|$REPO_NAME|g; s|__REPO_PATH__|$REPO_PATH|g; s|__WORKSPACE__|$WORKSPACE|g; s|__BKD_URL__|$BKD_URL|g; s|__MASTER_PROJECT_ID__|$MASTER_PROJECT_ID|g; s|__MASTER_ID__|$MASTER_ID|g" /tmp/bkd-prompt.txt
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
@@ -377,14 +406,14 @@ The `working` PATCH is fire-and-forget: re-read `sessionStatus` and, if it is
 - Implement only its own repo's spec, pass that repo's own checks, commit on
   `bkd/{laneId}`, then follow-up the master and exit. BKD auto-moves it to
   `review`; it never changes status by hand.
+- Merge its own branch when the master forwards the merge approval, following
+  [Lane Merge and Rollback](#lane-merge-and-rollback), and report the SHAs.
 - Report cross-repo needs instead of acting on them: a missing endpoint, a
   schema the sibling repo must change, a version bump elsewhere. The master
   turns those into new lanes.
-- A lane large enough to need subtasks is exactly an L2 and follows
-  `three-tier-coordination.md` **within its own repo project**: its own 15-min `issue-follow-up` cron,
-  L3 issues with `useWorktree:true` in the same repo project, L3 branches
-  merged into `bkd/{laneId}`. Those L3s inherit the repo boundary rule, and the
-  lane still never merges into the repo's base branch.
+- Answer the user directly when the user opens the lane on the board, and
+  report any agreement reached there to the master — the ledger must not drift
+  from what the lane actually does.
 - If the repo is PMA-managed, follow its local PMA flow for repo-internal
   tracking (`<repo>/docs/task/`); that is separate from the workspace ledger.
 
@@ -400,8 +429,8 @@ The `working` PATCH is fire-and-forget: re-read `sessionStatus` and, if it is
   once is how a "works on my branch" pair reaches the base branches broken.
 - **Version-coupled repos.** When the consumer depends on a published artifact
   (npm/crate/module tag), the master puts the publish or tag step in the
-  producer repo's integration follow-up, and names the exact version in the
-  consumer payload once the integration issue reports it.
+  producer lane's merge-approval follow-up, and names the exact version in the
+  consumer payload once that lane reports it.
 - **If a contract changes mid-campaign**, the master updates the plan file, then
   uses stop → verify `review` → follow-up on each affected lane (see
   `three-tier-coordination.md` → Loop Engine). Never bare-follow-up a lane
@@ -411,8 +440,7 @@ The `working` PATCH is fire-and-forget: re-read `sessionStatus` and, if it is
 
 Boundary enforcement is split so the master stays out of the code: the master
 runs only record-level checks (BKD API reads and string comparison), and the
-git-level check belongs to the repo's integration issue, which is already
-allowed to look at the repository.
+git-level check belongs to the lane, which is already inside the repository.
 
 **Master, on every lane report** — no repo access needed:
 
@@ -426,114 +454,82 @@ curl -sS --fail-with-body "$BKD_URL/projects/$REPO_PROJ_ID/issues/$LANE_ID/chang
 ```
 
 Both checks are mechanical: a wrong `root` or a foreign path prefix means the
-lane escaped its boundary. The master does not merge such a lane, records the
+lane escaped its boundary. The master does not approve such a merge, records the
 violation in the ledger, and follows up the lane to move or revert the stray
 work inside its own repo — it never cleans up the repos itself.
 
-**Integration issue, before each merge** — the git-level confirmation:
+**Lane, before it merges** — the git-level confirmation, reported to the master
+rather than fixed silently:
 
-- its repo's working tree is clean, and the lane branch's
-  `git diff --name-only <base>...bkd/{laneId}` stays inside the repo;
-- every sibling repo in the workspace is still clean
-  (`git -C <sibling> status --porcelain` is empty), which catches a lane that
-  wrote across repos before committing.
+- the repo root checkout is on the base branch and clean
+  (`git -C <repoRoot> status --porcelain` empty) — never merge into someone
+  else's uncommitted work, and never stash or commit work the lane did not
+  author;
+- its own branch diff `git -C <repoRoot> diff --name-only <base>...bkd/{laneId}`
+  stays inside the repo;
+- every sibling repo in the workspace is still clean, which catches work that
+  escaped the boundary before it was committed.
 
-It reports a violation to the master instead of fixing it.
+## Lane Merge and Rollback
 
-## Per-Repo Integration Issue
-
-One L2M integration issue per repo per campaign, created in that repo's project
-with **`useWorktree:false`** so it runs on the repo's real checkout and base
-branch. It is the only writer of that branch, it is reused for every merge in
-that repo, and only one of its merges runs at a time. The master creates it
-lazily — on the first confirmed merge for that repo — and drives it with one
-follow-up per merge.
+The lane owns the merge of its own branch. It happens only after the master
+forwards the user's merge confirmation, as a follow-up to the lane (which sits
+in `review` after reporting, so the follow-up alone wakes it):
 
 ```bash
-INTEG_TITLE="[L2M integrate:repo-a] merge lanes into base [{campaignId}]"
-INTEG=$(jq -n --arg title "$INTEG_TITLE" --arg campaign "campaign:{campaignId}" \
-  '{title:$title,statusId:"todo",useWorktree:false,tags:["mr","l2m",$campaign]}' \
-  | curl -sS --fail-with-body -X POST "$BKD_URL/projects/$REPO_PROJ_ID/issues" \
-      -H 'Content-Type: application/json' -d @-) || exit 1
-if ! printf '%s\n' "$INTEG" | jq -e '.success == true and (.data.id | type == "string")' >/dev/null; then
-  printf 'BKD error: %s\n' "$(printf '%s\n' "$INTEG" | jq -r '.error // "invalid response"')" >&2
-  exit 1
-fi
-INTEG_ID=$(printf '%s\n' "$INTEG" | jq -er '.data.id')
-
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
-## Role
-You are the L2M integration issue for repo __REPO_NAME__ (__REPO_PATH__) in
-multi-repo campaign __CAMPAIGN_ID__. You run on this repo's real checkout, so
-you are the only writer of its base branch. Handle exactly the one merge
-described below, report, and end the turn. Never touch another repo and never
-write the workspace ledger at __WORKSPACE__ — the master owns it.
-
-## Merge Request (user already confirmed this merge)
-Lane branch: bkd/__LANE_ID__
-Lane goal: {goal}
-Check command: {repo-defined lint/typecheck/test/build}
-
-## Steps
-1. Pre-merge checks: the working tree must be clean (never merge a dirty tree,
-   never stash or commit work you did not author); the lane branch diff
-   `git diff --name-only <base>...bkd/__LANE_ID__` must stay inside this repo;
-   every sibling repo under __WORKSPACE__ must be clean
-   (`git -C <sibling> status --porcelain`). Any failure: report and stop.
-2. Record `MERGE_BASE=$(git rev-parse HEAD)`, then
-   `git merge --no-ff bkd/__LANE_ID__ -m "merge: {goal} (bkd/__LANE_ID__) [__CAMPAIGN_ID__]"`.
-   On conflict: `git merge --abort`, report status=conflict with the conflicting
-   paths, stop. Do not resolve a conflict that needs the lane's knowledge.
-3. Run the check command. On failure: `git revert -m 1 HEAD --no-edit`, report
-   status=reverted with the failing output, stop. Do not fix the code.
-4. On success, report the SHAs.
-
-If the check command runs longer than a few minutes, commit nothing further,
-launch it detached with PID/log/commit metadata, report `[gate-pending ...]` to
-the master, and end the turn; the master wakes you to collect the result.
-
-## Report To The Master (exact URL — note the workspace project id)
-POST __BKD_URL__/projects/__MASTER_PROJECT_ID__/issues/__MASTER_ID__/follow-up
-Body JSON shape:
-{"prompt": "campaignId: __CAMPAIGN_ID__\nintegration __INTEG_ID__ repo __REPO_NAME__ lane __LANE_ID__\nStatus: merged|conflict|reverted|blocked\nMergeBase: {sha}\nMergeSha: {sha or none}\nChecks: {command} -> passed | {failing output}\nDetails: {conflicting paths, sibling-repo violations, or none}"}
-
-## Strict Rules
-- One merge per follow-up; never batch lanes.
-- Never implement or fix code, never rebase a lane branch, never push.
-- Use ONLY that HTTP endpoint to talk to the master. After reporting, exit.
+Merge approved for bkd/__LANE_ID__ into __REPO_NAME__'s base branch
+(campaignId __CAMPAIGN_ID__). Run the merge sequence from your dispatch
+prompt, then report MergeBase/MergeSha/Checks to the master. Do not start any
+new implementation work in this turn.
 PROMPT
-sed -i "s|__CAMPAIGN_ID__|$CAMPAIGN_ID|g; s|__LANE_ID__|$LANE_ID|g; s|__INTEG_ID__|$INTEG_ID|g; s|__REPO_NAME__|$REPO_NAME|g; s|__REPO_PATH__|$REPO_PATH|g; s|__WORKSPACE__|$WORKSPACE|g; s|__BKD_URL__|$BKD_URL|g; s|__MASTER_PROJECT_ID__|$MASTER_PROJECT_ID|g; s|__MASTER_ID__|$MASTER_ID|g" /tmp/bkd-prompt.txt
+sed -i "s|__LANE_ID__|$LANE_ID|g; s|__REPO_NAME__|$REPO_NAME|g; s|__CAMPAIGN_ID__|$CAMPAIGN_ID|g" /tmp/bkd-prompt.txt
 jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt:$prompt}' > /tmp/bkd-body.json
-
-# First merge: queue while todo, then PATCH working. Later merges: the issue
-# sits in review between turns, so the follow-up alone wakes it.
-curl -sS --fail-with-body -X POST "$BKD_URL/projects/$REPO_PROJ_ID/issues/$INTEG_ID/follow-up" \
+curl -sS --fail-with-body -X POST "$BKD_URL/projects/$REPO_PROJ_ID/issues/$LANE_ID/follow-up" \
   -H 'Content-Type: application/json' --data-binary @/tmp/bkd-body.json | bkd_check
-curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/$REPO_PROJ_ID/issues/$INTEG_ID" \
-  -H 'Content-Type: application/json' -d '{"statusId":"working"}' | bkd_check
 ```
 
-The master records `MergeBase`, `MergeSha`, and the check result from the
-report into the plan's Merge Log immediately; that log is the rollback script.
-Rollback is also dispatched work: the master asks each repo's integration issue
-for `git revert -m 1 <merge-sha>`, in reverse merge order, and records the
-outcome in `changelog.md`. Conflict and post-merge-verification detail for the
-integration issue: `merge-strategy.md` (never for a lane, never for the
-master).
+The sequence the lane runs, entirely with `git -C "$REPO_PATH"` so it never
+leaves its worktree and never checks out the base branch (git forbids checking
+out a branch that another worktree holds, and the lane holds `bkd/{laneId}`):
+
+```bash
+git -C "$REPO_PATH" status --porcelain          # must be empty
+BASE_REF=$(git -C "$REPO_PATH" branch --show-current)
+MERGE_BASE=$(git -C "$REPO_PATH" rev-parse HEAD)
+
+git -C "$REPO_PATH" merge --no-ff "bkd/$LANE_ID" \
+  -m "merge: {lane goal} (bkd/$LANE_ID) [{campaignId}]"
+# conflict    -> git -C "$REPO_PATH" merge --abort, report status=conflict with
+#                the conflicting paths; ask the master before retrying
+# checks fail -> git -C "$REPO_PATH" revert -m 1 HEAD --no-edit, report
+#                status=reverted with the failing output, then fix on the branch
+```
+
+After a successful merge the lane re-runs the repo's check command on the base
+branch and reports `Status: merged`, `MergeBase`, `MergeSha`, and the check
+result. The master writes those into the plan's Merge Log immediately; that log
+is the rollback script. Rollback is also the lane's work: the master asks each
+affected lane for `git revert -m 1 <merge-sha>` in reverse merge order, and
+records the outcome in `changelog.md`. Conflict handling and post-merge
+verification detail: `merge-strategy.md` (for the lane, never for the master).
 
 ## Composing With the Other Patterns
 
 | Situation | Pattern |
 |-----------|---------|
-| Request touches 2+ repos in a workspace | this file: master + one lane per repo + per-repo integration issue |
+| Request touches 2+ repos in a workspace | this file: master + one lane per repo (two tiers) |
 | One repo, several subtasks, one session | `orchestration.md` |
 | One repo, long-running campaign, many workstreams | `three-tier-coordination.md` |
-| A single repo lane needs its own DAG | lane acts as an L2 per `three-tier-coordination.md`, inside its repo project |
+
+A repo whose share of the campaign is too big for one lane is not an MR
+problem: run `three-tier-coordination.md` inside that repo's own project as a
+separate campaign, and let the MR lane for that repo wait on its result.
 
 `quality-review.md` still describes how a lane report is judged, but in this
-mode the judging is not the master's: a lane self-reviews before reporting and
-the integration issue's check run is the gate. The master reads the reported
-`Status` and `Checks` lines and routes.
+mode the judging is not the master's: the lane self-reviews before reporting
+and its check runs — before reporting and again after the merge — are the gate.
+The master reads the reported `Status` and `Checks` lines and routes.
 
 ## Key Constraints
 
@@ -545,8 +541,9 @@ the integration issue's check run is the gate. The master reads the reported
    quality classification, no hand-fixing; it dispatches, records, forwards,
    and asks. Every code-facing step is an issue inside the owning repo.
 4. **Boundary checks are split** — master: `.data.root` is a worktree path and
-   every reported path starts with the lane's repo; integration issue: clean
-   tree, branch diff inside the repo, all sibling repos clean.
+   every reported path starts with the lane's repo; lane before merging: repo
+   root clean and on its base branch, branch diff inside the repo, all sibling
+   repos clean.
 5. **Cross-project follow-up URLs carry the target project id** — a lane
    reporting to its own project id loses the report.
 6. **No relative sibling paths from a lane worktree** — worktrees live outside
@@ -556,9 +553,9 @@ the integration issue's check run is the gate. The master reads the reported
 8. **Ledger is authoritative and updated immediately** — PMA formats, claimed
    through `task-state.sh` (or the same transition under `flock`), history in
    `changelog.md`.
-9. **Only a repo's integration issue writes its base branch** (`useWorktree:false`
-   in that repo's project), one merge per follow-up, dispatched by the master
-   after an explicit user confirmation; two gates total (lane set, each merge).
+9. **A lane merges only its own branch into its own repo**, via
+   `git -C <repoRoot>` without checking out the base branch, only after the
+   master forwards the user's approval; two gates total (lane set, each merge).
 10. **No cross-repo atomicity** — the Merge Log plus reverse-order revert is
     the rollback plan; say so to the user rather than implying atomic behaviour.
 11. **No `sleep`, `review` != `done`, capacity before every dispatch** — the
