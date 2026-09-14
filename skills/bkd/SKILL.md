@@ -1,6 +1,6 @@
 ---
 name: bkd
-description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity, including three-tier coordination with an event-driven L1, multiple cron-driven L2 workstreams, and L3 execution, plus multi-subtask orchestration (trigger phrases like "use bkd to start coordination", "start BKD L1"). Requires a reachable BKD server ($BKD_URL).
+description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity, including three-tier coordination with an event-driven L1, multiple cron-driven L2 workstreams, and L3 execution, multi-repo coordination across several git repos in one workspace directory (trigger phrases like "start BKD multi-repo coordination"), plus multi-subtask orchestration (trigger phrases like "use bkd to start coordination", "start BKD L1"). Requires a reachable BKD server ($BKD_URL).
 ---
 
 # BKD
@@ -57,6 +57,17 @@ When the user says a short phrase such as "use bkd to start coordination" or
 "start BKD L1", treat the current agent session as L1 and load
 `references/three-tier-coordination.md`. The user does not need to repeat the
 full L1/L2/L3 rules in the prompt.
+
+### Multi-Repo Coordination Shortcut (MR mode)
+
+When the user says a phrase such as "start BKD multi-repo coordination" or
+"启动多仓库协调", or when the project directory turns out to hold several git
+repos, load `references/multi-repo-coordination.md`: one L1 master coordinator
+issue owns a PMA-format ledger in the workspace and does coordination and
+forwarding only (no diffs, no builds, no code judgement), one lane issue per
+repo (L2) does the work in that repo's own BKD project, and a per-repo
+integrator (L2M) merges and re-verifies — so no issue ever commits across
+repos.
 
 ### Single Issue Execution
 
@@ -125,6 +136,11 @@ Load only what the current task needs:
   Use for subtask self-review responsibilities, coordinator logs filter assessment, and signal classification.
 - `references/merge-strategy.md`
   Use for worktree branch merging, conflict resolution, post-merge verification, and cleanup after subtasks complete in worktree mode.
+- `references/multi-repo-coordination.md`
+  Use for MR mode, when one workspace directory holds several git repos: a
+  coordination-only L1 master, one L2 lane per repo, an L2M integrator per repo
+  for merges and checks, a PMA-format workspace ledger, cross-repo contract
+  ordering, boundary checks, and per-repo rollback.
 - `references/three-tier-coordination.md`
   Use for event-driven L1, cron-driven L2, and short-lived L3 autonomous coordination: the user-facing L1 is woken only by the user or L2 follow-ups, every campaign is partitioned across multiple bounded L2 coordinators, each L2 owns its own DAG and 15-min self cron, and L3 issues execute short-lived subtasks. Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.); models stay at the server defaults unless the user names one. Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
 
@@ -134,6 +150,10 @@ Choose references by intent:
 
 - Single issue CRUD, cron jobs, or API details: load `references/rest-api.md`.
 - Short activation phrases like "use bkd to start coordination" or "start BKD L1": load `references/three-tier-coordination.md`.
+- Work spanning several git repos inside one project directory, or activation
+  phrases like "start BKD multi-repo coordination": load
+  `references/multi-repo-coordination.md` (with `references/rest-api.md` for
+  guarded transport).
 - Multi-subtask dispatch or orchestration: load `references/rest-api.md` once
   for guarded transport, then `references/orchestration.md`.
 - Subtask quality assessment or code review: load `references/rest-api.md` once

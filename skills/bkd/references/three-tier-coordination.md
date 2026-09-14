@@ -76,6 +76,9 @@ If the work fits in one session and a simple "create coordinator -> dispatch
 subtasks -> wait -> merge" suffices, use `orchestration.md` instead.
 If the work has only one meaningful coordination workstream, also use that
 two-tier flow: three tiers must not add a ceremonial single L2.
+If the project directory holds several independent git repos instead of one,
+load `multi-repo-coordination.md` first: lanes must be partitioned by repo and
+each lane needs its own per-repo BKD project, which this file does not cover.
 
 ## Tier Map
 
