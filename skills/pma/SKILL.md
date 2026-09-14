@@ -50,7 +50,7 @@ Decide the tier before Phase 1 and say which one applies. Full criteria and esca
 | Standard | anything else with fewer than 3 files within one module | yes | no | yes — inline proposal, wait for `proceed` |
 | Full | `>=3` files, cross-module, or the user asks for a plan | yes | yes | yes — plan file plus proposal, wait for `proceed` |
 
-Risk areas that disqualify the trivial tier: auth/authz, secrets and env, DB schema or migrations, dependencies, CI/build config, public API contracts, concurrency, persistence semantics. If a trivial change grows past its criteria mid-way, stop and re-enter at the standard tier before touching anything else. The user or the project's `AGENTS.md` can disable the fast path; the user can also grant approval up front, which satisfies the gate but not the tracking.
+Risk areas that disqualify the trivial tier: auth/authz, secrets and env, DB schema or migrations, dependencies, CI/build config, public API contracts, concurrency, persistence semantics. If a trivial change grows past its criteria mid-way, stop and re-enter at the standard tier before touching anything else. The user, or a project instruction file (`AGENTS.md`/`CLAUDE.md`) when the repo has one, can disable the fast path; the user can also grant approval up front, which satisfies the gate but not the tracking.
 
 ## Reference Packs
 
@@ -72,7 +72,7 @@ Use these format files instead of redefining schemas inline:
 - [docs/task-format.md](docs/task-format.md)
 - [docs/plan-format.md](docs/plan-format.md)
 - [docs/monorepo-example.md](docs/monorepo-example.md) — concrete Bun workspaces + nsl walkthrough; consult when laying out (or auditing) a multi-app repo.
-- [docs/project-injection.md](docs/project-injection.md) — `AGENTS.md` template (with `CLAUDE.md` as a symlink) for activating PMA in a new (or audited) project. Load when bootstrapping a repo or when an existing project's `AGENTS.md` looks thin compared to the current rule set.
+- [docs/project-injection.md](docs/project-injection.md) — optional `AGENTS.md` template (with `CLAUDE.md` as a symlink when both files are kept) for recording project-specific facts. A repo needs neither file: skill rules load from `/pma`. Load this when the user asks for an injection file or when an existing one looks thin compared to the current rule set.
 
 ## Quick Routing
 
@@ -85,7 +85,7 @@ Choose references by intent:
 - PR preparation, CI, shell usage, or security review: load `references/delivery.md`.
 - Repository initialization or hygiene audit (`.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, toolchain pinning): load `references/delivery.md` *Repository Hygiene*.
 - Any database schema change or migration: load `references/delivery.md` *Database Migrations*.
-- Bootstrapping a new project, or auditing an existing project's `AGENTS.md` injection (and verifying `CLAUDE.md` is a symlink to it): load `docs/project-injection.md`.
+- Bootstrapping a new project, or auditing an existing project's injection file (and, when the repo keeps both, verifying `CLAUDE.md` is a symlink to `AGENTS.md`): load `docs/project-injection.md`. Never add either file to a project that does not have one unless the user asks.
 - Introducing or upgrading a dependency: load `references/workflow.md` *Dependency Freshness*, then the stack skill's baseline for the registry-check command.
 - Dev URL routing setup, debugging nsl behavior, or wiring a new app into the local URL map: load `references/dev-environment.md`.
 - Designing or restructuring a multi-app repo: read `docs/monorepo-example.md` together with the relevant stack skill's *Monorepo* section.

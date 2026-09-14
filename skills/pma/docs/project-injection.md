@@ -1,6 +1,8 @@
 # Project Injection Reference
 
-This document defines what each PMA-managed repository's `AGENTS.md` (with `CLAUDE.md` as a symlink to it) should contain to wire the project into the PMA workflow. The actual rules live in the `/pma` skill — project files only declare **what is project-specific**, never duplicate skill content.
+This document defines what a PMA-managed repository's project instruction file should contain when it has one. The actual rules live in the `/pma` skill — project files only declare **what is project-specific**, never duplicate skill content.
+
+**The injection is optional.** PMA does not require a repository to contain `AGENTS.md` or `CLAUDE.md`; the workflow, tracking, and stack rules all come from the skills. Create the file only when the user asks or when a project-specific fact needs recording, and read whichever of the two already exists — a repo carrying only `CLAUDE.md` as a regular file is fine and needs no conversion unless the user wants one.
 
 ## Table of Contents
 
@@ -23,7 +25,7 @@ The project injection therefore carries only the **project-personalized** facts 
 
 ## Canonical template
 
-Paste the block below into the repository's `AGENTS.md` under a top-level `## Project Development` heading, then create `CLAUDE.md` as a symlink to `AGENTS.md` (see [AGENTS.md is the source, CLAUDE.md is a symlink](#agentsmd-is-the-source-claudemd-is-a-symlink)). Replace `<placeholder>` tokens with project-specific values. Keep the block short — anything that grows past ~30 lines belongs in `docs/decisions/` instead.
+When the project does keep an injection file, paste the block below into the repository's `AGENTS.md` under a top-level `## Project Development` heading; if both files are wanted, create `CLAUDE.md` as a symlink to `AGENTS.md` (see [AGENTS.md is the source, CLAUDE.md is a symlink](#agentsmd-is-the-source-claudemd-is-a-symlink)). Replace `<placeholder>` tokens with project-specific values. Keep the block short — anything that grows past ~30 lines belongs in `docs/decisions/` instead.
 
 ```markdown
 ## Project Development
@@ -83,6 +85,8 @@ The following are **owned by `/pma` and stack skills** — do not restate them i
 
 ## AGENTS.md is the source, CLAUDE.md is a symlink
 
+This section applies only to a repository that keeps both files. One file alone is a valid setup, and so is none.
+
 `AGENTS.md` is the source-of-truth (cross-vendor convention used by Codex, Cursor, Aider, etc.). `CLAUDE.md` exists for Anthropic tooling and **must be a symlink to `AGENTS.md`** so the two cannot drift:
 
 ```bash
@@ -121,9 +125,9 @@ Do **not** update it when a `/pma` or stack skill rule changes — those propaga
 
 ## Initialization checklist
 
-For a brand-new PMA-managed repository:
+For a brand-new PMA-managed repository (step 1 is optional — skip it unless the project needs an injection file):
 
-1. Create `AGENTS.md` with the template above filled in, then `ln -s AGENTS.md CLAUDE.md` and `git add AGENTS.md CLAUDE.md`. Confirm the link: `git ls-files -s CLAUDE.md` should start with `120000`.
+1. Create `AGENTS.md` with the template above filled in; when both files are wanted, `ln -s AGENTS.md CLAUDE.md` and `git add AGENTS.md CLAUDE.md`. Confirm the link: `git ls-files -s CLAUDE.md` should start with `120000`.
 2. Initialize `docs/task/index.md` and `docs/plan/index.md` per [task-format.md](task-format.md) and [plan-format.md](plan-format.md).
 3. Initialize `docs/architecture.md` and `docs/changelog.md` (empty headings are fine).
 4. Apply *Repository Hygiene* (`/pma references/delivery.md`) to create `.gitignore`, `.gitattributes`, `.editorconfig`, `LICENSE`, `README.md`, `.env.example`, and the stack-pinned toolchain file.

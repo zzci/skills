@@ -49,7 +49,7 @@ Everything else with fewer than 3 files and within one module: claim a task, giv
 ### Escalation and overrides
 
 - A trivial change that grows past its criteria (a second source file with behavior change, a risk area, an unexpected design choice) stops immediately and re-enters at the standard tier: claim the task, propose, wait.
-- The user can disable the fast path for a session, and a project can disable it in `AGENTS.md` (*Project-specific facts*, `Fast path: disabled`). Then every change is at least standard.
+- The user can disable the fast path for a session, and a project that keeps an injection file can disable it there (*Project-specific facts*, `Fast path: disabled`). Then every change is at least standard.
 - Approval granted in the request itself (an explicit "just do it" with a fully specified change) satisfies the Phase 2 gate for a standard task, but the task entry and status sync still happen.
 - When in doubt about the tier, it is not trivial.
 
