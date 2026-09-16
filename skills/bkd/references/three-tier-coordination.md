@@ -3,8 +3,9 @@
 Event-driven L1, cron-driven L2, and short-lived L3 coordination that runs
 entirely inside BKD. L1, L2, and L3 are all BKD processes; all coordination
 and state are expressed through BKD issues and follow-ups, while only L2
-scheduling loops use cron jobs. **L1 never creates a cron.** User messages and
-L2 follow-ups wake L1.
+scheduling loops use cron jobs. **L1 never creates a cron** — the single
+watchdog cron of [Auto Mode](#auto-mode-unattended-l1) is the only exception.
+User messages and L2 follow-ups wake L1.
 **Never** use subagents, external team runners, or `sleep` waits.
 
 Use this pattern when the user wants a long-running, self-driving pipeline where
@@ -51,6 +52,7 @@ explicitly performed and verified.
 - [Pre-Flight (every session)](#pre-flight-every-session)
 - [Model Selection (user-directed only)](#model-selection-user-directed-only)
 - [L1 - Master Coordinator](#l1---master-coordinator-current-agent-session)
+- [Auto Mode (unattended L1)](#auto-mode-unattended-l1)
 - [L2 - Scheduling Issue](#l2---scheduling-issue-one-per-workstream-own-worktree)
 - [L3 - Subtask Issues](#l3---subtask-issues-short-lifecycle)
 - [State Machine](#state-machine)
@@ -86,7 +88,7 @@ Compact overview; the per-tier Responsibilities sections below are canonical.
 
 ```
 L1 (current agent session, or a BKD issue its creator started; any engine;
-    main worktree; no cron)
+    main worktree; no cron except the auto-mode watchdog)
   - talks to the user; gathers context; partitions each campaign into 2+ L2s
   - wakes only on user messages or L2 follow-ups
   - owns cross-L2 scope, dependencies, progress aggregation, and merge order
@@ -290,7 +292,10 @@ matter; only BKD HTTP semantics do.
   5. Only then create the complete L2 set (new campaign) or send the targeted
      follow-ups (continuation).
   Applies to **every** dispatch batch, continuation, and scope change. Neither
-  an L2 follow-up nor a user progress query may silently cross this gate.
+  an L2 follow-up nor a user progress query may silently cross this gate. The
+  only way to waive the per-batch gates is the user activating
+  [Auto Mode](#auto-mode-unattended-l1), which turns them into one up-front
+  approval bounded by the agreed plan.
 - For each confirmed new campaign, create at least two L2 issues **with
   `useWorktree: true`** (mandatory), delivering each bounded package plus the
   shared `campaignId` via follow-up. Check capacity before waking them; L2s
@@ -313,7 +318,8 @@ matter; only BKD HTTP semantics do.
      triggers worktree auto-cleanup, cancels any still-running session, and
      breaks any cron still targeting the issue). Before moving an L2 to
      `done`, verify its self cron is deleted (`isDeleted:true`).
-- **Event-driven progress only.** L1 creates no cron. A user message wakes L1
+- **Event-driven progress only.** L1 creates no cron (auto mode adds exactly
+  one watchdog; see [Auto Mode](#auto-mode-unattended-l1)). A user message wakes L1
   for an on-demand aggregate report. Every L2 progress, yellow/blocked, and
   completion follow-up also wakes L1 immediately; L1 queries the sibling L2
   issues sharing that `campaignId`, updates the user when appropriate, handles
@@ -324,8 +330,8 @@ matter; only BKD HTTP semantics do.
     latest DAG state, falling back to a unique active-name lookup; exit.
   - All L2s are in `review`, every L3 is in `review` with DAG state
     `merged`/`blocked`, and nothing is in `todo`/`working` -> run the ordered,
-    user-gated review-and-merge flow, report completion, and stop tracking the
-    campaign. L1 has no idle countdown because it has no periodic wake loop.
+    user-gated review-and-merge flow (auto mode: the self-gated one), report
+    completion, and stop tracking the campaign. L1 has no idle countdown because it has no periodic wake loop.
 
 ### Sending Prompts (the never-inline rule)
 
@@ -455,6 +461,136 @@ L2_START=$(curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/iss
   -d '{"statusId":"working"}') || exit 1
 printf '%s\n' "$L2_START" | jq -e '.success == true' >/dev/null || exit 1
 ```
+
+## Auto Mode (unattended L1)
+
+Auto mode is **opt-in**: the user asks for it in words such as "auto mode",
+"全自动", or "L1 自动审核合并，把计划跑完". That single activation is the standing
+approval that replaces the per-batch confirmation gates — **for the agreed plan
+only**. L1 then drives the campaign to completion without asking: it reviews
+and merges each L2 branch itself, settles in-scope decisions in discussion with
+the owning L2, and keeps dispatching until every workstream is merged or
+blocked.
+
+Record the mode in the dispatch package and end every auto-mode L1 turn with
+`[auto-mode campaignId={campaignId} cronId={cronId} round=N/MAX]` as the final
+assistant message, so a replaced L1 process knows it is still unattended and
+can recover its round count.
+
+### What Changes
+
+| Behaviour | Default | Auto mode |
+|---|---|---|
+| Gate 1 — L2 dispatch set | explicit user confirmation per batch | confirmed once at activation; L1 dispatches the planned set and any in-scope follow-on batch |
+| Gate 2 — L2 -> main merge | explicit user confirmation per merge | L1 reviews and merges on its own |
+| `yellow` (needs a decision) | ask the user | resolve with the owning L2 (see Decision Protocol), record it, continue |
+| L1 cron | none | exactly one watchdog cron, deleted at completion |
+| User-facing output | per-gate conversation | one note per merged workstream, a final summary, and an immediate message on any hard stop |
+
+Nothing else changes: L2/L3 rules, worktree isolation, capacity checks, the
+never-inline rule, no `sleep`, and `review` != `done` all still apply.
+
+### Plan-Bounded Autonomy
+
+The approved plan is the boundary, and auto mode never widens it. Work
+discovered outside the recorded scope or acceptance criteria is written into the
+campaign state as a deferred item and mentioned to the user once; L1 does not
+dispatch it. The same goes for a "while we are here" improvement an L2 proposes.
+
+### Auto-Review Before Each Merge
+
+L1 merges `bkd/{L2_ID}` only when all of these hold:
+
+- the L2 reported completion and its turn ended cleanly (`sessionStatus`
+  `completed` plus a valid final marker — a killed turn is not a completion; see
+  [Long-running Gates and Killed Turns](#long-running-gates-and-killed-turns));
+- `git diff --name-only {baseBranch}...bkd/{L2_ID}` stays inside that L2's
+  declared impact scope;
+- every acceptance criterion recorded for that L2 is covered by the report;
+- the project's own checks pass on the branch.
+
+Any failure means do not merge: follow-up that L2 with the specific gap and let
+it dispatch a fix L3. L1 never hand-fixes, in auto mode least of all.
+
+### Auto-Merge Sequence
+
+One merge at a time, in the recorded merge order, on the integration branch:
+
+```bash
+git -C "$PROJECT_DIR" status --porcelain   # must be clean; someone else's dirt is a hard stop
+MERGE_BASE=$(git -C "$PROJECT_DIR" rev-parse HEAD)
+git -C "$PROJECT_DIR" merge --no-ff "bkd/$L2_ID" \
+  -m "merge: {workstream} (bkd/$L2_ID) [{campaignId}]"
+# conflict    -> git merge --abort, follow-up the L2 for a rebase/fix (max 2 rounds)
+# checks fail -> git revert -m 1 HEAD --no-edit, follow-up the L2 with the output
+```
+
+Record `MERGE_BASE` and the merge SHA in the campaign state as each merge
+lands; that list is the rollback script. Never leave main half-merged across a
+turn boundary.
+
+### Decision Protocol With L2
+
+Replaces "escalate yellow to the user" while auto mode is active:
+
+1. L1 follow-ups the L2 that raised the question, restating the plan's intent
+   and asking for concrete options plus a recommendation.
+2. The L2 answers with options, impact, and its recommendation.
+3. L1 picks the option that best satisfies the recorded acceptance criteria,
+   records `decision: {choice} because {reason}` in the campaign state, and
+   follow-ups the L2 to proceed.
+4. If every option would change agreed scope or acceptance, or touches a risk
+   area, it is a hard stop instead of a decision.
+
+### Watchdog Cron
+
+Auto mode has no user watching for a stall, so L1 registers exactly one
+`issue-follow-up` cron on itself, named `l1-auto-{L1_ID}` at `*/30 * * * *`
+(same create-and-capture pattern as [L2 15-minute Self
+Cron](#l2-15-minute-self-cron-bootstrap), with `issueId` = L1). Bootstrap is
+idempotent: query `GET /cron?deleted=false&limit=100`, reuse the single active
+job of that name, and treat duplicates as an error to report.
+
+Each watchdog wake is scan-and-act, never a re-investigation: capacity, the
+campaign's L2 states, each L2 cron's `enabled` and `lastRun.error` (resume a
+paused one with `POST /cron/{id}/resume` once its L2 is back in
+`review`/`working`), and killed-turn detection for any L2 that went quiet. Then
+act, or end the turn. 30 minutes is deliberately longer than the L2 interval:
+L2 events already wake L1, so the cron only has to catch silence.
+
+Delete it by captured ID at completion or on user stop, assert `.success`, and
+verify `isDeleted:true` before L1 leaves the campaign.
+
+### Hard Stops (auto mode still asks)
+
+- A requirement outside the approved plan, or a decision that would change
+  agreed scope or acceptance criteria.
+- Anything outward-facing or hard to reverse: `git push` or force-push,
+  publishing a release or package, a migration against a shared environment,
+  deleting a repo/branch/project/issue, credential changes. Auto mode covers
+  local review, merge into the local integration branch, and BKD state only.
+- A risk area the plan did not cover: auth/authz, secrets and env, DB schema,
+  dependency changes, CI/build config, public API contracts.
+- Retries exceeded (default 2) for one L2, or two failed rebase/fix rounds on a
+  conflicting branch: mark that workstream `blocked`, keep the independent
+  workstreams running, and report.
+- Main dirty with work L1 does not own, ambiguous branch ownership, capacity
+  exhausted, or BKD unreachable across a full watchdog interval.
+- Round budget reached — default `MAX` = 40 auto-mode L1 turns, or the deadline
+  the user set: stop, summarize, and ask whether to continue.
+
+A hard stop messages the user immediately and waits for that one decision; it
+does not cancel the rest of the campaign when the remaining workstreams are
+independent.
+
+### Completion
+
+When every L2 has terminated (its cron deleted, its issue in `review`) and
+every branch is merged or explicitly blocked: run the project's checks on the
+integration branch once, delete the watchdog cron by ID and verify
+`isDeleted:true`, then post the final summary — per-workstream merge SHAs,
+decisions taken with reasons, deferred out-of-scope items, and anything blocked
+with the reason. Leave every issue in `review`; `done` stays human-only.
 
 ## L2 - Scheduling Issue (one per workstream, own worktree)
 
@@ -715,8 +851,8 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
 
 ## Loop Engine
 
-- **L1 is event-driven and has no cron.** A user message or an L2 follow-up
-  wakes it. After handling that event and any affected campaign state, it ends
+- **L1 is event-driven and has no cron** (auto mode's watchdog is the only
+  exception). A user message or an L2 follow-up wakes it. After handling that event and any affected campaign state, it ends
   the turn.
 - **Every L2 owns one BKD `issue-follow-up` cron** at a 15-min interval. Each
   L2 wake performs **one round of decisions** and ends the turn; its next
@@ -955,12 +1091,15 @@ Compact checklist — the full rules live in the sections referenced.
 9. **L2 idle cron self-termination** after 3 consecutive idle wakes;
    actionable work resets the streak; user stop bypasses it. Delete crons by
    captured ID, assert success, and verify `isDeleted:true`. L1 has no cron
-   (see [Idle Termination Countdown](#idle-termination-countdown)).
+   outside auto mode (see [Idle Termination
+   Countdown](#idle-termination-countdown), [Auto Mode](#auto-mode-unattended-l1)).
 10. **Only L1 writes to main**; L2/L3 always run with `useWorktree: true` — `orchestration.md`'s simple/worktree mode table does not apply here.
 11. **Two L1 user-confirmation gates** — dispatch of the complete L2 set and
     each ordered L2→main merge, both requiring an explicit
     `proceed`/`ok`/`go`. Event-driven wakes may report but never cross either
-    gate (see [L1 Responsibilities](#l1-responsibilities)).
+    gate (see [L1 Responsibilities](#l1-responsibilities)). Only a
+    user-activated [Auto Mode](#auto-mode-unattended-l1) replaces them with one
+    up-front approval — plan-bounded, with its own hard stops.
 12. **L2 never implements** — every unit, however trivial, becomes an L3 issue; a plan snapshot with zero L3 ids is invalid (see [L2 Responsibilities](#l2-responsibilities)).
 13. **Context discipline** — decompose once, snapshot, reference paths not contents (see [Context Discipline](#context-discipline-lightweight-wake-ups)).
 14. **Stop → verify review → follow-up** for changing a still-running issue.

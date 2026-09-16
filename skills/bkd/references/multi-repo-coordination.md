@@ -51,6 +51,7 @@ file, wrap with `jq`, POST with `--data-binary @file` (see `rest-api.md` →
 - [Master Responsibilities](#master-responsibilities)
 - [Lane Dispatch Payload](#lane-dispatch-payload)
 - [Lane Responsibilities](#lane-responsibilities)
+- [Auto Mode](#auto-mode)
 - [Cross-Repo Dependencies and Ordering](#cross-repo-dependencies-and-ordering)
 - [Boundary Checks](#boundary-checks)
 - [Lane Merge and Rollback](#lane-merge-and-rollback)
@@ -416,6 +417,34 @@ The `working` PATCH is fire-and-forget: re-read `sessionStatus` and, if it is
   from what the lane actually does.
 - If the repo is PMA-managed, follow its local PMA flow for repo-internal
   tracking (`<repo>/docs/task/`); that is separate from the workspace ledger.
+
+## Auto Mode
+
+The user can activate auto mode for an MR campaign the same way as in
+`three-tier-coordination.md` → [Auto
+Mode](three-tier-coordination.md#auto-mode-unattended-l1): one up-front
+approval replaces the per-batch dispatch gate and every merge gate, and the
+master keeps driving until every lane is merged or blocked.
+
+MR specifics:
+
+- **The master still never verifies code.** Auto mode removes the *user* from
+  the merge gate, not the division of labour: on a lane report that passes the
+  record-level [Boundary Checks](#boundary-checks) and carries passing checks,
+  the master forwards the merge approval to that lane itself instead of asking
+  the user. The lane's own pre-merge checks and post-merge check run remain the
+  gate.
+- **Cross-repo ordering is unchanged**: a consumer lane still waits for its
+  producer lane's merge report.
+- **Lane questions are settled with the lane** (the decision protocol from the
+  same section), recorded in the plan file, and forwarded into any dependent
+  lane's payload.
+- **The master registers the one watchdog cron** described there, since no user
+  is watching for a stalled lane, and deletes it at campaign completion.
+- **Hard stops still apply**, plus the MR-specific ones: a boundary violation,
+  a repo whose root checkout is dirty with work no lane owns, and any push,
+  publish, or tag step (the master asks before approving a merge whose payload
+  includes one).
 
 ## Cross-Repo Dependencies and Ordering
 

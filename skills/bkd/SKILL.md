@@ -58,6 +58,18 @@ When the user says a short phrase such as "use bkd to start coordination" or
 `references/three-tier-coordination.md`. The user does not need to repeat the
 full L1/L2/L3 rules in the prompt.
 
+### Auto Mode Shortcut
+
+When the user asks for an unattended run — "auto mode", "全自动", "L1 自动审核
+合并，把计划跑完" — load `references/three-tier-coordination.md` →
+*Auto Mode (unattended L1)*. That activation is the standing approval that
+replaces L1's per-batch dispatch and merge gates for the agreed plan: L1
+reviews and merges each L2 branch itself, settles in-scope questions with the
+owning L2, runs one watchdog cron, and stops only at the documented hard stops
+(out-of-scope work, outward-facing or irreversible actions, exhausted retries,
+round budget). It applies to MR mode too, where the master forwards merge
+approvals to each lane instead of merging.
+
 ### Multi-Repo Coordination Shortcut (MR mode)
 
 When the user says a phrase such as "start BKD multi-repo coordination" or
@@ -150,6 +162,9 @@ Choose references by intent:
 
 - Single issue CRUD, cron jobs, or API details: load `references/rest-api.md`.
 - Short activation phrases like "use bkd to start coordination" or "start BKD L1": load `references/three-tier-coordination.md`.
+- Unattended/automatic runs ("auto mode", "全自动"): load
+  `references/three-tier-coordination.md` and follow *Auto Mode (unattended L1)*;
+  never assume it without the user asking.
 - Work spanning several git repos inside one project directory, or activation
   phrases like "start BKD multi-repo coordination": load
   `references/multi-repo-coordination.md` (with `references/rest-api.md` for
