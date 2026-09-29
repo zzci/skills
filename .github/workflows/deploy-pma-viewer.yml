@@ -20,7 +20,7 @@ defaults:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       deployments: write
@@ -33,7 +33,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: pma-viewer/pnpm-lock.yaml
 
