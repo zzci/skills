@@ -18,21 +18,16 @@ This is the **acceptance baseline** every PMA-Rust project must meet. It is anch
 
 These rules are non-negotiable. Loosening one requires a dated decision record under `docs/decisions/`.
 
-### Lock 1 — Pure Rust ecosystem first
+### Lock 1 — Mature crates first (pure Rust not required)
 
-Whenever a pure-Rust alternative exists, do **not** introduce a new dependency that wraps a C library or pulls in `*-sys` transitively.
+Choose dependencies by maturity, maintenance, performance, and build portability. Whether a crate is pure Rust or wraps C/assembly is **not** a selection criterion on its own — `aws-lc-rs`, `rusqlite`, `zstd`, `mimalloc`, `tikv-jemallocator` and similar C-backed crates are first-class choices and need no per-dependency justification.
 
-| C-FFI dep | Pure-Rust alternative | Notes |
-|---|---|---|
-| `openssl`, `openssl-sys`, `native-tls` | **`rustls`** + `tokio-rustls` + `rustls-pemfile` + `rustls-platform-verifier` | reth bans `openssl` in `deny.toml:35`. Install the rustls **`aws-lc-rs`** provider at startup (quickwit's own code uses the `ring` provider — see Lock 2 for why PMA standardizes on `aws-lc-rs`) |
-| `libgit2-sys`, `git2` | **`gix`** (gitoxide) | cargo's `audit.yml` lists `git2` as a watch item |
-| `libssh2-sys` | `russh` | |
-| `libpq-sys` (sync Postgres) | `tokio-postgres` / `sqlx-postgres` (rustls feature) | |
-| `cmake`-built deps | a Rust port if one exists; otherwise vendor `cc` build with explicit `// JUSTIFICATION:` | |
+Rules for C-backed dependencies:
 
-Unavoidable C deps (e.g. `libsqlite3-sys` via `rusqlite`, system `protobuf` for `prost-build`) require a `// JUSTIFICATION:` comment in the workspace `Cargo.toml` next to the dependency, plus a CI gate that pins their versions.
-
-**Pre-sanctioned exception — the rustls crypto core.** rustls's default crypto provider, `aws-lc-rs` (wrapping AWS-LC, a vetted C/assembly fork of BoringSSL), is the *one* C/asm core that does **not** need a per-repo `// JUSTIFICATION:`. Rationale: there is no mature, audited, FIPS-capable pure-Rust crypto primitive library — the only alternative provider, `ring`, is itself C/assembly, so the choice is never "pure Rust vs C", it is "which vetted C crypto core". rustls itself (the TLS state machine, the part that historically caused OpenSSL CVEs) remains pure, memory-safe Rust. PMA standardizes on `aws-lc-rs` because it is the rustls 0.23 default, is actively maintained by AWS, and is the only provider with a FIPS 140-3 path (`fips` feature) — so a future compliance requirement does not force a provider swap. This carve-out covers `aws-lc-rs` / `aws-lc-sys` *only*; every other `*-sys` dep still needs its own justification.
+- **Prefer vendored over system libraries.** Enable the `bundled` / `vendored` / `static` feature when one exists (`rusqlite = { features = ["bundled"] }`, `zstd` default, `aws-lc-rs` default) so the build does not depend on what the host has installed. Linking a system library via `pkg-config` is acceptable only for glibc-target binaries that document the runtime package.
+- **Every release target must build.** If the project ships musl-static or cross-compiled binaries, CI builds those targets; a C dep that breaks musl/cross is a blocker, not a footnote.
+- **Document build prerequisites.** Any toolchain the C build needs beyond `cc` (CMake, Go, clang/`bindgen`, NASM, `protoc`) goes in `toolchain-and-workspace.md`-style project docs and in the CI/builder images.
+- **TLS is the exception, not the rule** — OpenSSL / native-tls stay banned by Lock 2 for stack-consistency and static-linking reasons, not because they are C.
 
 ### Lock 2 — rustls only, `aws-lc-rs` provider explicit
 
@@ -44,9 +39,11 @@ rustls::crypto::aws_lc_rs::default_provider()
     .expect("install rustls crypto provider");
 ```
 
+**Why `aws-lc-rs` over `ring`.** Both providers are C/assembly cores; rustls itself (the TLS state machine) stays memory-safe Rust. PMA standardizes on `aws-lc-rs` because it is the rustls 0.23 default, is actively maintained by AWS, and is the only provider with a FIPS 140-3 path (`fips` feature) — so a future compliance requirement does not force a provider swap.
+
 `aws-lc-rs` is the rustls 0.23 default crypto feature, so plain `rustls = "0.23"` (default features) already compiles it in — do **not** set `default-features = false` to swap in `ring`. Calling `install_default()` early is still mandatory: rustls 0.23 panics on the first TLS use if no process-default provider is installed, and an explicit call removes the "two providers linked, ambiguous default" failure mode.
 
-The startup-install *pattern* is verified in `quickwit-cli/src/main.rs:98` — note quickwit calls `install_default_crypto_ring_provider()` (the **ring** provider); PMA deliberately diverges to `aws-lc-rs` for the FIPS path and default-alignment reasons in Lock 1's crypto-core carve-out. Reject any PR that lets `default-features = true` re-enable `native-tls` on dependencies like `reqwest`, `sqlx`, `tonic`, `hyper-util`.
+The startup-install *pattern* is verified in `quickwit-cli/src/main.rs:98` — note quickwit calls `install_default_crypto_ring_provider()` (the **ring** provider); PMA deliberately diverges to `aws-lc-rs` for the FIPS path and default-alignment reasons above. Reject any PR that lets `default-features = true` re-enable `native-tls` on dependencies like `reqwest`, `sqlx`, `tonic`, `hyper-util`.
 
 ### Lock 3 — `#![forbid(unsafe_code)]` at every crate root
 
@@ -164,7 +161,7 @@ A Hard Lock is the right **default**, not the answer for every project. The disc
 
 | Lock | Backfires when… | Discharge |
 |---|---|---|
-| **1** pure-Rust ecosystem | ML/HPC (BLAS/LAPACK/ONNX/CUDA are 5-10× faster via C bindings); `zstd-safe` beats pure-Rust ports for TB/day pipelines; SQLite, HSMs, hardware codecs, OS audio have no pure-Rust equivalent. Build-time tools (`protoc`, `clang`, `bindgen`) are not Lock 1 violations — they don't ship in the binary. | `// JUSTIFICATION:` next to the dep + `cargo deny` waiver + sunset on parity check |
+| **1** mature crates first | A C dep only offers a system-library link (no `bundled`/`vendored` feature) and breaks musl-static or cross builds; the C build drags heavy toolchains (CMake + Go, clang) into every builder image. | Switch to a vendored feature or an equivalent crate (pure Rust or not) that builds on all targets; otherwise drop the affected target from the release matrix and record it in `docs/decisions/` |
 | **2** rustls only | FIPS 140-3 (banking/federal/health); PKCS#11 / HSM (openssl-engine maturity); TLS 1.0/1.1 legacy gear; FTPS/S/MIME openssl-only protocols. | FIPS needs **no** provider swap — enable the `aws-lc-rs` `fips` feature (uses `aws-lc-fips-sys`; requires CMake + Go at build time, see `toolchain-and-workspace.md` build section). Reach for openssl **only** for the genuinely rustls-shaped gaps (PKCS#11/HSM, legacy TLS, FTPS), scoped to **one** egress client, never the whole process |
 | **3** `forbid(unsafe_code)` | Crates that own FFI, memory layout, SIMD, lock-free data structures, or cross-language interop (`pyo3`/`napi-rs`/`cxx`). | Relax to `#![deny(unsafe_code)]` + `// SAFETY:` per block. Tokio's `#![deny(unsafe_op_in_unsafe_fn)]` is the exemplar — explicit `unsafe { … }` even inside `unsafe fn` |
 | **4** deny warnings | New stable rustc adds a warn-by-default lint and breaks CI on release day; macro-generated code triggers `missing_docs` even with `#[allow]` at the call site. | Cargo auto-caps deps at `warn`/`allow` — no extra config. Pin toolchain version. Run a non-blocking "newer-stable" job to surface upcoming lints before they bite production |
@@ -219,7 +216,7 @@ HSM: private keys never leave the device and must be used via PKCS#11, which rus
 
 ## Consequences
 - Image size +5 MB; build now also needs the openssl C toolchain on that target.
-- Sunset hard-pinned: a renewal review at 2027-06-30 must either adopt a pure-rustls
+- Sunset hard-pinned: a renewal review at 2027-06-30 must either adopt a rustls
   PKCS#11 path or re-justify with a new ADR.
 ```
 
@@ -270,7 +267,6 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 
 Hard bans (enforced by `cargo-deny`):
 - **`openssl`, `openssl-sys`, `native-tls`, `native-tls-sys`** — use rustls (Lock 2). reth's `deny.toml:35` is canonical.
-- **`git2`, `libgit2-sys`** — prefer `gix` (gitoxide). cargo lists `git2` as a watch item.
 
 Patterns to avoid:
 - **`dotenv` (unmaintained) → `dotenvy`**; **`async-trait` macro → native `async fn` in trait** (Rust 1.75+, unless object-safety needed); **`once_cell::sync::Lazy` → `std::sync::LazyLock`** (Rust 1.80+); **`std::collections::HashMap` in hot paths → `FxHashMap`**.

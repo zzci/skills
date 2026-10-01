@@ -64,7 +64,7 @@ Lives in `main` before any panic-able code runs. See the canonical template in `
 }
 ```
 
-`rlimit = "0.11"` is pure Rust (no C bindings) — satisfies Hard Lock 1. This call survives container restarts, systemd reload, and outer ulimit changes; the in-process policy is the inner defense.
+`rlimit = "0.11"`. This call survives container restarts, systemd reload, and outer ulimit changes; the in-process policy is the inner defense.
 
 #### Layer 2 — systemd unit (bare-metal / VM)
 
@@ -389,13 +389,11 @@ confidence-threshold = 0.93
 multiple-versions = "warn"
 deny = [
     # === Hard locks from baseline.md ===
-    { name = "openssl",       reason = "use rustls (Lock 1)" },
-    { name = "openssl-sys",   reason = "use rustls (Lock 1)" },
-    { name = "native-tls",    reason = "use rustls (Lock 1)" },
-    { name = "native-tls-sys",reason = "use rustls (Lock 1)" },
+    { name = "openssl",       reason = "use rustls (Lock 2)" },
+    { name = "openssl-sys",   reason = "use rustls (Lock 2)" },
+    { name = "native-tls",    reason = "use rustls (Lock 2)" },
+    { name = "native-tls-sys",reason = "use rustls (Lock 2)" },
     # === Discouraged ===
-    { name = "git2",          reason = "use gix (gitoxide) when feasible" },
-    { name = "libgit2-sys",   reason = "use gix (gitoxide) when feasible" },
     { name = "dotenv",        reason = "unmaintained — use dotenvy" },
     { name = "ring",          version = "<0.17", reason = "0.16 has known soundness issues" },
 ]

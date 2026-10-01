@@ -237,7 +237,7 @@ grep -n "<pattern>" <file>
 | Claim | Evidence |
 |---|---|
 | `RLIMIT_CORE` to suppress core dumps | Linux man `getrlimit(2)` / `setrlimit(2)`: "RLIMIT_CORE — maximum size of a core file" |
-| `rlimit` pure-Rust crate | <https://crates.io/crates/rlimit> — bindings-free, no `*-sys` |
+| `rlimit` crate for `setrlimit` | <https://crates.io/crates/rlimit> |
 | `LimitCORE=0` in systemd | systemd `systemd.exec(5)` man page: "LimitCORE=" sets `RLIMIT_CORE` |
 | `--ulimit core=0:0` in Docker | Docker run reference: <https://docs.docker.com/reference/cli/docker/container/run/#ulimit> |
 | `kernel.core_pattern = \|/bin/false` | Linux man `core(5)`: piping core_pattern with `|` sends the core to a program; `/bin/false` discards it |

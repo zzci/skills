@@ -527,7 +527,7 @@ Mirrors ruff's `crates/ruff/src/main.rs:11-28` allocator switching, extended for
 
 ### Building the `aws-lc-rs` crypto provider
 
-PMA standardizes on the **`aws-lc-rs`** rustls provider (Lock 2). It wraps AWS-LC (C + per-arch assembly), so unlike a pure-Rust crate it has a real build step. The constraints below are the ones that actually break CI/cross builds — get them right once and the provider is invisible thereafter.
+PMA standardizes on the **`aws-lc-rs`** rustls provider (Lock 2). It wraps AWS-LC (C + per-arch assembly), so it has a real C build step. The constraints below are the ones that actually break CI/cross builds — get them right once and the provider is invisible thereafter.
 
 **Default (non-FIPS) build — what is and isn't required:**
 

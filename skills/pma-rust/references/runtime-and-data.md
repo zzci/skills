@@ -542,7 +542,7 @@ fn install_panic_hook() {
 }
 ```
 
-`rlimit` is a pure-Rust crate (no C bindings), satisfying Hard Lock 1. Add to `Cargo.toml`:
+Add `rlimit` to `Cargo.toml`:
 
 ```toml
 [target.'cfg(unix)'.dependencies]
