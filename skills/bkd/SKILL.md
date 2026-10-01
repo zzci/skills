@@ -67,18 +67,19 @@ replaces L1's per-batch dispatch and merge gates for the agreed plan: L1
 reviews and merges each L2 branch itself, settles in-scope questions with the
 owning L2, runs one watchdog cron, and stops only at the documented hard stops
 (out-of-scope work, outward-facing or irreversible actions, exhausted retries,
-round budget). It applies to MR mode too, where the master forwards merge
-approvals to each lane instead of merging.
+round budget). It applies to MR mode too, where the master accepts each lane's
+reported work itself instead of asking the user.
 
 ### Multi-Repo Coordination Shortcut (MR mode)
 
 When the user says a phrase such as "start BKD multi-repo coordination" or
 "启动多仓库协调", or when the project directory turns out to hold several git
-repos, load `references/multi-repo-coordination.md`: one L1 master coordinator
-issue owns a PMA-format ledger in the workspace and does coordination and
-forwarding only (no diffs, no builds, no code judgement), one lane issue per
-repo (L2) owns that repo end to end in its own BKD project — implement,
-check, and merge its own branch after the user approves — so no issue ever
+repos, load `references/multi-repo-coordination.md`. Everything stays in the
+**current project** — MR mode never creates one: an L1 master coordinator issue
+owns a PMA-format ledger in the workspace and does coordination and forwarding
+only (no diffs, no builds, no code judgement), and one lane issue per repo (L2)
+is bound to its repo by the working directory stated in its prompt
+(`useWorktree:false`, every git call as `git -C <repo>`), so no issue ever
 commits across repos.
 
 ### Single Issue Execution
@@ -150,9 +151,10 @@ Load only what the current task needs:
   Use for worktree branch merging, conflict resolution, post-merge verification, and cleanup after subtasks complete in worktree mode.
 - `references/multi-repo-coordination.md`
   Use for MR mode, when one workspace directory holds several git repos: a
-  coordination-only L1 master plus one L2 lane per repo that implements,
-  checks, and merges its own branch, with a PMA-format workspace ledger,
-  cross-repo contract ordering, boundary checks, and per-repo rollback.
+  coordination-only L1 master plus one L2 lane per repo, all issues in the
+  current project with the repo given as the prompt's working directory, plus a
+  PMA-format workspace ledger, cross-repo contract ordering, boundary checks,
+  and per-repo commit rollback.
 - `references/three-tier-coordination.md`
   Use for event-driven L1, cron-driven L2, and short-lived L3 autonomous coordination: the user-facing L1 is woken only by the user or L2 follow-ups, every campaign is partitioned across multiple bounded L2 coordinators, each L2 owns its own DAG and 15-min self cron, and L3 issues execute short-lived subtasks. Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.); models stay at the server defaults unless the user names one. Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
 
