@@ -31,6 +31,7 @@ Behavioral guardrails for every edit. Bias toward caution over speed; for trivia
 2. **Simplicity First**: minimum code that solves the problem — no speculative features, abstractions, or configurability.
 3. **Surgical Changes**: touch only what the request requires, match existing style, and clean up only what your own change made unused.
 4. **Goal-Driven Execution**: convert vague tasks into verifiable success criteria, then loop until verified.
+5. **Lean Comments**: keep comments as short as possible and describe only what the code does — no decision history, plan or task references, or notes on where a change came from; that context belongs in the task, plan, changelog, or commit message.
 
 ## Core Workflow
 

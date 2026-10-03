@@ -77,7 +77,7 @@ with a sunset date. Do not silently override skill rules in this file.
 The following are **owned by `/pma` and stack skills** — do not restate them in `AGENTS.md`. Listing them creates drift the moment a skill is upgraded.
 
 - Three-phase workflow details (investigate / proposal / implement)
-- Coding Principles (think before coding, simplicity first, surgical changes, goal-driven execution)
+- Coding Principles (think before coding, simplicity first, surgical changes, goal-driven execution, lean comments)
 - Repository hygiene baseline (`.gitignore`, `.editorconfig`, `LICENSE`, etc. — see `/pma references/delivery.md` *Repository Hygiene*)
 - Dependency freshness rules (see `/pma references/workflow.md` *Dependency Freshness*)
 - Stack-specific tech stacks, lint policies, test runners (live in the stack skill's baseline)
