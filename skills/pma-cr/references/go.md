@@ -6,15 +6,14 @@ Apply this pack to Go services, CLIs, libraries, and HTTP handlers.
 
 ### Context propagation
 
-- `context.Context` should be the first parameter when needed.
 - Request-scoped work should propagate context through outgoing calls.
-- Do not store context in structs unless forced by an interface boundary.
+- Check stored contexts against the object's lifetime; a request context reused across requests can cancel unrelated work or retain request state.
 
 ### Errors and APIs
 
 - Expected failures should return errors, not panic.
 - Wrapped errors should preserve cause chains when callers need to inspect them.
-- Error strings should stay simple and composable.
+- Check error identity and nil behavior where callers branch on returned errors; an interface holding a typed nil is not a nil interface.
 
 ### HTTP and I/O
 
@@ -31,7 +30,7 @@ Apply this pack to Go services, CLIs, libraries, and HTTP handlers.
 
 ### Data and pointers
 
-- Avoid pointers to interfaces and other unnecessary pointer layers.
+- Report pointer or ownership choices only when they create a concrete mutation, lifetime, or API-contract problem.
 - Distinguish nil and empty values intentionally in JSON and API responses.
 
 ### Dead code and build matrices
@@ -49,7 +48,7 @@ Report issues such as:
 - blocking channel operation with no cancellation path
 - unclosed response body or rows iterator
 - panic used for routine user or network errors
-- pointer layering that obscures ownership or mutability for no gain
+- an error interface containing a typed nil that sends a successful operation down the failure path
 - orphan package-level functionality with no remaining binary or handler path
 
 ## Usually Skip

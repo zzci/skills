@@ -7,8 +7,8 @@ Apply this pack to Python services, CLIs, libraries, and async applications.
 ### Input validation and trust boundaries
 
 - All external input should be validated at the edge: request bodies, query params, headers, webhook payloads, queue messages.
-- Prefer schema validation (Pydantic, marshmallow, attrs) over ad hoc field checks.
-- Do not trust deserialized data from pickles, YAML `load()`, or `eval()`/`exec()` on user input.
+- Verify the actual runtime validators and coercion rules; a type annotation or data-class declaration alone does not validate input.
+- Check the actual loader and input trust level for pickle, YAML, or dynamic evaluation. `yaml.load` with a safe loader is not evidence of unsafe deserialization.
 
 ### Query and command safety
 
@@ -20,13 +20,13 @@ Apply this pack to Python services, CLIs, libraries, and async applications.
 ### Auth and permissions
 
 - Authentication is not authorization.
-- State-changing endpoints need explicit permission checks.
+- Read and write endpoints need the relevant object, field, and tenant permission checks, possibly enforced by verified shared guards.
 - Decorator-based auth should be verified on every new route, not assumed by convention.
 
 ### Async correctness
 
 - Blocking I/O in async functions starves the event loop.
-- Fire-and-forget tasks (`asyncio.create_task` without holding the reference) lose errors silently.
+- Detached `asyncio` tasks need lifetime ownership and exception observation; keeping a task reference alone does not handle its failure.
 - Outbound HTTP should have timeout configuration.
 - Watch for mixing sync and async database drivers incorrectly.
 
@@ -38,7 +38,7 @@ Apply this pack to Python services, CLIs, libraries, and async applications.
 
 ### Type safety
 
-- New code should use type hints for function signatures.
+- Apply the project's annotation policy. Report missing hints as a policy violation only when required; otherwise identify a concrete boundary or misuse rather than asking for annotations by default.
 - `Any` should not be used to silence type errors on well-typed boundaries.
 - Optional fields need explicit `None` handling, not implicit attribute access.
 
@@ -52,9 +52,9 @@ Apply this pack to Python services, CLIs, libraries, and async applications.
 
 Report issues such as:
 
-- `pickle.loads` or `yaml.load` on untrusted input
+- `pickle.loads` or an unsafe YAML loader consuming untrusted input
 - string-formatted SQL or shell commands
-- missing permission checks on new write endpoints
+- missing object or tenant permission checks on new read or write endpoints
 - blocking I/O inside async handlers
 - bare exception swallowing with no logging or re-raise
 - unbounded queries without pagination or limits

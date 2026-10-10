@@ -12,13 +12,12 @@ Apply this pack to Rust libraries, services, and async runtimes.
 
 ### API contracts and docs
 
-- Public fallible APIs should document `Errors`.
-- Public panicking APIs should document `Panics`.
+- Check that public error and panic behavior is understandable to callers; require specific `Errors`/`Panics` sections when project policy requires them, or report the concrete missing contract.
 - `unsafe` APIs need explicit `Safety` docs and a check that callers can realistically uphold the invariants.
 
 ### Async and blocking work
 
-- Blocking filesystem, compression, parsing, or CPU-heavy work should not quietly run on the async scheduler.
+- Check blocking filesystem or CPU-heavy work on the async scheduler against input size and call frequency; small bounded computation is not automatically a runtime-blocking defect.
 - Long or repeated blocking work should be offloaded deliberately.
 - Review shutdown and spawned-task lifetime for leaked work.
 
@@ -43,7 +42,7 @@ Apply this pack to Rust libraries, services, and async runtimes.
 Report issues such as:
 
 - new `unwrap`/`expect` on an input or I/O path that can fail in normal operation
-- undocumented `unsafe` contract or panic condition on a public API
+- an unsafe or panicking public API whose undocumented preconditions prevent callers from using it safely
 - blocking work added directly inside an async path
 - spawned tasks with no ownership or shutdown handling
 - arithmetic whose correctness depends on silent overflow
@@ -53,7 +52,7 @@ Report issues such as:
 
 - broad "rewrite with iterators" advice
 - pure stylistic macro preferences
-- compiler-enforced borrow or lifetime concerns that already fail to build
+- duplicate explanations of compiler diagnostics; record an actual build failure once under the shared gate policy
 - items that only look unused because they are activated by `cfg`, macro expansion, or side-effectful drop behavior
 
 ## Source Notes

@@ -1,215 +1,107 @@
 # Repository Audit Pack
 
-Use this pack only for whole-repository audits.
+Use this pack for the current repository rather than a diff. Apply `core-review-policy.md` and `engineering-baseline.md`; load stack packs only for relevant areas.
 
-## Table of Contents
+## 1. Inventory and Scope
 
-- [Goal](#goal)
-- [Audit Phases](#audit-phases)
-- [Output Model](#output-model)
-- [Noise Control](#noise-control)
-- [Evidence Rules](#evidence-rules)
-- [Source Notes](#source-notes)
+Record the reviewed commit and relevant local changes, requested directories, exclusions, and supported runtime/build variants. Inventory:
 
+- manifests, lockfiles, build scripts, CI, and release configuration
+- application/service entry points and externally consumed library APIs, routes, plugins, or commands
+- architecture decisions, public contracts, schema/migrations, and operational documentation
+- test suites, critical behavior they cover, and quality gates with actual results when available
 
-## Goal
+Use the inventory to establish applicability. A library needs consumer compatibility checks; a deployed service may also need rollout and recovery checks. Do not impose a full service checklist on every repository.
 
-Assess the repository as it exists now, not just a diff.
+## 2. Map Boundaries and Select Hotspots
 
-Repository audit is different from PR review:
+Trace important flows across modules, not just suspicious functions:
 
-- broader scope
-- less line-by-line granularity
-- stronger need for prioritization and deduplication
-- explicit separation between findings and coverage gaps
+- user-visible behavior and contracts through UI, API, domain logic, and storage
+- ownership of shared state, business invariants, transactions, and cleanup
+- authentication, object/tenant permissions, validation, and external calls
+- database writes, migrations, background jobs, retries, and shutdown
+- filesystem/process access, configuration, sensitive data, and release privileges
+- public interfaces, supported consumers, dependency direction, and repeated sources of maintenance errors
 
-## Audit Phases
+Prioritize by impact and reachability. Record why areas were selected and whether the review is representative sampling or complete within the declared scope.
 
-### 1. Inventory
+## 3. Inspect and Verify
 
-Start with repository shape:
+Read representative end-to-end paths deeply before expanding coverage. For each applicable area, apply the shared baseline and relevant runtime pack:
 
-- root manifests and lockfiles
-- CI workflows
-- environment examples
-- docs that define architecture or operational rules
-- top-level app and service entry points
-- test directories and quality gates
+- verify behavior and failure handling against the actual contract
+- examine the design consequence of coupling, unclear ownership, or unnecessary mechanisms
+- read critical assertions and mocks; determine what the tests establish and what remains unverified
+- inspect supported compatibility, migration, resource bounds, and recovery paths
+- inspect relevant build/CI/release logic and distinguish configured checks from executed checks
 
-### 2. Stack detection
+Maintain a compact coverage record. Use `inspected`, `sampled`, `not reviewed`, or `not applicable`; give paths, evidence, or the reason. Reading manifests alone does not count as inspecting the implementation. Lack of runtime access should identify the exact question it prevents answering, not invalidate all static findings.
 
-Map the repository by stack and runtime:
+### Dead-code Inspection
 
-- frontend UI
-- backend API
-- jobs and workers
-- database and migrations
-- infra and CI
+Check incoming references, entry-point registration, exported contracts, dynamic imports, reflection, framework routing, generators, build tags/features, and initialization/destruction side effects. Lack of in-repository callers is insufficient for public interfaces.
 
-Load only the relevant language packs after the inventory step.
+Confirmed orphaned code with a demonstrated cost belongs among prioritized findings. Likely unused code with unresolved external or dynamic consumers belongs in verification gaps, with the next check. Do not list the same issue again in a separate dead-code section or recommend deletion before these obligations are understood.
 
-### 3. Hotspot selection
+## 4. Deduplicate and Prioritize
 
-Prioritize the highest-risk areas:
+Group findings by root cause rather than file count. A shared authorization flaw affecting ten verified handlers is one finding with representative anchors and the affected scope. Do not claim all handlers are affected based on two samples.
 
-- auth and authorization
-- input validation and deserialization
-- external network calls
-- database writes and migrations
-- secret loading and logging
-- filesystem access
-- shell or process execution
-- background jobs and shutdown
-- concurrency and shared mutable state
-- isolated dead code and abandoned subsystems
+Use the canonical CRITICAL/P0 through LOW/P3 definitions. Keep confidence, severity, and coverage separate:
 
-### 4. Focused inspection
+- confirmed findings require an inspected location, supporting evidence, concrete impact, and a remedy
+- missing runtime facts or uncertain reachability belong in verification gaps
+- absent tests are a testing/validation gap unless a concrete affected behavior or explicit project requirement supports a finding
+- architecture criticism needs a specific dependency, ownership, contract, or maintenance consequence
+- existing bugs are in scope for an audit; cosmetic preferences and speculative rewrites are not
 
-Inspect representative modules deeply before scanning wider:
+## Report Skeleton
 
-- auth middleware, guards, or server actions
-- route handlers and controllers
-- repositories and query builders
-- worker loops and retry code
-- startup/bootstrap/config paths
-- CI and release workflows
-- modules and exports with unclear incoming references
-
-### 4a. Dead-code inspection
-
-Explicitly inspect for isolated dead code:
-
-- files with no importers or route registrations
-- handlers, jobs, commands, or workers no longer reachable from any entry point
-- feature-flag branches that are permanently off or superseded
-- fallback code that current config or control flow can no longer reach
-- exports retained after refactors with no remaining callers
-
-Be careful around:
-
-- dynamic imports and lazy-loading conventions
-- reflection, registration, or plugin discovery
-- framework file-system routing
-- generated files
-- build tags or conditional compilation
-- values whose only effect happens on drop or module initialization
-
-### 5. Deduplication
-
-Group repeated symptoms into one root-cause finding.
-
-Bad:
-
-- "10 handlers lack input validation" as 10 separate issues
-
-Good:
-
-- "Request validation is missing on the public write-path layer, affecting 10 handlers"
-- "The legacy webhook subsystem is orphaned: routes are no longer registered, but handlers, secrets, and retry code remain in the tree"
-
-## Output Model
-
-Use repository audit output, not PR output.
-
-### Priority Bands
-
-| Priority | Meaning |
-|---|---|
-| P0 | Immediate security or data-loss issue |
-| P1 | High-likelihood correctness or production stability issue |
-| P2 | Structural risk or maintainability problem with operational consequences |
-| P3 | Lower-priority follow-up item |
-
-### Required Sections
-
-- `Repository Audit Summary`
-- `P0`
-- `P1`
-- `P2`
-- `P3` if needed
-- `Dead Code Findings` when applicable
-- `Dead Code Removal Candidates` when applicable
-- `Needs Runtime Verification` when applicable
-- `Coverage Gaps`
-- `Recommended Next Actions`
-
-### Report Skeleton
-
-Canonical report template:
+Use priorities rather than a merge verdict. State the strongest confirmed risks and the limits of the assessment. Omit empty priority sections; a zero-finding audit still needs its scope and coverage record.
 
 ```markdown
 ## Repository Audit Summary
 
-### P0
-
-1. Authentication bypass on admin write route in `src/server/admin.ts`.
+Snapshot: <commit and local changes>
+Scope: <requested areas, exclusions, supported variants>
+Coverage: <complete within declared scope or partial; sampling limits>
+Checks: <command/CI check, result, relevant environment>
 
 ### P1
 
-1. Unbounded background goroutines in worker shutdown path across `internal/worker`.
+[HIGH][Defect] <title>
+Location: <inspected file:line>
+Trigger: <supported input/state or operating condition>
+Evidence: <path from trigger to failure, including relevant guards/tests>
+Impact: <consequence and severity rationale>
+Fix: <smallest useful correction>
+Verify: <targeted reproduction or acceptance check; state if already run>
 
-### P2
+### Coverage
 
-1. Repository mixes privileged config loading and request parsing in the same package, making trust boundaries hard to enforce.
+| Area | Status | Evidence or limitation |
+|---|---|---|
+| Contracts and module boundaries | inspected | <entry points, consumers, paths> |
+| Data writes and migrations | sampled | <paths examined and remaining areas> |
+| Critical tests | inspected | <assertions/flows reviewed and execution status> |
+| Production recovery | not reviewed | <missing deployment evidence and next check> |
+| Browser interaction | not applicable | <repository has no browser interface> |
 
-### Coverage Gaps
+### Verification Gaps
 
-- No integration tests found for auth and migration flows.
-- CI does not appear to run a security-oriented gate.
-
-### Dead Code Findings
-
-- `legacy/webhook/handlers.ts` is no longer registered by any route or worker path but still contains live secret-handling code.
-
-### Dead Code Removal Candidates
-
-- `src/jobs/old-retry.ts` appears unused after the queue migration and should be removed if staging confirms no dynamic registration remains.
-
-### Needs Runtime Verification
-
-- `src/plugins/legacy.ts` looks orphaned statically, but plugin loading may still happen via deployment config. Confirm before deletion.
+- <unknown premise, why it matters, and how to verify it>
 
 ### Recommended Next Actions
 
-1. Fix the P0 and P1 findings first.
-2. Add targeted tests around auth and worker shutdown.
-3. Separate privileged bootstrap/config code from request-facing handlers.
+1. <address confirmed priority finding>
+2. <resolve a decision-relevant verification gap>
 ```
 
-## Noise Control
+Adapt coverage rows to the actual repository. Do not invent paths or fill the table with irrelevant categories. Use the shared finding fields for code-health and policy findings as well. Separate suggested checks from checks actually performed.
 
-Do not report:
+## Sources
 
-- cosmetic style issues
-- low-confidence guesses
-- every single instance of the same root cause
-- items already fully enforced by mandatory tooling
-
-Do report:
-
-- systemic validation gaps
-- repeated unsafe patterns that indicate a real boundary failure
-- CI or test blind spots that leave critical paths unverified
-- architecture issues with direct security, correctness, or reliability impact
-- isolated dead code that hides obsolete behavior, stale permissions, or abandoned integrations
-
-## Evidence Rules
-
-- Tie each finding to concrete files or repository areas.
-- Say when a point is sampled evidence versus exhaustively verified.
-- If a suspicion is not yet proven, put it under `Coverage Gaps` or `Next Actions`, not under `P0`-`P2`.
-- For dead code, explain why it appears unreachable or unreferenced and note any dynamic-dispatch caveat.
-
-### Dead-code section rules
-
-- `Dead Code Findings`: use only when the code is strongly evidenced as unreachable or orphaned.
-- `Dead Code Removal Candidates`: use for likely removable code that still deserves a quick local verification before deletion.
-- `Needs Runtime Verification`: use when dynamic registration, build matrix, or deployment-only wiring means static inspection is insufficient.
-
-## Source Notes
-
-These repository-audit rules are aligned with:
-
-- Google Engineering Practices: https://google.github.io/eng-practices/review/reviewer/looking-for.html
-- OWASP Code Review Guide: https://owasp.org/www-project-code-review-guide/
-- OWASP ASVS Project: https://owasp.org/www-project-application-security-verification-standard/
+- [Google: review scope and system context](https://google.github.io/eng-practices/review/reviewer/looking-for.html)
+- [Microsoft ISE: design review](https://microsoft.github.io/code-with-engineering-playbook/design/design-reviews/)
+- [Kubernetes: production readiness](https://github.com/kubernetes/community/blob/master/sig-architecture/production-readiness.md)

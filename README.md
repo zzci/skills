@@ -59,21 +59,21 @@ First-time PMA setup in a project:
 
 ## Add PMA CR
 
-For stack-aware review after implementation and before merge:
+For evidence-based review after implementation and before merge, independently of the PMA development workflow:
 
 1. Use `/pma-cr` for local diff review.
 2. Use `/pma-cr <PR-number-or-URL>` for pull request review.
 3. Use `/pma-cr audit`, `/pma-cr repo`, or `/pma-cr --repo` for repository-wide audit.
-4. The skill applies shared review policy plus only the relevant stack packs:
+4. The skill applies a shared review policy and engineering baseline, plus only the relevant stack packs:
    - TypeScript frontend
    - TypeScript backend / Bun
    - Go
    - Rust
    - Python
-5. Repository audit reports findings by `P0` to `P3`, plus coverage gaps and recommended next actions.
+5. Repository audit reports findings by `P0` to `P3`, with inspected areas, sampling limits, verification gaps, and recommended next actions.
 6. Repository audit explicitly checks isolated dead code such as orphan modules, dead handlers, stale feature-flag paths, and unreachable subsystems.
-7. Dead-code output is split into `Dead Code Findings`, `Dead Code Removal Candidates`, and `Needs Runtime Verification`.
-8. Keep findings focused on correctness, security, regressions, and operational risk.
+7. Confirmed dead-code findings are prioritized by impact; uncertain external or dynamic consumers belong in verification gaps rather than deletion recommendations.
+8. Review design, correctness, test effectiveness, compatibility, and operational risk. Local and PR reports separate evidence, check results, and coverage, with `BLOCK`, `INCOMPLETE`, `WARNING`, or `PASS` decisions.
 9. Prefer repository-specific guidance from `CLAUDE.md` and `AGENTS.md` when present.
 
 ## Add PMA-Web
@@ -146,7 +146,7 @@ in [React Spectrum Skills Source](docs/sources/react-spectrum.md).
 | Skill | Description |
 |-------|-------------|
 | [pma](skills/pma/) | Project development lifecycle — complexity-tiered three-phase workflow + task tracking + docs + multi-agent |
-| [pma-cr](skills/pma-cr/) | Stack-aware code review — shared policy plus TypeScript frontend, TypeScript backend/Bun, Go, Rust, and Python review packs for local diffs, PRs, and repository audits |
+| [pma-cr](skills/pma-cr/) | Evidence-based code review — shared engineering baseline for design, correctness, tests, compatibility, and operation, plus TypeScript frontend/backend, Go, Rust, and Python packs for local diffs, PRs, and repository audits |
 | [pma-web](skills/pma-web/) | Frontend implementation guide — PMA-managed React 19 + TypeScript + Vite 8 SPA conventions, TanStack Router/Query, Tailwind CSS v4, shadcn/ui base-nova, and quality gates |
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, SQLx/SeaORM/diesel-async data access, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |

@@ -17,6 +17,7 @@ Apply this pack to React, Next.js, Vite, and browser-facing TypeScript UI code.
 - Prevent duplicate submits for non-idempotent actions.
 - Watch optimistic UI for rollback and error recovery gaps.
 - Ensure async work is cancelled or ignored on stale responses where race conditions matter.
+- Check that effects release subscriptions and other owned resources when dependencies change or a component unmounts; verify framework-managed cleanup before reporting a leak.
 
 ### Identity and memoization
 
@@ -40,6 +41,7 @@ Apply this pack to React, Next.js, Vite, and browser-facing TypeScript UI code.
 - Interactive controls need correct semantics, labels, and focus behavior.
 - Missing `type="button"` inside forms can create accidental submissions.
 - Error states should be exposed in a way users can perceive and recover from.
+- Exercise relevant keyboard navigation and focus restoration when feasible; JSX inspection alone does not establish that an interaction works.
 
 ## High-Signal Findings
 

@@ -7,7 +7,7 @@ Apply this pack to Node.js and Bun server code, APIs, jobs, workers, and data-ac
 ### Validation and trust boundaries
 
 - All external input should be validated at the edge: body, params, query, headers, webhook payloads, queue messages.
-- Prefer schema validation and typed parsing over ad hoc field checks.
+- Verify runtime parsing and coercion at the boundary; a TypeScript cast or generic annotation does not validate external data. Accept equivalent correct validation rather than requiring a particular schema library.
 - Allowlisting beats denylisting for constrained values.
 
 ### Query and command safety
@@ -19,7 +19,7 @@ Apply this pack to Node.js and Bun server code, APIs, jobs, workers, and data-ac
 ### Auth, authz, and multi-step writes
 
 - Authentication is not authorization.
-- State-changing endpoints need explicit permission checks.
+- Reads and writes need object, field, and tenant permissions; verify shared middleware and data-access guards before reporting a missing check.
 - Multi-step writes should consider transactions, idempotency, and duplicate delivery behavior.
 
 ### Async correctness
@@ -53,9 +53,9 @@ Apply this pack to Node.js and Bun server code, APIs, jobs, workers, and data-ac
 
 Report issues such as:
 
-- missing schema validation on new request input
+- malformed request input reaching a sensitive operation without an effective runtime check
 - string-built SQL or shell commands
-- permission checks missing on a new write path
+- object or tenant permissions missing on a new read or write path
 - unbounded external call with no timeout or abort path
 - dropped promise or async callback error path
 - secret-bearing logs

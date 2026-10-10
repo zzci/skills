@@ -1,199 +1,129 @@
 # Core Review Policy
 
-Use this file for all review modes and all stacks.
+Use this policy for every mode. Read `engineering-baseline.md` for the shared engineering checks; stack packs add runtime-specific checks.
 
-## Table of Contents
+## Objective and Scope
 
-- [Primary Objective](#primary-objective)
-- [Review Order](#review-order)
-- [Confidence Filter](#confidence-filter)
-- [Verification Pass](#verification-pass)
-- [Severity Guide](#severity-guide)
-- [Output Format](#output-format)
-- [Shared Heuristics](#shared-heuristics)
-- [Dead Code Guidance](#dead-code-guidance)
-- [Security Baseline](#security-baseline)
-- [Source Notes](#source-notes)
+Protect correctness and long-term code health while allowing sound incremental improvements. Accept reasonable tradeoffs; do not demand perfection or optimize for finding count.
 
+- Local and PR review: report problems introduced or exposed by the change. Follow affected callers, contracts, and dependencies as needed to establish impact, even outside the diff. Do not make unrelated legacy issues conditions of approval.
+- Repository audit: report evidenced problems in the current repository, including existing issues. Distinguish sampled coverage from exhaustive inspection.
+- Review does not authorize implementation, dead-code deletion, or remote posting. Preserve existing user authorization for those actions when explicitly given.
 
-## Primary Objective
+## Review Sequence
 
-Find real problems in changed code:
+1. Establish the requested snapshot, scope, intended behavior, and applicable project requirements.
+2. Understand the design, contracts, dependencies, and ownership of state or resources.
+3. Trace correctness, trust boundaries, data integrity, concurrency, and failure paths.
+4. Check test effectiveness, compatibility, and relevant performance or operational consequences.
+5. Falsify candidate findings, deduplicate by root cause, and report evidence and coverage.
 
-- behavioral regressions
-- broken edge cases
-- trust-boundary mistakes
-- data corruption risks
-- resource leaks or concurrency hazards
-- missing or misleading tests
-- isolated dead code that signals unfinished or abandoned behavior
+This is a reading sequence, not a severity ranking. Read the human-written changes in the agreed scope; risk-based sampling must be disclosed as partial coverage.
 
-Do not optimize for issue count. Optimize for correctness.
+## Finding Types and Confidence
 
-## Review Order
+Report high-confidence, actionable findings in these categories:
 
-Review in this order:
+| Category | Required basis |
+|---|---|
+| Defect | A supported trigger and a trace to incorrect behavior, an unsafe boundary, or a broken contract |
+| Code health | A specific structure and a concrete consequence for understanding, changing, or correctly using this code |
+| Policy | An applicable, explicit project requirement and the exact violation |
 
-1. Correctness
-2. Security
-3. Data integrity
-4. Concurrency and lifecycle
-5. Performance and scalability
-6. Maintainability
+Design problems need not cause an existing runtime failure. Explain the dependency, duplicated invariant, unnecessary mechanism, or ambiguous ownership and its consequence. Function length, argument count, naming taste, and a preferred framework are not sufficient evidence.
 
-## Confidence Filter
+Usually omit cosmetic nits, equally valid implementation choices, speculative future needs, and broad rewrites. Useful optional improvements may be labeled non-blocking suggestions; do not count them as defects.
 
-Report only high-confidence findings.
-
-Usually skip:
-
-- pure style disagreements
-- speculative architecture advice
-- unchanged legacy issues
-- warnings already guaranteed by enforced lint/typecheck/build gates
-- minor naming or formatting nits unless the repository explicitly requires them
-
-Escalate when:
-
-- the change can break production behavior
-- the change weakens auth, validation, escaping, or query safety
-- the change can leak secrets or PII
-- the change can deadlock, race, block, or leak resources
-- the change introduces an untested new path or bug fix with no proof
+Keep confidence separate from impact. Static reasoning can confirm a finding without a reproduction if the reachable path and violated contract are established. If a critical premise is unknown, put the item in verification gaps with the missing evidence and a concrete next check. Do not disguise an unproven suspicion as a LOW finding.
 
 ## Verification Pass
 
-Before a candidate finding may appear in the report, try to falsify it:
+Before reporting a candidate:
 
-- Read the whole enclosing function or block, not just the diff hunk.
-- Check immediate callers and callees for an existing guard, validation, or error path that already covers the case.
-- Check whether an enforced gate (typecheck, linter, test) already catches it; if so, drop it.
-- Anchor every finding to a concrete `file:line` you actually read. No anchor, no finding.
-- A finding that survives falsification but still depends on runtime state you cannot inspect must say so explicitly instead of asserting certainty.
+- Read the enclosing implementation and the relevant callers, callees, guards, tests, and configuration from the reviewed snapshot.
+- Check the requirement or existing contract, supported versions, and real consumers. Do not infer a bug from a keyword or pattern alone.
+- Look for a counterexample to the claim: upstream validation, a bounded input, transaction ownership, a framework guarantee, or a tested alternative path.
+- Anchor the finding to a precise `file:line` actually inspected. For missing behavior, anchor the responsible implementation and identify the absent check or test. For diff review, point to the changed location responsible for the regression and link other evidence as needed.
+- State the trigger, evidence, impact, and smallest useful remedy. Explain why the impact warrants the severity. Do not claim a reproduction, test run, or exhaustive search that did not happen.
+- Deduplicate repeated symptoms by root cause. Include representative anchors and the verified affected scope, not an invented total.
 
-Missing-test findings follow the repository's reality: in a repo with an established test suite, an untested new path or bug fix is a reportable finding; in a repo with no test setup, record it once as a coverage gap instead of per-change findings.
+### Tests and Automated Gates
 
-## Severity Guide
+Automation reduces repetitive review work; it does not erase failures.
+
+- Record relevant commands or CI checks as `passed`, `failed`, `not run`, or `unavailable`, with the snapshot and environment when material. A configured job is not proof that it ran or is required.
+- Summarize routine lint/typecheck diagnostics once. Retain failed gates and their consequences; avoid duplicating a gate failure as many manual findings.
+- A passing check is evidence only for the behavior and matrix it actually covers. Inspect tests rather than treating a green build as proof of correctness.
+- Attribute failures to the change only with evidence. Report pre-existing failures separately instead of silently ignoring them or blaming the change.
+- With an established test suite, identify the concrete changed behavior left unprotected, especially a bug fix without a regression test. Respect explicit project test requirements. Do not demand tests merely because a line changed.
+- Without test infrastructure, record the validation gap and available manual evidence once; do not introduce a framework as part of review.
+
+## Severity and Decision
 
 | Severity | Meaning |
 |---|---|
-| CRITICAL | Security break, data loss, auth bypass, remote exploit path |
-| HIGH | Likely bug or operational failure with meaningful impact |
-| MEDIUM | Real issue with bounded impact or lower probability |
-| LOW | Small maintainability or clarity issue with direct evidence |
+| CRITICAL / P0 | Severe security compromise, major data loss, or widespread service failure with an established trigger |
+| HIGH / P1 | Substantial correctness, security, compatibility, or reliability impact under supported conditions |
+| MEDIUM / P2 | Bounded behavioral impact or a demonstrated design, testing, or maintenance problem |
+| LOW / P3 | Small but actionable issue with concrete impact |
 
-In repository audit mode, the `P0`-`P3` priority bands map to CRITICAL, HIGH, MEDIUM, and LOW respectively.
+Use impact, reachability, affected users/data, and recovery cost to justify severity. A security label does not automatically make a finding CRITICAL. Do not lower severity because a consequence is serious but still unverified; record the missing evidence separately.
 
-### Severity-to-Verdict Mapping
+For local and PR reviews, apply these decisions in order:
 
-| Verdict | Condition | Consequence |
-|---|---|---|
-| BLOCK | any CRITICAL finding | do not approve; on a forge, request changes only with the user's confirmation |
-| WARNING | any HIGH finding (no CRITICAL) | mergeable at the author's risk; findings should be addressed |
-| PASS | at most MEDIUM/LOW findings | approvable; remaining findings are advisory |
+| Verdict | Condition |
+|---|---|
+| BLOCK | A confirmed CRITICAL/HIGH issue, or an unmet mandatory acceptance requirement attributable to the change |
+| INCOMPLETE | No confirmed blocker, but requested coverage or evidence necessary for a decision is missing |
+| WARNING | No blocker or decision-critical gap, but MEDIUM findings remain |
+| PASS | The declared review scope is covered and only LOW findings or no findings remain |
 
-A clean review is a valid outcome: when nothing meets the confidence threshold, report PASS with zero findings rather than manufacturing low-value ones.
+Record coverage independently as `complete` or `partial`, including with BLOCK. Explicit project acceptance rules may change the decision; cite the rule and preserve the finding's severity. A verification gap is not a confirmed violation. An optional check not run need not make a static review incomplete, but PASS on static inspection never asserts CI success or production readiness.
+
+The verdict is advice, not authorization to merge, approve, request changes, or publish. Repository audits use priorities and coverage rather than a merge verdict. Zero findings is valid; zero findings with partial coverage is not an unqualified PASS.
 
 ## Output Format
 
-Canonical output templates for local diff review and PR review. The repository audit report skeleton lives in `repository-audit.md`.
-
-### Local Diff Findings
-
-Order findings by severity. Use this block for each finding:
+Use the same evidence fields in all modes. Keep uncomplicated findings concise; omit empty optional sections.
 
 ```text
-[HIGH] Missing timeout and abort handling on outbound HTTP request
-File: src/server/user-service.ts:48
-Issue: The new request path awaits an external API call without a timeout or AbortSignal. A slow upstream can pin the request handler and exhaust concurrency under load.
-Fix: Pass an AbortSignal or timeout budget and map timeout failures to a controlled error path.
+[HIGH][Defect] Replay of a payment callback credits the account twice
+Location: src/payments/callback.ts:48
+Trigger: The provider delivers the same event twice, as allowed by its retry contract.
+Evidence: Both requests reach creditAccount; the event ID is neither recorded nor protected by a unique constraint in the inspected write path.
+Impact: A retry changes the balance twice, causing a substantial financial correctness failure.
+Fix: Deduplicate the event atomically with the balance update.
+Verify: Deliver the same event twice and assert one balance change.
 ```
 
-End with:
+For a code-health finding, replace a runtime trigger with the supported maintenance or usage scenario. For a policy finding, cite the requirement. `Verify` describes a proposed check unless its execution is explicitly recorded.
 
-```markdown
-## Review Summary
+Close local and PR reports with:
 
-| Severity | Count | Status |
-|----------|-------|--------|
-| CRITICAL | 0     | pass   |
-| HIGH     | 1     | warn   |
-| MEDIUM   | 0     | info   |
-| LOW      | 0     | note   |
-
-Verdict: WARNING
+```text
+Scope: <mode, base/head or working-tree/index snapshot, paths>
+Coverage: complete | partial; <exclusions or sampled areas>
+Checks: <command/check, result, relevant environment>
+Findings: CRITICAL <n>, HIGH <n>, MEDIUM <n>, LOW <n>
+Verification gaps: <missing evidence and next check, or none>
+Verdict: BLOCK | INCOMPLETE | WARNING | PASS
 ```
 
-### PR Review Comments
+For PRs, pin evidence links to the full reviewed commit SHA: GitHub uses `/blob/FULL_SHA/path#Lx-Ly`; Gitea uses `/src/commit/FULL_SHA/path#Lx-Ly`. Recheck the head before authorized posting; if it changed, review the delta before asserting that the report applies to the new head. Do not link local-only content as if it existed on the remote.
 
-Use a forge-comment-ready format. Link each finding with a permalink pinned to the full commit SHA. Use the repository's actual forge URL shape: GitHub uses `/blob/FULL_SHA/path#Lx-Ly`; Gitea uses `/src/commit/FULL_SHA/path#Lx-Ly`.
+The repository audit template is in `repository-audit.md`.
 
-```markdown
-### Code review
+## Dead Code
 
-Found 2 issues:
+Report orphaned code when reachability evidence and a concrete maintenance, permission, dependency, or behavior cost are established. Search the supported entry points, registrations, build variants, generated consumers, and framework discovery paths.
 
-1. Missing schema validation on the new POST body allows malformed input to flow into database writes.
+No in-repository caller does not prove that a public library API, plugin hook, CLI command, or externally invoked route is dead. Preserve compatibility obligations and side effects such as module initialization or destruction. Unverified candidates belong in verification gaps, not removal instructions. Review does not authorize deletion.
 
-https://forge.example/owner/repo/<forge-path>/FULL_SHA/path/file.ts#L10-L28
+## Sources and Adaptation
 
-2. The new Rust async path performs blocking filesystem work directly on the runtime instead of offloading it.
+These sources inform the policy; their organization-specific procedures are not automatic project requirements. Explicit repository rules and user scope govern acceptance.
 
-https://forge.example/owner/repo/<forge-path>/FULL_SHA/path/lib.rs#L42-L67
-```
-
-If nothing meets the threshold:
-
-```markdown
-### Code review
-
-No high-confidence issues found.
-```
-
-## Shared Heuristics
-
-- Prefer one strong finding over five weak ones.
-- Read enough surrounding code to verify the claim.
-- Mixed refactor + behavior changes increase review risk and should be called out.
-- New code paths should usually come with tests near the same change.
-- Comments should explain why, not restate obvious code.
-- Isolated dead code matters when it preserves stale behavior, unused trust boundaries, or obsolete integration paths.
-
-## Dead Code Guidance
-
-Treat dead code as worth reporting when it is more than a cosmetic unused local:
-
-- orphan modules or handlers with no incoming references
-- branches made permanently unreachable by current control flow or feature flags
-- unused exports, routes, jobs, or workers that imply abandoned behavior
-- obsolete fallback paths that still retain secrets, permissions, or side effects
-
-Usually skip dead-code findings already fully enforced by compiler or linter warnings unless:
-
-- the repository appears not to enforce those warnings
-- the dead code is structural, not just a local variable
-- the dead code preserves risky behavior or confuses entry-point ownership
-
-## Security Baseline
-
-Across all stacks, look for:
-
-- input crossing trust boundaries without validation
-- dynamic query construction with user input
-- shell, file, or URL handling based on untrusted input
-- secrets, tokens, connection strings, or PII in logs
-- auth without authz
-- outbound requests without host restrictions or time limits
-
-## Source Notes
-
-These review rules were strengthened using official guidance from:
-
-- Google Engineering Practices: https://google.github.io/eng-practices/review/reviewer/looking-for.html
-- OWASP Input Validation Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html
-- OWASP SQL Injection Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html
-- OWASP Query Parameterization Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Query_Parameterization_Cheat_Sheet.html
-- OWASP Logging Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
-- TypeScript `noUnusedLocals`: https://www.typescriptlang.org/tsconfig/noUnusedLocals.html
-- TypeScript `allowUnreachableCode`: https://www.typescriptlang.org/tsconfig/allowUnreachableCode.html
-- ESLint `no-unused-vars`: https://eslint.org/docs/latest/rules/no-unused-vars
+- [Google: review standard](https://google.github.io/eng-practices/review/reviewer/standard.html)
+- [Google: what to review](https://google.github.io/eng-practices/review/reviewer/looking-for.html)
+- [Microsoft ISE: reviewer guidance](https://microsoft.github.io/code-with-engineering-playbook/code-reviews/process-guidance/reviewer-guidance/)
+- [Microsoft ISE: learning from review outcomes](https://microsoft.github.io/code-with-engineering-playbook/code-reviews/evidence-and-measures/)

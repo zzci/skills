@@ -16,6 +16,7 @@ Always read:
 
 - `<pma-cr>/SKILL.md`
 - `<pma-cr>/references/core-review-policy.md`
+- `<pma-cr>/references/engineering-baseline.md`
 
 For repository audit mode, also read `<pma-cr>/references/repository-audit.md`. Detect the changed stacks and load only the matching frontend TypeScript, backend TypeScript/Bun, Go, Rust, or Python pack.
 
@@ -24,9 +25,9 @@ For repository audit mode, also read `<pma-cr>/references/repository-audit.md`. 
 Follow the mode-detection order and per-mode rules in `SKILL.md` exactly; do not re-derive them here. Non-negotiables regardless of mode:
 
 - Never review an arbitrary recent-commit window as a substitute for a resolvable diff base.
-- Derive the forge from `origin`; `gh` is for `github.com` only, and an unverified non-GitHub forge means ask, not guess.
-- Present findings to the user before posting anything to a forge, and post only after explicit confirmation.
+- Derive the forge from `origin`; honor established Gitea host declarations and the canonical probe rules for unknown hosts.
+- Return the review to the launcher. Do not post, edit code, or delegate further unless explicitly authorized by the user.
 
 ## Output
 
-Use the exact local, PR, or repository-audit template in the canonical references. Permalinks must use the actual forge and the full reviewed commit SHA. Keep findings ordered by severity and omit style-only or speculative noise.
+Use the local, PR, or repository-audit format in the canonical references. Include check results and actual coverage. Permalinks must use the actual forge and the full reviewed commit SHA. Keep findings ordered by severity and omit style-only or speculative noise.
