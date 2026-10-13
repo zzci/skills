@@ -1,6 +1,6 @@
 ---
 name: bkd
-description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity, including three-tier coordination with an event-driven L1, multiple cron-driven L2 workstreams, and L3 execution, multi-repo coordination across several git repos in one workspace directory (trigger phrases like "start BKD multi-repo coordination"), plus multi-subtask orchestration (trigger phrases like "use bkd to start coordination", "start BKD L1"). Requires a reachable BKD server ($BKD_URL).
+description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity, including three-tier coordination with an event-driven L1, multiple cron-driven L2 workstreams, and L3 execution, multi-repo coordination across several git repos in one workspace directory (trigger phrases like "start BKD multi-repo coordination"), plus multi-subtask orchestration (trigger phrases like "use bkd to start coordination", "start BKD L1"), and the decision system that routes questions needing a human decision to BKD's decision inbox (trigger phrases like "enable the decision system", "启用决策系统"). Requires a reachable BKD server ($BKD_URL).
 ---
 
 # BKD
@@ -82,15 +82,18 @@ is bound to its repo by the working directory stated in its prompt
 (`useWorktree:false`, every git call as `git -C <repo>`), so no issue ever
 commits across repos.
 
-### Decision Events
+### Decision System
 
-In three-tier and MR coordination, anything that needs a human decision becomes
-a **decision event**: the coordinator (L1 / MR master) creates one event per
-question under `$BKD_URL/decisions/events`, the user decides it in BKD's
-`/decisions` inbox, and BKD follows up the coordinator so it can take the next
-step — while unaffected work keeps running. Servers up to 0.3.15 lack the
-module; `references/decision-events.md` holds the flow, the API, the probe, and
-the conversation fallback. Load it before raising one.
+When the user asks to enable the decision system — "启用决策系统", "enable the
+decision system", "use decision events" — in **any** BKD session, load
+`references/decisions.md`. From then on, anything that needs a human
+decision becomes a **decision event**: the agent's own issue (the raiser)
+creates one event per question under `$BKD_URL/decisions/events`, the user
+decides it in BKD's `/decisions` inbox, and BKD follows up the raiser so it
+can take the next step — while unaffected work keeps running. It works for a
+single issue as well as for any coordinator; three-tier L1 and MR masters use
+it by default. Servers up to 0.3.15 lack the module; the reference holds the
+probe and the conversation fallback.
 
 ### Single Issue Execution
 
@@ -165,9 +168,10 @@ Load only what the current task needs:
   current project with the repo given as the prompt's working directory, plus a
   PMA-format workspace ledger, cross-repo contract ordering, boundary checks,
   and per-repo commit rollback.
-- `references/decision-events.md`
-  Use with three-tier or MR coordination whenever a human decision is needed:
-  the event flow and states, the `/decisions/events` API and its probe, the
+- `references/decisions.md`
+  Use whenever the decision system is enabled — by the user in any BKD
+  session, or by default in three-tier and MR coordination — and a human
+  decision is needed: how it is enabled, the event flow and states, the `/decisions/events` API and its probe, the
   event scan, how a decision is applied, acked, closed, or withdrawn, and the
   conversation fallback on a server without the module.
 - `references/three-tier-coordination.md`
@@ -186,8 +190,9 @@ Choose references by intent:
   phrases like "start BKD multi-repo coordination": load
   `references/multi-repo-coordination.md` (with `references/rest-api.md` for
   guarded transport).
-- A coordinator (L1 or MR master) needs a human decision, or the user asks
-  about open decisions / events: load `references/decision-events.md`.
+- The user asks to enable the decision system, an agent with it enabled needs
+  a human decision, or the user asks about open decisions / events: load
+  `references/decisions.md`.
 - Multi-subtask dispatch or orchestration: load `references/rest-api.md` once
   for guarded transport, then `references/orchestration.md`.
 - Subtask quality assessment or code review: load `references/rest-api.md` once

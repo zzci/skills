@@ -835,7 +835,7 @@ Additional built-in endpoint groups outside the orchestration core:
 - **Decisions** — decision events for human-in-the-loop coordination:
   `GET /decisions` (capability probe), `GET/POST /decisions/events`, `GET/PATCH /decisions/events/{id}`,
   `POST /decisions/events/{id}/{decision,notify,ack,withdraw,close}`; added
-  after 0.3.15 (404 on older servers). See `decision-events.md`
+  after 0.3.15 (404 on older servers). See `decisions.md`
 - **Notes** — scratch notes: `GET/POST /notes`, `PATCH/DELETE /notes/{noteId}`
 - **Settings** — `server-info`, `max-concurrent-executions`, `log-page-size`,
   `workspace-path`, `write-filter-rules` under `/settings/...`

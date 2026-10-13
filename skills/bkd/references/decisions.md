@@ -1,20 +1,21 @@
-# BKD Decision Events
+# BKD Decision System
 
-A **decision event** is one record in BKD's decisions module that carries
-exactly one question for the human. The coordinator raises it when it hits
-something only the user may decide, keeps the rest of the campaign moving, and
-takes its next step from the event's outcome. The user decides **on the event
-itself**, in BKD's global `/decisions` inbox; BKD then follows up the
-coordinator, which wakes and acts on it.
+The decision system turns "stop and ask the human" into a **decision event**:
+one record in BKD's decisions module that carries exactly one question. An
+agent working on a BKD issue — the **raiser** — creates the event when it hits
+something only the user may decide, keeps its unaffected work moving, and takes
+its next step from the event's outcome. The user decides **on the event
+itself**, in BKD's global `/decisions` inbox; BKD then follows up the raiser's
+issue, which wakes and acts on it.
 
-Shared by `three-tier-coordination.md` (coordinator = L1) and
-`multi-repo-coordination.md` (coordinator = the master). Those files say *when*
-to raise an event; this file is the flow and the API.
+It is independent of any coordination pattern. A single issue, a two-tier
+coordinator (`orchestration.md`), a three-tier L1, and an MR master all use the
+same flow; those references only add who the raiser is in their hierarchy.
 
-The module is served by BKD itself under `$BKD_URL/decisions/events`, so it
-needs no URL or credential of its own. It was added after 0.3.15; an older
-server answers 404 there. The routes and fields below were checked against the
-BKD source and its route tests, not yet against a released server — treat a
+The module is served by BKD itself under `$BKD_URL/decisions`, so it needs no
+URL or credential of its own. It was added after 0.3.15; an older server
+answers 404 there. The routes and fields below were checked against the BKD
+source and its route tests, not yet against a released server — treat a
 mismatch on a live server as a finding to report, not something to work around.
 BKD only stores, shows, and notifies: it never raises an event itself.
 
@@ -24,6 +25,7 @@ Shell examples assume `set -o pipefail` and the `bkd_check` helper from
 ## Table of Contents
 
 - [Why Events](#why-events)
+- [Enabling the Decision System](#enabling-the-decision-system)
 - [Roles](#roles)
 - [What Becomes an Event](#what-becomes-an-event)
 - [Probing the API](#probing-the-api)
@@ -41,7 +43,7 @@ Shell examples assume `set -o pipefail` and the `bkd_check` helper from
 
 ## Why Events
 
-A question asked only in the coordinator's conversation is easy to miss, blocks
+A question asked only in the raiser's conversation is easy to miss, blocks
 on one thread, and is lost when that process is replaced. An event:
 
 - is a durable record outside any agent session, listed in one inbox across
@@ -51,43 +53,78 @@ on one thread, and is lost when that process is replaced. An event:
   in any order while unaffected work continues;
 - costs no BKD execution slot and no agent turn while it waits.
 
+## Enabling the Decision System
+
+The decision system is on when either holds:
+
+- **The user asks for it**, in any BKD session and in any wording: "启用决策
+  系统", "用决策事件", "需要我决定的发到决策收件箱", "enable the decision system",
+  "use decision events". It then stays on for that issue until the user turns
+  it off.
+- **The session is a three-tier L1 or an MR master**: those patterns use it by
+  default whenever the server supports it.
+
+Turning it on is a request to *route* decisions through events, never
+permission to decide more on your own, and never a reason to ask more often.
+What needs the human is unchanged; only the channel changes.
+
+On enabling, [probe the API](#probing-the-api) and confirm the raiser's own
+issue id and project id — the event needs them for `notify`. Then tell the user
+in one line whether it is active, or that this server has no decisions module
+and questions will stay in the conversation.
+
+**A raiser must be a BKD issue.** BKD wakes the raiser by following up an
+issue, and create fails without a valid one. An agent that is not running as a
+BKD issue has nothing to be woken through: say so and keep asking in the
+conversation, unless the user names an issue that should receive the decision.
+
 ## Roles
 
-- **Coordinator (L1 / MR master)** — the only tier that raises, tracks,
-  applies, acks, and withdraws events. L2s, L3s, and lanes keep escalating to
-  the coordinator by follow-up exactly as before; they never call the
-  decisions API.
+- **Raiser** — the issue that needs the decision and owns the next step. It
+  raises, tracks, applies, acks, and withdraws its own events.
+  - A single issue raises for itself.
+  - In a hierarchy, the top coordinator is the raiser (two-tier coordinator,
+    three-tier L1, MR master). Subtasks, L2s, L3s, and lanes keep escalating to
+    it by follow-up and never call the decisions API — one tracker per
+    campaign — unless the user enabled the decision system on that issue
+    directly.
 - **BKD** — stores events, shows them in the `/decisions` inbox, and wakes the
   raiser. It makes no decisions and runs no work.
 - **User** — decides an event, or closes it without answering, in the inbox.
-  Answering in the coordinator's own conversation stays valid; the coordinator
-  then closes the event itself.
+  Answering in the raiser's own conversation stays valid; the raiser then
+  closes the event itself.
 
 ## What Becomes an Event
 
-Raise one event per decision whenever the coordinator would otherwise stop and
-wait for the user:
+Raise one event per decision whenever the raiser would otherwise stop and wait
+for the user:
 
-- an escalation that needs a human choice (`yellow`, `blocked` after exhausted
-  retries, an unresolvable merge conflict, ambiguous acceptance criteria);
+- a requirement with two readings that lead to materially different work;
+- an escalation that needs a human choice (a `yellow` or `blocked` subtask
+  after exhausted retries, an unresolvable merge conflict, ambiguous
+  acceptance criteria);
 - a confirmation gate the user has not answered in the conversation (merge or
   acceptance of finished work, a continuation or scope change);
 - every auto-mode hard stop;
 - an outward-facing or irreversible step (push, publish, tag, deletion).
 
-Do not raise an event for the initial dispatch package of a new campaign (that
-is a live conversation with the user), for anything the coordinator is allowed
-to decide itself, or for progress news that needs no decision.
+Do not raise an event for a question the user is answering live in the
+conversation (including the initial dispatch package of a new campaign), for
+anything the raiser is allowed to decide itself, or for progress news that
+needs no decision.
 
-Before creating one, list the campaign's open events; if one already covers the
-same question, `PATCH` it with the new facts instead of opening a second.
+Before creating one, list your open events; if one already covers the same
+question, `PATCH` it with the new facts instead of opening a second.
+
+**Grouping.** `campaignId` is required and scopes the raiser's scan. A campaign
+uses its `campaignId`; an issue outside any campaign uses `issue-{issueId}`.
 
 ## Probing the API
 
 `GET $BKD_URL/decisions` is the capability probe. A server with the module
 answers `{ success:true, data:{ supported:true, contractVersion:1 } }`; an older
 server answers 404. Probe once per session, during pre-flight, and keep the
-result for the whole campaign:
+result for as long as the session lasts:
 
 ```bash
 DECISIONS_API=0
@@ -122,16 +159,16 @@ use it for this flow.
 ## Lifecycle
 
 ```
-coordinator: create event                                  -> open
+raiser: create event                                  -> open
 user:        decides in the inbox (option and/or instruction) -> decided
 BKD:         follows up the notify issue with [event-decision ...]
-coordinator: woken -> re-read the event -> apply -> ack     -> applied
+raiser: woken -> re-read the event -> apply -> ack     -> applied
 
-user answers in the coordinator's conversation instead:
-coordinator: apply -> close with the decision as the reason -> closed
+user answers in the raiser's conversation instead:
+raiser: apply -> close with the decision as the reason -> closed
 
 the matter went away:
-coordinator: withdraw with a reason                         -> withdrawn
+raiser: withdraw with a reason                         -> withdrawn
 
 user ends the event in the inbox without answering          -> closed
 ```
@@ -140,15 +177,15 @@ user ends the event in the inbox without answering          -> closed
 |-------|---------|------------|------|
 | `open` | waiting on the human | create | — |
 | `decided` | the human answered; not yet acted on | `decision` (user) | `open` |
-| `applied` | the coordinator acted on the decision | `ack` (coordinator) | `decided` |
-| `withdrawn` | no longer needed; never decided | `withdraw` (coordinator) | `open` |
-| `closed` | ended without the event flow completing | `close` (user or coordinator) | `open`, `decided` |
+| `applied` | the raiser acted on the decision | `ack` (raiser) | `decided` |
+| `withdrawn` | no longer needed; never decided | `withdraw` (raiser) | `open` |
+| `closed` | ended without the event flow completing | `close` (user or raiser) | `open`, `decided` |
 
 `applied`, `withdrawn`, and `closed` are terminal. A call that the current
 state does not allow returns HTTP 409 (`Not allowed while the event is
 {status}`), so a terminal event can no longer be decided and can never trigger
 a follow-up. Ending an event promptly is what keeps a stray reply from waking
-the coordinator with a decision nobody needs.
+the raiser with a decision nobody needs.
 
 An event is **non-blocking**: only the work that depends on the decision waits
 (keep the affected subtask or lane `blocked`, with the event id noted beside
@@ -160,18 +197,18 @@ it). Everything independent keeps running.
 |-------|--------|---------|
 | `id` | BKD | event id |
 | `status` | BKD | `open` / `decided` / `applied` / `withdrawn` / `closed` |
-| `campaignId` | coordinator | required, ≤ 200 chars |
-| `ref` | coordinator | issue id of the L2 / lane / subtask the decision concerns; the inbox links to it |
-| `question` | coordinator | required; the single decision needed, one sentence (≤ 2000) |
-| `context` | coordinator | 3–6 lines; file paths + line ranges, never pasted contents |
-| `options[]` | coordinator | `{ id, label, impact }`, unique ids, at most 20 — impact = scope / time / risk |
-| `recommendation` | coordinator | `{ optionId, reason }`; `optionId` must be one of the options |
-| `blocks` | coordinator | what stays blocked until decided (≤ 2000) |
-| `continues` | coordinator | what keeps running meanwhile (≤ 2000) |
-| `notify` | coordinator | required: `{ type:"bkd-follow-up", projectId, issueId }` — the coordinator's own issue |
+| `campaignId` | raiser | required, ≤ 200 chars; `issue-{issueId}` outside a campaign |
+| `ref` | raiser | issue id the decision concerns (a subtask, L2, or lane; the raiser itself when it has none); the inbox links to it |
+| `question` | raiser | required; the single decision needed, one sentence (≤ 2000) |
+| `context` | raiser | 3–6 lines; file paths + line ranges, never pasted contents |
+| `options[]` | raiser | `{ id, label, impact }`, unique ids, at most 20 — impact = scope / time / risk |
+| `recommendation` | raiser | `{ optionId, reason }`; `optionId` must be one of the options |
+| `blocks` | raiser | what stays blocked until decided (≤ 2000) |
+| `continues` | raiser | what keeps running meanwhile (≤ 2000) |
+| `notify` | raiser | required: `{ type:"bkd-follow-up", projectId, issueId }` — the raiser's own issue |
 | `decision` | user | `{ optionId \| null, instruction, decidedBy, decidedAt }` |
-| `outcome` | coordinator (ack) | one line: what was done with the decision |
-| `withdrawReason` | coordinator (withdraw) | why it is no longer needed |
+| `outcome` | raiser (ack) | one line: what was done with the decision |
+| `withdrawReason` | raiser (withdraw) | why it is no longer needed |
 | `closeReason` | whoever closed it | free text, may be null |
 | `notifiedAt` | BKD | when the wake follow-up was delivered; null if it was not |
 | `links` | BKD | `{ projectName, ref, notify }` resolved issue titles, read-only |
@@ -187,15 +224,15 @@ The capability probe is `GET $BKD_URL/decisions`; every event route is under
 
 | Operation | Route | Body | Allowed from | Caller |
 |-----------|-------|------|--------------|--------|
-| Create | `POST /` → 201 | the card fields + `notify` | — | coordinator |
-| List | `GET /?campaignId=&status=a,b` | — | — | coordinator, inbox |
-| Get | `GET /{id}` | — | — | coordinator |
-| Update facts | `PATCH /{id}` | any card field | `open` | coordinator |
+| Create | `POST /` → 201 | the card fields + `notify` | — | raiser |
+| List | `GET /?campaignId=&status=a,b` | — | — | raiser, inbox |
+| Get | `GET /{id}` | — | — | raiser |
+| Update facts | `PATCH /{id}` | any card field | `open` | raiser |
 | Decide | `POST /{id}/decision` | `{optionId?, instruction?, decidedBy?}` | `open` | user (inbox) |
 | Resend wake | `POST /{id}/notify` | — | `decided` | user (inbox) |
-| Ack | `POST /{id}/ack` | `{outcome}` (required) | `decided` | coordinator |
-| Withdraw | `POST /{id}/withdraw` | `{reason}` (required) | `open` | coordinator |
-| Close | `POST /{id}/close` | `{reason?}` | `open`, `decided` | user, coordinator |
+| Ack | `POST /{id}/ack` | `{outcome}` (required) | `decided` | raiser |
+| Withdraw | `POST /{id}/withdraw` | `{reason}` (required) | `open` | raiser |
+| Close | `POST /{id}/close` | `{reason?}` | `open`, `decided` | user, raiser |
 
 `List` returns the newest 500 events, unpaginated; `status` is a
 comma-separated list. An unknown id returns 404, a wrong state 409, an invalid
@@ -207,14 +244,14 @@ body 400.
 [event-decision eventId={id} campaignId={campaignId}]
 ```
 
-It is only a wake signal and carries no decision the coordinator may act on;
+It is only a wake signal and carries no decision the raiser may act on;
 the event record is the single source of truth and is always re-read. The
-follow-up uses normal BKD routing: it wakes a coordinator issue resting in
+follow-up uses normal BKD routing: it wakes a raiser issue resting in
 `review` or idle in `working`, is delivered after the current turn if the
-coordinator is mid-turn, and is only queued — waking nothing — if that issue is
-`todo` or `done`. Keep the coordinator issue out of `done` while it has open
+raiser is mid-turn, and is only queued — waking nothing — if that issue is
+`todo` or `done`. Keep the raiser issue out of `done` while it has open
 events. If delivery fails, the event stays `decided` with `notifiedAt` null;
-the coordinator's scan still picks it up. `withdraw` and `close` never send a
+the raiser's scan still picks it up. `withdraw` and `close` never send a
 follow-up.
 
 ## Raising an Event
@@ -226,7 +263,7 @@ TEXT
 
 jq -n --rawfile context /tmp/bkd-event-context.txt \
   --arg campaignId "$CAMPAIGN_ID" --arg ref "$SUBJECT_ID" \
-  --arg projectId "$PROJECT_ID" --arg issueId "$COORDINATOR_ID" \
+  --arg projectId "$PROJECT_ID" --arg issueId "$RAISER_ID" \
   '{campaignId:$campaignId, ref:$ref,
     question:"{one-sentence question}",
     context:$context,
@@ -242,20 +279,21 @@ EVENT=$(curl -sS --fail-with-body -X POST "$BKD_URL/decisions/events" \
 EVENT_ID=$(printf '%s\n' "$EVENT" | bkd_check | jq -er '.data.id') || exit 1
 ```
 
-Write the card in the language the user speaks with the coordinator. Tell the
-user about the new event once, in the coordinator's next message: event id, the
+Write the card in the language the user speaks with the raiser. Tell the
+user about the new event once, in the raiser's next message: event id, the
 question, what is waiting on it, and that it can be decided in the `/decisions`
-inbox. Record the event id beside the blocked item in the campaign state. Then
-end the turn — never wait in-turn for the decision.
+inbox. Note the event id beside the blocked item in your state (campaign state
+or ledger; for a single issue, the turn's final message). Then end the turn
+when nothing unblocked is left to do — never wait in-turn for the decision. The
+issue settles into `review`, and the decision's follow-up wakes it from there.
 
 ## Tracking Events
 
-The notification is the primary signal: it wakes the coordinator the moment the
+The notification is the primary signal: it wakes the raiser the moment the
 user decides. The scan below is the safety net for a lost notification, the
 only way to notice an event the user closed, and the source of the "open
 decisions" line in every progress report. Run it at the start of every
-coordinator wake that touches the campaign (auto mode: every watchdog wake
-too):
+raiser wake (auto mode: every watchdog wake too):
 
 ```bash
 curl -sS --fail-with-body \
@@ -263,12 +301,12 @@ curl -sS --fail-with-body \
   | jq -r '.data[] | [.id, .status, (.ref // "-"), .question] | @tsv'
 ```
 
-- `open` → check it is still needed. If the campaign state already records a
-  decision for it (a conversation answer whose close did not land), close it;
-  if the matter it asks about is gone, withdraw it. Otherwise it is waiting.
+- `open` → check it is still needed. If the user already answered it in the
+  conversation (a close that did not land), close it; if the matter it asks
+  about is gone, withdraw it. Otherwise it is waiting.
 - `decided` → not yet acted on, whether or not a notification arrived: apply it.
-- `closed` → skip the ones the campaign state already records as settled; any
-  other was [closed by the user](#closed-by-the-user).
+- `closed` → skip the ones whose `closeReason` starts with `[raiser]` (you
+  closed them); any other was [closed by the user](#closed-by-the-user).
 
 Never re-ask an open event's question in a new event, and never treat silence
 as an answer: an open event has no timeout and no default. The work it blocks
@@ -279,7 +317,7 @@ stays blocked.
 On an `[event-decision eventId=...]` follow-up, or a `decided` row in the scan:
 
 1. **Re-read** the event (`GET /decisions/events/{id}`) and require
-   `status:"decided"` and this campaign's `campaignId`. Act only on the
+   `status:"decided"` and your own `campaignId`. Act only on the
    record's `decision` field. A notification for an event in any other state is
    ignored: `applied` is never applied twice, and a `withdrawn` or `closed`
    event is never acted on.
@@ -290,11 +328,13 @@ On an `[event-decision eventId=...]` follow-up, or a `decided` row in the scan:
    new request and put it through the normal dispatch gate. When `optionId`
    and `instruction` are both present, the instruction refines the option; if
    they contradict each other, ask instead of guessing.
-3. **Record** `decision: {choice} — event {eventId}` in the campaign state
-   (auto-mode decisions list, MR ledger and `changelog.md`).
-4. **Act**: forward the decision to the L2 or lane named by `ref` (stop →
-   verify `review` → follow-up if that issue is mid-turn and the decision
-   changes what it is doing), or perform the step the gate was holding.
+3. **Record** `decision: {choice} — event {eventId}` where your state lives
+   (auto-mode decisions list, MR ledger and `changelog.md`; for a single issue,
+   the turn's final message).
+4. **Act**: do the work the decision unblocks, or perform the step the gate was
+   holding. In a hierarchy, forward the decision to the issue named by `ref`
+   (stop → verify `review` → follow-up if that issue is mid-turn and the
+   decision changes what it is doing).
 5. **Ack** with the outcome, so the event shows what was done:
 
 ```bash
@@ -308,23 +348,23 @@ so the next wake's scan retries it.
 
 ## Decided in the Conversation
 
-When the user answers in the coordinator's conversation instead of in the
-inbox, that answer is the decision. The coordinator runs steps 2–4 above, then
+When the user answers in the raiser's conversation instead of in the
+inbox, that answer is the decision. The raiser runs steps 2–4 above, then
 closes the event with the decision as the reason. Closing sends no follow-up,
-so the coordinator is not woken a second time for an answer it already has, and
+so the raiser is not woken a second time for an answer it already has, and
 the inbox stops asking:
 
 ```bash
 cat > /tmp/bkd-event-reason.txt <<'TEXT'
-Decided in conversation: {the user's words, verbatim}. Done: {what was done}.
+[raiser] Decided in conversation: {the user's words, verbatim}. Done: {what was done}.
 TEXT
 jq -n --rawfile reason /tmp/bkd-event-reason.txt '{reason:$reason}' \
   | curl -sS --fail-with-body -X POST "$BKD_URL/decisions/events/$EVENT_ID/close" \
       -H 'Content-Type: application/json' -d @- | bkd_check
 ```
 
-Keep the reason within 2000 characters, and record the event as settled in the
-campaign state so the scan does not mistake it for a user close. The answer
+Keep the reason within 2000 characters and keep the `[raiser]` prefix: it is
+how the scan tells your own close from a user close. The answer
 must clearly settle that event's question; with several events open, confirm
 which one it answers before acting. If the event turns out to be `decided`
 already (the user also answered in the inbox), the record wins: apply and ack
@@ -333,10 +373,10 @@ that decision, and tell the user if the two answers differ.
 ## When the Matter Goes Away
 
 When the matter behind an open event disappears — the blocked work was dropped
-or finished another way, a later decision covers it, the campaign was stopped —
+or finished another way, a later decision covers it, the work was stopped —
 withdraw the event in the same turn, with the reason. An event left open keeps
 asking the user for a decision that no longer matters, and an answer to it
-would send a follow-up and wake the coordinator for nothing:
+would send a follow-up and wake the raiser for nothing:
 
 ```bash
 jq -n --arg reason "{why it is no longer needed}" '{reason:$reason}' \
@@ -347,18 +387,18 @@ jq -n --arg reason "{why it is no longer needed}" '{reason:$reason}' \
 `withdraw` only works on an `open` event. A 409 means the user decided first:
 apply whatever part of the decision still makes sense and ack with an outcome
 that says what was and was not done; if nothing is left to apply, `close` it
-with that explanation as the reason.
+with a `[raiser]`-prefixed reason that explains why.
 
-A campaign that finishes with open events is not silently complete: list every
-open event in the final report. The coordinator still wakes on a late decision
-and handles it as a continuation.
+Work that finishes with open events is not silently complete: list every open
+event in the final report. The raiser still wakes on a late decision and
+handles it as a continuation.
 
 ## Closed by the User
 
 The user can close an event in the inbox without answering it. BKD sends no
-follow-up for that, so the coordinator learns of it only from the scan, on its
-next wake. A `closed` event that the campaign state does not record as settled
-by the coordinator means: the user declined to decide this through the event.
+follow-up for that, so the raiser learns of it only from the scan, on its
+next wake. A `closed` event whose `closeReason` does not start with `[raiser]`
+means: the user declined to decide this through the event.
 
 - Do not act on it — not on the recommendation, and not on a `decision` the
   event may still carry from before it was closed.
@@ -375,16 +415,17 @@ substitute (no stand-in issues, notes, or files). Every rule in this file
 except the transport still holds: one question at a time per decision, the same
 card content (question, context, options, impact, recommendation, what waits,
 what continues), non-blocking for independent work, and no default answer. The
-coordinator puts the card to the user in its own conversation and records the
-decision in the campaign state. Say once that decisions are being handled in
+raiser puts the card to the user in its own conversation and records the
+decision where its state lives. Say once that decisions are being handled in
 the conversation because this BKD server has no decisions module.
 
 ## Key Constraints
 
 1. **One event, one decision** — never bundle questions; update an open event
    for the same question instead of opening another.
-2. **Only the coordinator raises, applies, acks, and withdraws events**; L2s,
-   L3s, and lanes escalate to the coordinator and never call the decisions API.
+2. **One raiser per hierarchy** — the top coordinator raises, applies, acks,
+   and withdraws; subtasks, L2s, L3s, and lanes escalate to it. A single issue
+   raises for itself. The raiser must be a BKD issue.
 3. **The event record is the source of truth** — the notification follow-up is
    only a wake signal; always re-read the event before acting.
 4. **Non-blocking** — only dependent work waits; note the event id beside the
@@ -402,3 +443,5 @@ the conversation because this BKD server has no decisions module.
     stays blocked until the user says otherwise.
 11. **Probe once, reuse `$BKD_URL`** — on a server without the module, fall
     back to the conversation and keep the same flow.
+12. **Enabling changes the channel, not the threshold** — the same questions
+    need the human as before; never ask more, never decide more.

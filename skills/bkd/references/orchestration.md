@@ -410,3 +410,8 @@ Coordinator assessment:
 13. **Verify the spawn** - `PATCH {statusId:"working"}` succeeds even when the
     engine never starts; re-read `sessionStatus` and flush with a follow-up if
     it is `failed` (see 4.2).
+14. **Decision system (when the user enables it)** - every "human decision"
+    step above (a `yellow` subtask, an unresolvable conflict, the final
+    confirmation) is raised by the coordinator as a decision event instead of
+    being asked only in the conversation; subtasks keep reporting to the
+    coordinator and never raise events. See `decisions.md`.

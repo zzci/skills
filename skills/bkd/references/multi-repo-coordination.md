@@ -169,7 +169,7 @@ for repo in $(find "$WORKSPACE" -mindepth 2 -maxdepth 4 -name .git -prune | sed 
 done
 ```
 
-Also probe `$BKD_URL/decisions` once (see `decision-events.md` → Probing the
+Also probe `$BKD_URL/decisions` once (see `decisions.md` → Probing the
 API) and record whether [decision events](#decision-events) are available.
 
 A repo that is dirty before dispatch is pre-existing user work: record its
@@ -438,7 +438,7 @@ Whenever the master would stop and wait for the user, it raises a **decision
 event** — one record per question in BKD's decisions module, decided by the
 user directly in the `/decisions` inbox — and keeps the independent lanes
 moving. The flow, the API, and the fallback on a server without the module are in
-`decision-events.md`; load it before raising the first event.
+`decisions.md`; load it before raising the first event.
 
 - **What the master raises**: Gate 2 acceptance the user has not answered in
   the conversation, a lane that is `blocked` or out of rework attempts, a

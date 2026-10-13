@@ -181,7 +181,7 @@ Do this every time L1 starts, before anything else:
    ```
 5. If the scope of work is unclear, ask the user. **Never broaden scope on
    your own.**
-6. Probe `$BKD_URL/decisions` once (see `decision-events.md` → Probing the
+6. Probe `$BKD_URL/decisions` once (see `decisions.md` → Probing the
    API) and record whether [decision events](#decision-events) are available;
    on a server without the module, decisions stay in the conversation.
 
@@ -620,7 +620,7 @@ Anything that needs a human decision becomes a **decision event**: one record
 per question in BKD's decisions module, raised and tracked by L1, decided by
 the user directly in the `/decisions` inbox. The flow and the API — record,
 notify, scan, ack, close, withdraw, and the fallback on a server without the
-module — are in `decision-events.md`; load it before raising the first event.
+module — are in `decisions.md`; load it before raising the first event.
 
 - **L3** reports `blocked` to its L2. **L2** escalates `yellow`/`blocked` to L1
   with the question, options, impact, and recommendation, marks the affected
