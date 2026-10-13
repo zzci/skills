@@ -254,8 +254,8 @@ If monitoring must span turns, create one `issue-follow-up` cron for the
 coordinator using the ID-capturing pattern in `rest-api.md`. Persist
 `coordinatorCronId` in the coordinator's final state. Bootstrap is idempotent:
 reuse exactly one active same-name cron and treat duplicates as an error. On
-completion or user stop, delete by ID, assert `.success`, and verify
-`isDeleted:true` before leaving `working`. A cron auto-pauses after 3
+completion or user stop, delete by ID, assert `.success`, and verify the job is
+gone (`GET /cron/{id}/logs` returns 404) before leaving `working`. A cron auto-pauses after 3
 consecutive failed runs (for example once its target issue is `done`), so if
 the coordinator stops waking, read the job's `enabled` and `lastRun.error`
 before assuming there is nothing to do.
@@ -397,7 +397,7 @@ Coordinator assessment:
 7. **Pipeline assessment** - coordinator assesses each subtask immediately on completion; do not wait for all subtasks
 8. **review != done** - `review` awaits human confirmation; only move to `done` after human approval
 9. **Soft delete** - project and issue deletions are soft-delete by default
-10. **No sleep** - never use `sleep` to wait for subtasks or long-running operations; create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, capture `.data.id`, and let the current turn end. Persist that cron ID in the coordinator's final state. On completion or user stop, delete the cron by ID, assert `.success`, and verify `isDeleted:true` before moving the coordinator to `review`.
+10. **No sleep** - never use `sleep` to wait for subtasks or long-running operations; create a cron job (`issue-follow-up`) to callback the coordinator issue on a schedule, capture `.data.id`, and let the current turn end. Persist that cron ID in the coordinator's final state. On completion or user stop, delete the cron by ID, assert `.success`, and verify the job is gone (`GET /cron/{id}/logs` returns 404) before moving the coordinator to `review`.
 11. **Separate first start from continuation** - queue a new `todo` issue's
     complete instruction, then move it to `working`; the actual transition
     starts its first execution. For eligible existing issues, use follow-up to

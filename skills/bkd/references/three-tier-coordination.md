@@ -211,13 +211,13 @@ When the user does specify a model, the mechanics:
 - Omitted `model` resolves through project/engine defaults; that is the
   normal state of a campaign.
 
-Resolving the user's wording to exact ids (as verified on BKD v0.1.0;
+Resolving the user's wording to exact ids (as verified on BKD v0.3.15;
 re-check per server with `/engines/available`):
 
 | User says | `engineType` | `model` |
 |-----------|--------------|---------|
 | "Claude Fable 5.1" | `claude-code` | `claude-fable-5-1` |
-| "Opus 5" | `claude-code` | `claude-opus-5` |
+| "Opus 5.5" | `claude-code` | `claude-opus-5-5` |
 | "Codex 5.6 Sol" | `codex` | `gpt-5.6-sol` |
 
 Use a `[1m]` variant (e.g. `claude-fable-5-1[1m]`) only when the user asks for
@@ -328,7 +328,7 @@ matter; only BKD HTTP semantics do.
   5. Report the outcome. Issues move to `done` only on the user's say-so (it
      triggers worktree auto-cleanup, cancels any still-running session, and
      breaks any cron still targeting the issue). Before moving an L2 to
-     `done`, verify its self cron is deleted (`isDeleted:true`).
+     `done`, verify its self cron is deleted (`GET /cron/{id}/logs` returns 404).
 - **Event-driven progress only.** L1 creates no cron (auto mode adds exactly
   one watchdog; see [Auto Mode](#auto-mode-unattended-l1)). A user message wakes L1
   for an on-demand aggregate report. Every L2 progress, yellow/blocked, and
@@ -342,7 +342,8 @@ matter; only BKD HTTP semantics do.
   outcome. Every wake starts with the open-event scan.
 - **Termination conditions** (evaluated per campaign on an event-driven wake):
   - User explicitly stops -> delete every owned L2 cron by ID, assert each
-    response succeeds, and verify `isDeleted:true`; obtain IDs from each L2's
+    response succeeds, and verify each job is gone (404 on its by-ID
+    routes); obtain IDs from each L2's
     latest DAG state, falling back to a unique active-name lookup; exit.
   - All L2s are in `review`, every L3 is in `review` with DAG state
     `merged`/`blocked`, and nothing is in `todo`/`working` -> run the ordered,
@@ -570,7 +571,7 @@ Auto mode has no user watching for a stall, so L1 registers exactly one
 `issue-follow-up` cron on itself, named `l1-auto-{L1_ID}` at `*/30 * * * *`
 (same create-and-capture pattern as [L2 15-minute Self
 Cron](#l2-15-minute-self-cron-bootstrap), with `issueId` = L1). Bootstrap is
-idempotent: query `GET /cron?deleted=false&limit=100`, reuse the single active
+idempotent: query `GET /cron?limit=100`, reuse the single active
 job of that name, and treat duplicates as an error to report.
 
 Each watchdog wake is scan-and-act, never a re-investigation: capacity, the
@@ -581,7 +582,8 @@ act, or end the turn. 30 minutes is deliberately longer than the L2 interval:
 L2 events already wake L1, so the cron only has to catch silence.
 
 Delete it by captured ID at completion or on user stop, assert `.success`, and
-verify `isDeleted:true` before L1 leaves the campaign.
+verify the job is gone (`GET /cron/{id}/logs` returns 404) before L1 leaves
+the campaign.
 
 ### Hard Stops (auto mode still asks)
 
@@ -609,8 +611,8 @@ the campaign when the remaining workstreams are independent.
 
 When every L2 has terminated (its cron deleted, its issue in `review`) and
 every branch is merged or explicitly blocked: run the project's checks on the
-integration branch once, delete the watchdog cron by ID and verify
-`isDeleted:true`, then post the final summary — per-workstream merge SHAs,
+integration branch once, delete the watchdog cron by ID and verify it is gone
+(`GET /cron/{id}/logs` returns 404), then post the final summary — per-workstream merge SHAs,
 decisions taken with reasons, deferred out-of-scope items, open decision
 events, and anything blocked with the reason. Leave every issue in `review`; `done` stays human-only.
 
@@ -660,7 +662,7 @@ turn ends. **No `sleep`, ever. Never touch main.**
 
 **Bootstrap (first wake, single turn):**
 
-1. Make bootstrap idempotent: query `GET /cron?deleted=false&limit=100` for
+1. Make bootstrap idempotent: query `GET /cron?limit=100` for
    `l2-dispatch-{L2_ID}` and the project issue list for existing campaign L3s,
    following all cursor pages. Reuse exactly one active cron and all matching
    L3 IDs; more than one active cron is an error to escalate, not permission to
@@ -706,7 +708,7 @@ turn ends. **No `sleep`, ever. Never touch main.**
 1. Follow-up L1: "workstream {workstream} in campaign {campaignId} complete;
    branch `bkd/{L2_ID}` ready for L1 review and ordered merge into main".
 2. Delete the L2 self-cron by its captured ID, assert success, and verify
-   `isDeleted:true` on a re-read.
+   it is gone (`GET /cron/{id}/logs` returns 404).
 3. Move L2 itself to `review`.
 4. End turn. L2 will not wake again.
 
@@ -736,7 +738,7 @@ Capture `.data.id` from the create response and persist it as `cronId` in the
 L2 plan snapshot and DAG state. Deletion and any schedule change need the ID,
 not the name. To change the schedule, delete by ID, assert success, and recreate
 under the same name; no update route exists. If the stored ID is lost, recover
-it with `GET /cron?deleted=false&limit=100`, match `.name`, and require exactly one active
+it with `GET /cron?limit=100`, match `.name`, and require exactly one active
 result across all cursor pages before acting.
 
 ## L3 - Subtask Issues (short lifecycle)
@@ -1032,7 +1034,7 @@ stall/idle kills appear as `[BKD] ...` `system-message` entries.
 A loop that stops waking is usually a dead cron, not a finished campaign: BKD
 auto-pauses a job (`enabled:false`) after 3 consecutive failed runs, and
 `issue-follow-up` fails whenever its target is `todo` or `done`. L1 checks
-`GET /cron?deleted=false&limit=100` for `enabled:false` + `lastRun.error` on
+`GET /cron?limit=100` for `enabled:false` + `lastRun.error` on
 every campaign L2 cron before concluding an L2 is idle, and resumes it with
 `POST /cron/{id}/resume` once the L2 is back in `review`/`working`.
 
@@ -1079,12 +1081,12 @@ The terminating L2 follows this 4-step pattern:
 1. **Final outbound message.** Follow-up L1 with the payload below. This wakes
    L1, which aggregates the full multi-L2 campaign state.
 2. **Delete own cron by ID** (captured at creation; if lost, recover via
-   `GET /cron?deleted=false&limit=100` by matching `.name` across all cursor pages and
+   `GET /cron?limit=100` by matching `.name` across all cursor pages and
    requiring one active result): `DELETE /cron/{cronId}`. Assert `.success` in the response; a
-   by-name delete fails with `Job not found` and leaves the cron alive. Re-read
-   it through `GET /cron?deleted=only` and verify `isDeleted:true`, the only
-   truthful deletion field; `enabled`, `status`, and `nextExecution` remain
-   misleading after deletion.
+   by-name delete fails with `Job not found` and leaves the cron alive. Then
+   confirm the deletion: `GET /cron/{cronId}/logs?limit=1` must return HTTP
+   404 `Job not found` (deleted jobs also vanish from `GET /cron`; there is no
+   `isDeleted` field to read).
 3. `PATCH` the L2 issue to `review`.
 4. Emit `[idle-tick 3/3 -> L2 terminated]` and end the turn.
 
@@ -1102,7 +1104,7 @@ Branch bkd/$L2_ID is ready for L1 review and ordered merge into main. Check sibl
 - 3 wakes ≈ 45 min. To change the window, adjust the **L2 cron interval**, not
   the count.
 - User explicit stop bypasses the countdown — delete all campaign L2 crons by
-  ID, assert success, and verify `isDeleted:true` immediately.
+  ID, assert success, and verify each is gone (404 on its by-ID routes) immediately.
 - Process-replacement-safe: a newly woken process reads the same trailing
   markers and continues the streak. Do not use `/restart` as a generic wake;
   it is limited to failed/cancelled sessions and replays the stored prompt.
@@ -1139,7 +1141,8 @@ Compact checklist — the full rules live in the sections referenced.
 8. **L3 never dispatches, never merges** — one task in, one report out, exit.
 9. **L2 idle cron self-termination** after 3 consecutive idle wakes;
    actionable work resets the streak; user stop bypasses it. Delete crons by
-   captured ID, assert success, and verify `isDeleted:true`. L1 has no cron
+   captured ID, assert success, and verify they are gone (404 on by-ID
+   routes). L1 has no cron
    outside auto mode (see [Idle Termination
    Countdown](#idle-termination-countdown), [Auto Mode](#auto-mode-unattended-l1)).
 10. **Only L1 writes to main**; L2/L3 always run with `useWorktree: true` — `orchestration.md`'s simple/worktree mode table does not apply here.

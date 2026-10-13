@@ -283,8 +283,8 @@ and append decisions and rollbacks to `changelog.md`.
   [decision event](#decision-events) — when it needs a decision. Rework is bounded (default 2 attempts per lane); on exceed, set the
   lane state `blocked` and ask the user.
 - **Terminate** when every lane is `accepted` or `blocked`: delete each lane's
-  cron by captured ID if it registered one (assert success, verify
-  `isDeleted:true`), set the plan status to `completed`, complete or close each
+  cron by captured ID if it registered one (assert success, verify the job is
+  gone: `GET /cron/{id}/logs` returns 404), set the plan status to `completed`, complete or close each
   lane task, append a changelog entry, and move the master to `review`. `done`
   stays human-only.
 

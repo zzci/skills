@@ -145,9 +145,9 @@ curl -sS --fail-with-body "$BKD_URL/processes/capacity" | jq
 # Monitor logs (last 3 turns, assistant messages only)
 curl -sS --fail-with-body "$BKD_URL/projects/{projectId}/issues/{issueId}/logs/filter/types/assistant-message/turn/last3" | jq
 
-# Cron jobs (always filter: a bare /cron also returns soft-deleted jobs)
+# Cron jobs (soft-deleted jobs are never listed)
 curl -sS --fail-with-body "$BKD_URL/cron/actions" | jq
-curl -sS --fail-with-body "$BKD_URL/cron?deleted=false" | jq
+curl -sS --fail-with-body "$BKD_URL/cron" | jq
 ```
 
 ## Reference Packs

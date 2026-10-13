@@ -4,11 +4,11 @@ Use this file when the `bkd` skill needs exact BKD routes, payload shapes, or
 operational examples.
 
 The original edge-case behavior documented here was verified against BKD
-v0.0.90. Process control, status transitions, follow-up guards, logs-filter
-entry types, `/changes` and `/processes/capacity` response shapes, and cron
-listing/auto-pause behavior were re-verified against BKD v0.1.0 source at
-commit `93df96a` and a live v0.1.0 server. Read `/health` first and re-verify
-version-sensitive behavior after a server upgrade.
+v0.0.90 and re-verified against v0.1.0. Routes, the engine list, model ids,
+cron listing and deletion semantics, and the execute/follow-up/restart/cancel
+guards were re-verified against BKD v0.3.15 source (commit `5ddbd31`). Read
+`/health` first and re-verify version-sensitive behavior after a server
+upgrade; the live contract is served at `$BKD_URL/docs/openapi.json`.
 
 ## Table of Contents
 
@@ -83,7 +83,7 @@ for short strings, `--argjson` for booleans/objects):
 
 ```bash
 jq -n --rawfile prompt /tmp/bkd-prompt.txt \
-      --arg engine "claude-code" --arg model "claude-opus-5" \
+      --arg engine "claude-code" --arg model "claude-opus-5-5" \
   '{engineType: $engine, prompt: $prompt, model: $model}' > /tmp/bkd-body.json
 ```
 
@@ -101,20 +101,23 @@ curl -sS --fail-with-body "$BKD_URL/status" | bkd_check    # detailed server sta
 
 ## Engines
 
-An engine (`claude-code` or `codex` in v0.1.0) is the CLI that executes an
-issue. `POST .../execute` requires an `engineType`, so use these to discover what
-is installed and which models are available before dispatching. Model ids are
-only validated against this list at spawn time and an unknown id silently
-resolves to the engine default, so copy ids from `/engines/available` rather
-than typing them from memory.
+An engine (`claude-code`, `codex`, `grok`, or `cursor` in v0.3.15) is the CLI
+that executes an issue. `POST .../execute` requires an `engineType`, so use
+these to discover what is installed and which models are available before
+dispatching. Model ids are only validated against this list at spawn time and
+an unknown id silently resolves to the engine default, so copy ids from
+`/engines/available` rather than typing them from memory. `engineType` also
+accepts the id of a virtual engine (a base engine with preset environment
+variables, listed by `GET /engines/virtual`); BKD runs the base executor.
 
 ```bash
 # Detected engines + their models (installed, version, authStatus)
 curl -sS --fail-with-body "$BKD_URL/engines/available" | bkd_check
 
-# Per-engine model list, profiles, and current engine settings
+# Per-engine model list, profiles, virtual engines, and current engine settings
 curl -sS --fail-with-body "$BKD_URL/engines/{engineType}/models" | bkd_check
 curl -sS --fail-with-body "$BKD_URL/engines/profiles" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/engines/virtual" | bkd_check
 curl -sS --fail-with-body "$BKD_URL/engines/settings" | bkd_check
 ```
 
@@ -197,6 +200,7 @@ Useful fields (only `name` is required):
 - `repositoryUrl`
 - `systemPrompt`
 - `envVars`
+- `tags`
 - `defaultEngine`
 - `defaultModel`
 
@@ -374,7 +378,7 @@ cat > /tmp/bkd-prompt.txt <<'PROMPT'
 Implement the change described above.
 PROMPT
 jq -n --rawfile prompt /tmp/bkd-prompt.txt \
-      --arg engine "claude-code" --arg model "claude-opus-5" \
+      --arg engine "claude-code" --arg model "claude-opus-5-5" \
   '{engineType: $engine, prompt: $prompt, model: $model}' > /tmp/bkd-body.json
 curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/{issueId}/execute" \
   -H 'Content-Type: application/json' \
@@ -628,24 +632,27 @@ Use `GET /cron/actions` when you need the current server help text.
 ### List cron jobs
 
 ```bash
-curl -sS --fail-with-body "$BKD_URL/cron?deleted=false" | bkd_check
+curl -sS --fail-with-body "$BKD_URL/cron" | bkd_check
 ```
 
 Useful query params:
 
-- `deleted=false|true|only` — **always pass it**: a bare `GET /cron` with no
-  params returns every row including soft-deleted ones (hundreds on a busy
-  server)
 - `limit` (1–100) and `cursor`
+
+Soft-deleted jobs are never returned, with or without params. (Servers before
+v0.2.0 listed them unless `deleted=false` was passed; the param is now
+ignored, so `?deleted=only` just returns the active jobs.)
 
 The response shape depends on pagination: without `limit`/`cursor`, `.data` is
 a plain array of jobs; with either, `.data` is `{ jobs, hasMore, nextCursor }`.
 A cursor is only issued in the paginated form, so "follow all pages" means
-`?deleted=false&limit=100` and then `&cursor=<nextCursor>` until `hasMore` is
-false.
+`?limit=100` and then `&cursor=<nextCursor>` until `hasMore` is false.
 
-Job fields worth checking: `enabled`, `status`, `nextExecution`, `isDeleted`,
-and `lastRun: { status, error }`.
+Job fields worth checking: `enabled`, `status`, `nextExecution`, and
+`lastRun: { status, startedAt, durationMs, result, error }`. There is no
+`isDeleted` field and no `GET /cron/{jobId}` route; see
+[Trigger, pause, resume, delete](#trigger-pause-resume-delete) for how to
+confirm a deletion.
 
 ### List cron actions
 
@@ -690,7 +697,7 @@ Generic fields:
 - `config`
 
 Keep `.data.id`; deletion and schedule replacement require the cron ID. If it
-is lost, query `GET /cron?deleted=false&limit=100`, match `.name`, and require
+is lost, query `GET /cron?limit=100`, match `.name`, and require
 exactly one active result across all cursor pages before acting. Names are
 unique among non-deleted jobs: creating a duplicate active name returns HTTP
 409, so "recreate under the same name" only works after the old job is
@@ -805,13 +812,25 @@ curl -sS --fail-with-body -X POST "$BKD_URL/cron/{jobId}/resume" | bkd_check
 curl -sS --fail-with-body -X DELETE "$BKD_URL/cron/{jobId}" | bkd_check
 ```
 
-Assert `.success` on deletion, then re-read the job through
-`GET /cron?deleted=only` and verify `isDeleted:true`. That is the only truthful
-deletion field: `enabled` stays `true` and `status` becomes `not_loaded` after
-soft deletion. There is no cron update route; change a schedule by deleting
-the job by ID, verifying the deletion, and recreating it under the same name.
-`resume` re-enables a job that was paused manually or auto-paused after
-consecutive failures.
+Assert `.success` on deletion (`{ deleted: true, name }`), then confirm the job
+is gone: a deleted job no longer appears in `GET /cron`, and any by-ID route
+on it — the cheapest is `GET /cron/{jobId}/logs?limit=1` — returns HTTP 404
+`Job not found`:
+
+```bash
+curl -sS --fail-with-body -X DELETE "$BKD_URL/cron/$CRON_ID" | bkd_check >/dev/null || exit 1
+# Deleted: the by-ID read must now fail with 404
+if curl -sS -o /dev/null -w '%{http_code}' "$BKD_URL/cron/$CRON_ID/logs?limit=1" | grep -qx 404; then
+  echo "cron $CRON_ID deleted"
+else
+  echo "cron $CRON_ID still exists" >&2; exit 1
+fi
+```
+
+There is no cron update route; change a schedule by deleting the job by ID,
+verifying the deletion, and recreating it under the same name. `resume`
+re-enables a job that was paused manually or auto-paused after consecutive
+failures.
 
 ### Get cron job logs
 
@@ -837,8 +856,17 @@ Additional built-in endpoint groups outside the orchestration core:
   `POST /decisions/events/{id}/{decision,notify,ack,withdraw,close}`; added
   after 0.3.15 (404 on older servers). See `decisions.md`
 - **Notes** — scratch notes: `GET/POST /notes`, `PATCH/DELETE /notes/{noteId}`
+- **Local sessions** — engine sessions recorded on the host, including ones
+  started outside BKD: `GET /sessions`, `GET /sessions/{engine}/{sessionId}`,
+  `POST /sessions/bulk-delete`; turn one into an issue with
+  `POST /projects/{projectId}/issues/import-session`
+  (`{ engine, sessionId, title?, statusId?, importLogs? }`)
+- **Usage** — `GET /engines/claude/usage`, `GET /engines/codex/usage` report
+  subscription rate-limit windows (`available:false` plus a `reason` when the
+  CLI is not logged in)
 - **Settings** — `server-info`, `max-concurrent-executions`, `log-page-size`,
-  `workspace-path`, `write-filter-rules` under `/settings/...`
+  `workspace-path`, `write-filter-rules`, `skip-permissions`,
+  `disable-ask-user`, `global-env-vars`, `upgrade/*` under `/settings/...`
 - **Webhooks** — `/settings/webhooks` CRUD, `/test`, and `/deliveries`
 - **Slash commands** — `GET /projects/{projectId}/issues/{issueId}/slash-commands`,
   `GET /settings/slash-commands`
