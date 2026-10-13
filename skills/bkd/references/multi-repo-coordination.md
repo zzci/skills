@@ -53,6 +53,7 @@ file, wrap with `jq`, POST with `--data-binary @file` (see `rest-api.md` →
 - [Lane Dispatch Payload](#lane-dispatch-payload)
 - [Lane Responsibilities](#lane-responsibilities)
 - [Auto Mode](#auto-mode)
+- [Decision Events](#decision-events)
 - [Cross-Repo Dependencies and Ordering](#cross-repo-dependencies-and-ordering)
 - [Boundary Checks](#boundary-checks)
 - [Commit Record and Rollback](#commit-record-and-rollback)
@@ -168,6 +169,9 @@ for repo in $(find "$WORKSPACE" -mindepth 2 -maxdepth 4 -name .git -prune | sed 
 done
 ```
 
+Also probe `$BKD_URL/decisions` once (see `decision-events.md` → Probing the
+API) and record whether [decision events](#decision-events) are available.
+
 A repo that is dirty before dispatch is pre-existing user work: record its
 state in the ledger and ask the user before putting a lane into it. Do not
 stash, commit, or revert anything to make room.
@@ -206,6 +210,12 @@ Risks, Scope, Alternatives, Annotations) plus these multi-repo sections:
 ## Commit Log
 
 - hub: base `a1b2c3d` -> commits `e4f5g6h`, `i7j8k9l` (checks: `bun test` pass) 2026-09-13 18:40
+
+## Events
+
+| event | question | concerns | state | decision |
+|-------|----------|----------|-------|----------|
+| m4q8... | accept hub lane commits? | hub | applied | accept — 2026-09-13 19:05 |
 
 ## Rollback Plan
 
@@ -269,8 +279,8 @@ and append decisions and rollbacks to `changelog.md`.
   Commit Log, then set the lane state `accepted`.
 - **Route failures instead of fixing them.** `failure`/`partial`/`blocked`, a
   failed check, or a boundary violation goes back to the owning lane as a rework
-  follow-up (quoting the reported error), or to the user when it needs a
-  decision. Rework is bounded (default 2 attempts per lane); on exceed, set the
+  follow-up (quoting the reported error), or to the user — as a
+  [decision event](#decision-events) — when it needs a decision. Rework is bounded (default 2 attempts per lane); on exceed, set the
   lane state `blocked` and ask the user.
 - **Terminate** when every lane is `accepted` or `blocked`: delete each lane's
   cron by captured ID if it registered one (assert success, verify
@@ -278,7 +288,8 @@ and append decisions and rollbacks to `changelog.md`.
   lane task, append a changelog entry, and move the master to `review`. `done`
   stays human-only.
 
-The master is woken by user messages and lane follow-ups; outside
+The master is woken by user messages, lane follow-ups, and decision-event
+notifications; outside
 [Auto Mode](#auto-mode) it creates **no cron** and never uses `sleep`.
 
 ## Lane Dispatch Payload
@@ -418,7 +429,32 @@ MR specifics:
   is watching for a stalled lane, and deletes it at campaign completion.
 - **Hard stops still apply**, plus the MR-specific ones: a boundary violation, a
   repo dirty with work no lane owns, and any push, publish, or tag step (the
-  master asks before putting one in a lane payload).
+  master asks before putting one in a lane payload). Each hard stop is raised
+  as a [decision event](#decision-events).
+
+## Decision Events
+
+Whenever the master would stop and wait for the user, it raises a **decision
+event** — one record per question in BKD's decisions module, decided by the
+user directly in the `/decisions` inbox — and keeps the independent lanes
+moving. The flow, the API, and the fallback on a server without the module are in
+`decision-events.md`; load it before raising the first event.
+
+- **What the master raises**: Gate 2 acceptance the user has not answered in
+  the conversation, a lane that is `blocked` or out of rework attempts, a
+  cross-repo need that would add a lane, a repo dirty with work no lane owns, a
+  boundary violation the lane cannot undo, and any push, publish, or tag step.
+- **`ref`** is the lane issue id the decision concerns.
+- **Ledger**: add the event to the plan's Events table when raised, and write
+  the decision there and in `changelog.md` when it is applied. BKD holds the
+  live state; the ledger is the history.
+- **Lanes never call the decisions API.** A lane that needs a decision
+  reports it to the master with the question, options, and its recommendation.
+- **Direct lane conversations still count**: when the user settles a question
+  with a lane on the board and the lane reports it, the master closes any
+  open event for the question with that decision.
+- The master forwards a decision to the lane unchanged; it does not turn the
+  decision into a code judgement of its own.
 
 ## Cross-Repo Dependencies and Ordering
 
@@ -539,3 +575,6 @@ the gate. The master reads the reported `Status` and `Checks` lines and routes.
     the rollback plan.
 11. **No `sleep`, `review` != `done`, capacity before every dispatch** — the
     shared BKD rules in `SKILL.md` still apply.
+12. **Human decisions are events** — the master raises one decision event per
+    question, the user decides on the event, and only dependent lanes wait;
+    lanes never touch events.

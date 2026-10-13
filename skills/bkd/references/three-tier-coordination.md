@@ -5,7 +5,8 @@ entirely inside BKD. L1, L2, and L3 are all BKD processes; all coordination
 and state are expressed through BKD issues and follow-ups, while only L2
 scheduling loops use cron jobs. **L1 never creates a cron** — the single
 watchdog cron of [Auto Mode](#auto-mode-unattended-l1) is the only exception.
-User messages and L2 follow-ups wake L1.
+User messages, L2 follow-ups, and [decision-event](#decision-events)
+notifications wake L1.
 **Never** use subagents, external team runners, or `sleep` waits.
 
 Use this pattern when the user wants a long-running, self-driving pipeline where
@@ -53,6 +54,7 @@ explicitly performed and verified.
 - [Model Selection (user-directed only)](#model-selection-user-directed-only)
 - [L1 - Master Coordinator](#l1---master-coordinator-current-agent-session)
 - [Auto Mode (unattended L1)](#auto-mode-unattended-l1)
+- [Decision Events](#decision-events)
 - [L2 - Scheduling Issue](#l2---scheduling-issue-one-per-workstream-own-worktree)
 - [L3 - Subtask Issues](#l3---subtask-issues-short-lifecycle)
 - [State Machine](#state-machine)
@@ -79,8 +81,10 @@ subtasks -> wait -> merge" suffices, use `orchestration.md` instead.
 If the work has only one meaningful coordination workstream, also use that
 two-tier flow: three tiers must not add a ceremonial single L2.
 If the project directory holds several independent git repos instead of one,
-load `multi-repo-coordination.md` first: lanes must be partitioned by repo and
-each lane needs its own per-repo BKD project, which this file does not cover.
+load `multi-repo-coordination.md` instead: work is partitioned into one lane
+per repo inside the current project, with `useWorktree:false` and the repo
+bound by the working directory in each lane's prompt. The worktree rules in
+this file do not apply there.
 
 ## Tier Map
 
@@ -90,7 +94,8 @@ Compact overview; the per-tier Responsibilities sections below are canonical.
 L1 (current agent session, or a BKD issue its creator started; any engine;
     main worktree; no cron except the auto-mode watchdog)
   - talks to the user; gathers context; partitions each campaign into 2+ L2s
-  - wakes only on user messages or L2 follow-ups
+  - wakes only on user messages, L2 follow-ups, or decision-event notifications
+  - raises one decision event per question that needs the human; tracks it
   - owns cross-L2 scope, dependencies, progress aggregation, and merge order
   - gates: user must confirm the L2 dispatch set and every L2->main merge
   - integrates: reviews each bkd/{L2_ID}, merges into main, resolves conflicts
@@ -176,6 +181,9 @@ Do this every time L1 starts, before anything else:
    ```
 5. If the scope of work is unclear, ask the user. **Never broaden scope on
    your own.**
+6. Probe `$BKD_URL/decisions` once (see `decision-events.md` → Probing the
+   API) and record whether [decision events](#decision-events) are available;
+   on a server without the module, decisions stay in the conversation.
 
 ## Model Selection (user-directed only)
 
@@ -310,6 +318,9 @@ matter; only BKD HTTP semantics do.
      a fix L3; do not hand-fix.
   2. **Confirm with the user** — present review summary + merge plan; wait for
      explicit `proceed`/`ok`/`go` (HARD RULE; merging main is hard to reverse).
+     If the user is not answering in the conversation, raise a
+     [decision event](#decision-events) carrying the same summary; its
+     decision is that explicit confirmation.
   3. **Merge**: record the pre-merge HEAD (easy `git reset` escape), then
      `git merge --no-ff bkd/{L2_ID}`; resolve conflicts; rerun project checks.
   4. If unsalvageable, `git merge --abort`, report to the user, follow-up L2
@@ -324,6 +335,11 @@ matter; only BKD HTTP semantics do.
   completion follow-up also wakes L1 immediately; L1 queries the sibling L2
   issues sharing that `campaignId`, updates the user when appropriate, handles
   decisions, and ends the turn.
+- **Decisions for the human become events.** Whenever L1 would stop and wait
+  for the user — an L2 `yellow`/`blocked` escalation, an unanswered gate, a
+  hard stop — it raises one [decision event](#decision-events) per question,
+  keeps independent work moving, and takes the next step from the event's
+  outcome. Every wake starts with the open-event scan.
 - **Termination conditions** (evaluated per campaign on an event-driven wake):
   - User explicitly stops -> delete every owned L2 cron by ID, assert each
     response succeeds, and verify `isDeleted:true`; obtain IDs from each L2's
@@ -331,7 +347,8 @@ matter; only BKD HTTP semantics do.
   - All L2s are in `review`, every L3 is in `review` with DAG state
     `merged`/`blocked`, and nothing is in `todo`/`working` -> run the ordered,
     user-gated review-and-merge flow (auto mode: the self-gated one), report
-    completion, and stop tracking the campaign. L1 has no idle countdown because it has no periodic wake loop.
+    completion including any still-open decision events, and stop tracking the
+    campaign. L1 has no idle countdown because it has no periodic wake loop.
 
 ### Sending Prompts (the never-inline rule)
 
@@ -438,6 +455,10 @@ the same reference. DAG states are L2-internal; BKD statusId stays in
 POST __BKD_URL__/projects/{projectId}/issues/__L1_ID__/follow-up
 Progress rollups after each batch; yellow = needs user decision; blocked =
 retries exceeded; final "branch bkd/__L2_ID__ ready" on termination.
+A yellow/blocked escalation states: the question, the options with their
+impact, your recommendation, and which subtasks wait on it. L1 turns it into a
+decision event and follows up with the outcome; never create events
+yourself.
 
 ## References (engine permitting, load on demand)
 Keep references/three-tier-coordination.md loaded. Load rest-api.md,
@@ -483,7 +504,8 @@ can recover its round count.
 |---|---|---|
 | Gate 1 — L2 dispatch set | explicit user confirmation per batch | confirmed once at activation; L1 dispatches the planned set and any in-scope follow-on batch |
 | Gate 2 — L2 -> main merge | explicit user confirmation per merge | L1 reviews and merges on its own |
-| `yellow` (needs a decision) | ask the user | resolve with the owning L2 (see Decision Protocol), record it, continue |
+| `yellow` (needs a decision) | raise a decision event | resolve with the owning L2 (see Decision Protocol), record it, continue; no event |
+| Hard stop | n/a | raise a decision event and message the user |
 | L1 cron | none | exactly one watchdog cron, deleted at completion |
 | User-facing output | per-gate conversation | one note per merged workstream, a final summary, and an immediate message on any hard stop |
 
@@ -552,7 +574,7 @@ idempotent: query `GET /cron?deleted=false&limit=100`, reuse the single active
 job of that name, and treat duplicates as an error to report.
 
 Each watchdog wake is scan-and-act, never a re-investigation: capacity, the
-campaign's L2 states, each L2 cron's `enabled` and `lastRun.error` (resume a
+campaign's open [decision events](#decision-events), its L2 states, each L2 cron's `enabled` and `lastRun.error` (resume a
 paused one with `POST /cron/{id}/resume` once its L2 is back in
 `review`/`working`), and killed-turn detection for any L2 that went quiet. Then
 act, or end the turn. 30 minutes is deliberately longer than the L2 interval:
@@ -579,9 +601,9 @@ verify `isDeleted:true` before L1 leaves the campaign.
 - Round budget reached — default `MAX` = 40 auto-mode L1 turns, or the deadline
   the user set: stop, summarize, and ask whether to continue.
 
-A hard stop messages the user immediately and waits for that one decision; it
-does not cancel the rest of the campaign when the remaining workstreams are
-independent.
+A hard stop raises a [decision event](#decision-events), messages the user
+immediately, and waits for that one decision; it does not cancel the rest of
+the campaign when the remaining workstreams are independent.
 
 ### Completion
 
@@ -589,8 +611,34 @@ When every L2 has terminated (its cron deleted, its issue in `review`) and
 every branch is merged or explicitly blocked: run the project's checks on the
 integration branch once, delete the watchdog cron by ID and verify
 `isDeleted:true`, then post the final summary — per-workstream merge SHAs,
-decisions taken with reasons, deferred out-of-scope items, and anything blocked
-with the reason. Leave every issue in `review`; `done` stays human-only.
+decisions taken with reasons, deferred out-of-scope items, open decision
+events, and anything blocked with the reason. Leave every issue in `review`; `done` stays human-only.
+
+## Decision Events
+
+Anything that needs a human decision becomes a **decision event**: one record
+per question in BKD's decisions module, raised and tracked by L1, decided by
+the user directly in the `/decisions` inbox. The flow and the API — record,
+notify, scan, ack, close, withdraw, and the fallback on a server without the
+module — are in `decision-events.md`; load it before raising the first event.
+
+- **L3** reports `blocked` to its L2. **L2** escalates `yellow`/`blocked` to L1
+  with the question, options, impact, and recommendation, marks the affected
+  subtasks `blocked`, and keeps dispatching the rest. Neither creates events.
+- **L1** raises the event (`ref` = the L2 id), tells the user once, and ends
+  the turn. When the user decides, the service follows up L1 with
+  `[event-decision ...]`; L1 re-reads the event, records the decision, follows
+  up the owning L2 with the outcome, and acks the event. An answer given in
+  L1's own conversation is applied the same way, and L1 closes the event with
+  that decision as the reason. An event the user closed without answering is
+  never acted on; its subtasks stay `blocked`.
+- An L2 with subtasks waiting on an open event runs its normal idle countdown
+  and may terminate; L1 does not merge `bkd/{L2_ID}` while an event with that
+  `ref` is open unless the user says to merge without it. A decision arriving
+  after termination is a continuation for that L2: its follow-up re-runs the
+  idempotent bootstrap (cron included) before unblocking the subtasks.
+- Auto mode keeps in-scope questions out of events (Decision Protocol With
+  L2); every hard stop is an event.
 
 ## L2 - Scheduling Issue (one per workstream, own worktree)
 
@@ -636,7 +684,8 @@ turn ends. **No `sleep`, ever. Never touch main.**
      engine/model (attach a `model` to the rework follow-up only if the user's
      Model Policy names an escalation model); on exceed, set DAG state
      `blocked` + follow-up L1.
-   - **yellow** → follow-up L1 for a human decision; do not guess.
+   - **yellow** → follow-up L1 for a human decision (question, options,
+     impact, recommendation); do not guess. L1 raises the decision event.
 5. Emit fresh `[dag-state ...]`. End turn.
 
 **Merge phase (into `bkd/{L2_ID}`, never main):**
@@ -852,7 +901,7 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
 ## Loop Engine
 
 - **L1 is event-driven and has no cron** (auto mode's watchdog is the only
-  exception). A user message or an L2 follow-up wakes it. After handling that event and any affected campaign state, it ends
+  exception). A user message, an L2 follow-up, or a decision-event notification wakes it. After handling that event and any affected campaign state, it ends
   the turn.
 - **Every L2 owns one BKD `issue-follow-up` cron** at a 15-min interval. Each
   L2 wake performs **one round of decisions** and ends the turn; its next
@@ -1067,7 +1116,7 @@ Branch bkd/$L2_ID is ready for L1 review and ordered merge into main. Check sibl
   changed requirement. See [Loop Engine](#loop-engine).
 - Merge conflict, ambiguous acceptance criteria, or scope changes: L2 does not
   guess — set DAG state `blocked` or classify `yellow` and escalate to L1,
-  which aggregates and asks the user.
+  which raises a [decision event](#decision-events) for the user.
 - BKD unreachable / capacity exhausted long term: pause dispatch; L1 notifies
   the user.
 
@@ -1114,3 +1163,7 @@ Compact checklist — the full rules live in the sections referenced.
     `/engines/available` (unknown ids silently fall back; a model change is
     rejected with 409 while the session is running — stop first). See [Model
     Selection](#model-selection-user-directed-only).
+17. **Human decisions are events** — L1 raises one decision event per question,
+    the user decides on the event, the notification wakes L1; only dependent
+    work waits. L2/L3 escalate to L1 and never touch events (see [Decision
+    Events](#decision-events)).

@@ -82,6 +82,16 @@ is bound to its repo by the working directory stated in its prompt
 (`useWorktree:false`, every git call as `git -C <repo>`), so no issue ever
 commits across repos.
 
+### Decision Events
+
+In three-tier and MR coordination, anything that needs a human decision becomes
+a **decision event**: the coordinator (L1 / MR master) creates one event per
+question under `$BKD_URL/decisions/events`, the user decides it in BKD's
+`/decisions` inbox, and BKD follows up the coordinator so it can take the next
+step — while unaffected work keeps running. Servers up to 0.3.15 lack the
+module; `references/decision-events.md` holds the flow, the API, the probe, and
+the conversation fallback. Load it before raising one.
+
 ### Single Issue Execution
 
 ```bash
@@ -155,6 +165,11 @@ Load only what the current task needs:
   current project with the repo given as the prompt's working directory, plus a
   PMA-format workspace ledger, cross-repo contract ordering, boundary checks,
   and per-repo commit rollback.
+- `references/decision-events.md`
+  Use with three-tier or MR coordination whenever a human decision is needed:
+  the event flow and states, the `/decisions/events` API and its probe, the
+  event scan, how a decision is applied, acked, closed, or withdrawn, and the
+  conversation fallback on a server without the module.
 - `references/three-tier-coordination.md`
   Use for event-driven L1, cron-driven L2, and short-lived L3 autonomous coordination: the user-facing L1 is woken only by the user or L2 follow-ups, every campaign is partitioned across multiple bounded L2 coordinators, each L2 owns its own DAG and 15-min self cron, and L3 issues execute short-lived subtasks. Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.); models stay at the server defaults unless the user names one. Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
 
@@ -171,6 +186,8 @@ Choose references by intent:
   phrases like "start BKD multi-repo coordination": load
   `references/multi-repo-coordination.md` (with `references/rest-api.md` for
   guarded transport).
+- A coordinator (L1 or MR master) needs a human decision, or the user asks
+  about open decisions / events: load `references/decision-events.md`.
 - Multi-subtask dispatch or orchestration: load `references/rest-api.md` once
   for guarded transport, then `references/orchestration.md`.
 - Subtask quality assessment or code review: load `references/rest-api.md` once
