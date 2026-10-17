@@ -39,9 +39,9 @@ rustls::crypto::aws_lc_rs::default_provider()
     .expect("install rustls crypto provider");
 ```
 
-**Why `aws-lc-rs` over `ring`.** Both providers are C/assembly cores; rustls itself (the TLS state machine) stays memory-safe Rust. PMA standardizes on `aws-lc-rs` because it is the rustls 0.23 default, is actively maintained by AWS, and is the only provider with a FIPS 140-3 path (`fips` feature) — so a future compliance requirement does not force a provider swap.
+**Why `aws-lc-rs` over `ring`.** Both providers are C/assembly cores; rustls itself (the TLS state machine) stays memory-safe Rust. PMA standardizes on `aws-lc-rs` because it is the rustls default, is actively maintained by AWS, and is the only provider with a FIPS 140-3 path (`fips` feature) — so a future compliance requirement does not force a provider swap.
 
-`aws-lc-rs` is the rustls 0.23 default crypto feature, so plain `rustls = "0.23"` (default features) already compiles it in — do **not** set `default-features = false` to swap in `ring`. Calling `install_default()` early is still mandatory: rustls 0.23 panics on the first TLS use if no process-default provider is installed, and an explicit call removes the "two providers linked, ambiguous default" failure mode.
+`aws-lc-rs` is the rustls default crypto feature, so plain `rustls` with default features already compiles it in — do **not** set `default-features = false` to swap in `ring`. Calling `install_default()` early is still mandatory: rustls panics on the first TLS use if no process-default provider is installed, and an explicit call removes the "two providers linked, ambiguous default" failure mode.
 
 The startup-install *pattern* is verified in `quickwit-cli/src/main.rs:98` — note quickwit calls `install_default_crypto_ring_provider()` (the **ring** provider); PMA deliberately diverges to `aws-lc-rs` for the FIPS path and default-alignment reasons above. Reject any PR that lets `default-features = true` re-enable `native-tls` on dependencies like `reqwest`, `sqlx`, `tonic`, `hyper-util`.
 
@@ -110,7 +110,7 @@ Path A above already covers future toolchain warnings via the `warnings` group �
 rustflags = ["-D", "warnings"]
 ```
 
-Reach for this only when you cannot use `[workspace.lints]` (e.g. MSRV < 1.74) or need a build-flag scope (e.g. CI env-level override on nightly, as `reth` does via workflow `env: RUSTFLAGS: -D warnings`).
+Reach for this only when you cannot use `[workspace.lints]` (e.g. a legacy toolchain without lint-table support) or need a build-flag scope (e.g. CI env-level override on nightly, as `reth` does via workflow `env: RUSTFLAGS: -D warnings`).
 
 **Dependency builds are safe under deny-warnings.** Cargo automatically passes `--cap-lints=warn` (path deps) or `--cap-lints=allow` (registry / git deps) to non-local crates, so your strict policy applies to your own crates without breaking on transitive warnings. No extra config needed.
 
@@ -128,11 +128,11 @@ Policy stays in the repo; only the developer's shell relaxes it for WIP. CI is u
 
 ```toml
 [workspace.package]
-edition      = "2024"
+edition      = "<LATEST_EDITION>" # latest stable Rust edition
 rust-version = "<PROJECT_MSRV>"   # minimum supported compiler, not the current toolchain pin
 ```
 
-`rust-version` states the oldest compiler the project promises to support. It is not a rolling alias for latest stable and must not be bumped merely because a new Rust release exists. New internal services may start at the currently verified stable toolchain (`1.98.0` as of 2026-08-20); libraries and compatibility-sensitive services choose a deliberate lower MSRV and document why.
+`rust-version` states the oldest compiler the project promises to support. It is not a rolling alias for latest stable and must not be bumped merely because a new Rust release exists. New internal services start at the latest stable toolchain verified at bootstrap (`rustup check`); libraries and compatibility-sensitive services may choose a deliberately lower MSRV only for a concrete compatibility reason, documented in `docs/decisions/`.
 
 Verify the minimum in a dedicated CI job with `cargo hack check --rust-version --workspace --ignore-private --locked` or `cargo msrv verify`. Separately pin or install the current CI/development toolchain and keep it fresh. Bump MSRV only when project requirements or dependencies justify dropping older compiler support; record the change in the changelog and release it deliberately.
 
@@ -140,9 +140,9 @@ Verify the minimum in a dedicated CI job with `cargo hack check --rust-version -
 
 Allowed only in `#[cfg(test)]`, `xtask/`, `build.rs`, and `examples/`. In runtime crates, `unwrap_used`/`expect_used`/`panic` are clippy `deny` (see Lock 4). Where an invariant cannot be expressed in the type system, write `expect("…")` with an `// INVARIANT:` comment, and only after considering whether `Result` would be cleaner.
 
-### Lock 7 — edition 2024
+### Lock 7 — latest stable edition
 
-Verified at all 10 standard-bearers (see `references/evidence.md`). New crates and refactors adopt edition 2024. Do not mix editions within a workspace except during a tracked migration.
+The standard-bearers all track the current edition (see `references/evidence.md`). New crates and refactors adopt the latest stable Rust edition. Do not mix editions within a workspace except during a tracked migration.
 
 ### Lock 8 — Quality gates green
 
@@ -167,7 +167,7 @@ A Hard Lock is the right **default**, not the answer for every project. The disc
 | **4** deny warnings | New stable rustc adds a warn-by-default lint and breaks CI on release day; macro-generated code triggers `missing_docs` even with `#[allow]` at the call site. | Cargo auto-caps deps at `warn`/`allow` — no extra config. Pin toolchain version. Run a non-blocking "newer-stable" job to surface upcoming lints before they bite production |
 | **5** MSRV verified | Transitive dep MSRV creep on `cargo update`; `cargo msrv verify` is 10+ min on large monorepos. | Pin offenders in `[workspace.dependencies]` until a deliberate MSRV bump. Use `cargo hack check --rust-version` (faster) over `cargo msrv verify`. CHANGELOG every bump |
 | **6** no `unwrap`/`expect`/`panic!` | Genuinely infallible expressions (`Regex::new(LITERAL)`, `OnceLock::get` after init); crashing IS the right response to a violated type-system-inexpressible invariant. | `expect("INVARIANT: <what holds>")` — `INVARIANT:` is grep-able. Reviewers still push toward type-encoding when possible |
-| **7** edition 2024 | Brownfield deps that haven't migrated; private toolchains pinned older than 1.85. | Stage migration crate-by-crate. `cargo fix --edition` for the mechanical part. Hold `rust-version` one minor below the edition stabilization release until deps settle |
+| **7** latest stable edition | Brownfield deps that haven't migrated; private toolchains pinned older than the release that stabilized the edition. | Stage migration crate-by-crate. `cargo fix --edition` for the mechanical part. Hold `rust-version` one minor below the edition stabilization release until deps settle |
 | **8** quality gates green | `cargo deny advisories` against a live DB fails CI on a new RUSTSEC overnight; `nextest` parallel-by-default exposes latent races that `cargo test` hid. | Split advisories to a scheduled cron, run only `bans + licenses + sources` on PRs (cargo `audit.yml:19-30` pattern). Isolate per-test temp dirs / ephemeral ports; use `[test-groups.serial]` for genuinely shared resources |
 
 ## Other Strict Rules — When They Backfire
@@ -228,11 +228,11 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 
 | Category | Technology | Notes / Evidence |
 |---|---|---|
-| Toolchain | current pinned stable Rust, **edition 2024** | `rust-toolchain.toml` or CI pin tracks current stable; workspace `rust-version` separately declares PROJECT_MSRV |
+| Toolchain | latest stable Rust, **latest stable edition** | `rust-toolchain.toml` or CI pin tracks current stable; workspace `rust-version` separately declares PROJECT_MSRV |
 | Async runtime | **Tokio** (multi-thread) | hand-built `Builder` for tuning (`quickwit-cli/main.rs:43-53`) |
-| HTTP server | **Axum 0.8.x** + Hyper 1 + tower / tower-http | gRPC-heavy services: **Tonic** + warp/axum hybrid (quickwit) |
-| TLS | **rustls** + **`aws-lc-rs`** provider (rustls 0.23 default) | install the provider early in `main` (canonical snippet: Lock 2); startup-install pattern per `quickwit-cli/main.rs:98` (quickwit uses the ring provider) |
-| Errors | **`thiserror` 2.x** per crate; **`anyhow`** (or `eyre`) at bin entry only | universal across uv/ruff/quickwit |
+| HTTP server | **Axum** + Hyper + tower / tower-http | gRPC-heavy services: **Tonic** + warp/axum hybrid (quickwit) |
+| TLS | **rustls** + **`aws-lc-rs`** provider (rustls default) | install the provider early in `main` (canonical snippet: Lock 2); startup-install pattern per `quickwit-cli/main.rs:98` (quickwit uses the ring provider) |
+| Errors | **`thiserror`** per crate; **`anyhow`** (or `eyre`) at bin entry only | universal across uv/ruff/quickwit |
 | Logging | **`tracing` + `tracing-subscriber`** | JSON in prod, pretty in dev. `quickwit-cli/logger.rs` is canonical |
 | Lint policy | `[workspace.lints]` in `Cargo.toml` | Lock 4 |
 | Test runner | **`cargo nextest`** + `cargo test --doc` for doctests | 5 of 10 standard-bearers |
@@ -243,24 +243,24 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 
 | Category | Technology | Notes |
 |---|---|---|
-| Workspace | virtual workspace; **`resolver = "3"`** (edition 2024 pairing) | `"2"` only when stuck on older Cargo |
+| Workspace | virtual workspace; **`resolver`** set explicitly to the version that pairs with the chosen edition | an older resolver only with a recorded compatibility reason |
 | Data access | **SQLx** (`default-features = false`, `tls-rustls-aws-lc-rs` feature) | compile-time-checked queries. **Never** native-tls. Alt: **SeaORM** (ActiveRecord) or **`diesel-async`** (compile-time schema) |
 | Migrations | `sqlx migrate` / `sea-orm-migration` / `diesel migration` | committed; CI runs against ephemeral DB |
-| CLI | **`clap` v4 derive** + **`clap_complete_command`** | quickwit uses builder API for very large CLIs |
+| CLI | **`clap` derive** + **`clap_complete_command`** | quickwit uses builder API for very large CLIs |
 | Serialization | **`serde`** + `serde_with` | derive-based |
 | Validation | **`validator`** or **`garde`** | derive-based, post-deserialize |
 | Config layering | **`figment`** (TOML/YAML + env + CLI) | quickwit rolls a versioned variant for >100-field configs |
-| HTTP client | **`reqwest`** with `default-features = false, features = ["rustls", "json"]` (0.13 renamed `rustls-tls` → `rustls`) | never `native-tls` |
+| HTTP client | **`reqwest`** with `default-features = false, features = ["rustls", "json"]` (older releases named the feature `rustls-tls`) | never `native-tls` |
 | Caching | **`moka`** | in-process, TTL + size bounds |
 | Concurrency | `parking_lot`, `dashmap`, `arc-swap` | only when stdlib primitives don't fit |
-| Observability | **`opentelemetry-otlp`** (gRPC + HTTP-JSON) + `tracing-opentelemetry` + `metrics` or `prometheus` | quickwit pins `opentelemetry = 0.31`, `tracing-opentelemetry = 0.32` |
+| Observability | **`opentelemetry-otlp`** (gRPC + HTTP-JSON) + `tracing-opentelemetry` + `metrics` or `prometheus` | keep the `opentelemetry*` crates on matching releases (quickwit pattern) |
 | Runtime metrics | **`tokio-metrics`** | quickwit's `scrape_tokio_runtime_metrics` pattern |
-| OpenAPI | **`utoipa`** 5.x | quickwit pattern |
+| OpenAPI | **`utoipa`** | quickwit pattern |
 | Snapshot tests | **`insta`** (`cargo insta test --unreferenced reject --test-runner nextest --disable-nextest-doctest`) | ruff's exact CI line |
 | Property tests | **`proptest`** | quickwit |
 | Bench | **`criterion`** (or **`divan`** for newer projects) | |
 | **Binary runtime hardening** | **`rlimit`** (suppress core dumps) + **`std::panic::set_hook`** (structured panic log) + **mimalloc** (Windows/musl) or **`tikv-jemallocator`** (glibc); `[profile.dist]` uses `panic = "abort"` while `[profile.release]` keeps `unwind` so backtraces work | see `delivery.md` "Disable Core Dumps" and `runtime-and-data.md` `main()` template |
-| **Release / distribution** | dual-profile `[profile.release]` + `[profile.dist]`; **`*-unknown-linux-musl` + `+crt-static`** for portable binaries; **`cross`** (Docker) or **`cargo-zigbuild`** (no Docker); **`cargo-dist`** for prebuilt artefacts | uv ships 4 musl targets; ruff uses cargo-dist 0.31 |
+| **Release / distribution** | dual-profile `[profile.release]` + `[profile.dist]`; **`*-unknown-linux-musl` + `+crt-static`** for portable binaries; **`cross`** (Docker) or **`cargo-zigbuild`** (no Docker); **`cargo-dist`** for prebuilt artefacts | uv ships 4 musl targets; ruff uses cargo-dist |
 | Dev loop | **`just`** as the canonical task runner (cross-project, low learning cost) + **`bacon`** for save-time checks + `cargo nextest` | xtask only when tasks need Rust code (codegen, complex release) |
 
 ### Forbidden / Discouraged
@@ -269,7 +269,7 @@ Hard bans (enforced by `cargo-deny`):
 - **`openssl`, `openssl-sys`, `native-tls`, `native-tls-sys`** — use rustls (Lock 2). reth's `deny.toml:35` is canonical.
 
 Patterns to avoid:
-- **`dotenv` (unmaintained) → `dotenvy`**; **`async-trait` macro → native `async fn` in trait** (Rust 1.75+, unless object-safety needed); **`once_cell::sync::Lazy` → `std::sync::LazyLock`** (Rust 1.80+); **`std::collections::HashMap` in hot paths → `FxHashMap`**.
+- **`dotenv` (unmaintained) → `dotenvy`**; **`async-trait` macro → native `async fn` in trait** (unless object-safety needed); **`once_cell::sync::Lazy` → `std::sync::LazyLock`**; **`std::collections::HashMap` in hot paths → `FxHashMap`**.
 - **`std::sync::Mutex` held across `.await`** — use `tokio::sync::Mutex` or restructure to message passing.
 - **`unwrap()` / `expect()` / `panic!`** in runtime crates — see Lock 6.
 - **Crates with abandoned advisories** from `cargo-audit` — require an explicit waiver with sunset date.
@@ -313,11 +313,11 @@ cargo install cargo-outdated  # one-time
 cargo outdated --workspace
 ```
 
-When pinning to a non-latest version, add a comment next to the `Cargo.toml` entry:
+When pinning to a non-latest version (user request or a concrete compatibility problem), add a comment next to the `Cargo.toml` entry:
 
 ```toml
 [dependencies]
-some-crate = "1.4"   # PINNED: 1.5 bumps MSRV to 1.97; revisit after toolchain bump
+some-crate = "<version>"   # PINNED: <compatibility reason>; revisit when <condition>
 ```
 
 For MSRV-related downgrades, also note in `[workspace.package].rust-version` rationale or `docs/decisions/`.
@@ -329,9 +329,9 @@ For MSRV-related downgrades, also note in `[workspace.package].rust-version` rat
 | Error types | per-crate `thiserror` enums; `#[from]` only when conversion is genuinely lossless; `anyhow`/`eyre` only at bin entry / `xtask/` / integration tests |
 | Shared state | `Arc<T>` with immutable inner; `arc-swap` for hot reload; **never** `Arc<Mutex<…>>` across `.await` |
 | Secrets | wrap in `secrecy::Secret<T>`; redact in `Debug`; compare with `subtle::ConstantTimeEq`; never log |
-| CLI | `clap` v4 derive with `#[command(version, about)]`; subcommands as enum variants; `ArgAction::Count` for verbose/quiet (uv pattern, `uv-cli/src/lib.rs:156-219`) |
+| CLI | `clap` derive with `#[command(version, about)]`; subcommands as enum variants; `ArgAction::Count` for verbose/quiet (uv pattern, `uv-cli/src/lib.rs:156-219`) |
 | Shutdown | `tokio::signal` for SIGINT/SIGTERM; `axum::serve(...).with_graceful_shutdown(...)` paired with `TimeoutLayer`; `CancellationToken` (or `tokio_util::task::TaskTracker`) for fan-out |
-| Async traits | use native `async fn` in trait (stable since Rust 1.75); avoid `async-trait` macro for new code unless object-safety is required |
+| Async traits | use native `async fn` in trait; avoid `async-trait` macro for new code unless object-safety is required |
 | MSRV | declare `rust-version` in workspace; bump only in minor releases; document in CHANGELOG |
 | Async I/O | never call `std::fs`, `std::net`, blocking `std::sync::Mutex` from async tasks; use `tokio::fs` or `tokio::task::spawn_blocking` |
 

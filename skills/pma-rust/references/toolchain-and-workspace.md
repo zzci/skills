@@ -1,6 +1,6 @@
 # PMA-Rust Toolchain And Workspace
 
-This pack covers the **outside** of the code: workspace layout, edition 2024, lint enforcement, toolchain pinning, and the dev loop. Every pattern is anchored to a verified standard-bearer; see `references/evidence.md` for citations.
+This pack covers the **outside** of the code: workspace layout, edition, lint enforcement, toolchain pinning, and the dev loop. Every pattern is anchored to a verified standard-bearer; see `references/evidence.md` for citations.
 
 ## Table of Contents
 
@@ -57,17 +57,17 @@ Layered ownership rules:
 
 ## Workspace `Cargo.toml`
 
-Skeleton (edition 2024, resolver `"3"` — the edition 2024 pairing; see `baseline.md` Tech Stack for why PMA deliberately uses `"3"` while `evidence.md` records upstream repos still on `"2"`; workspace inheritance, lints):
+Skeleton (latest stable edition with its paired resolver, workspace inheritance, lints). Every `<latest>` is a placeholder: add dependencies with `cargo add` or resolve them at the registry (`baseline.md` *Dependency Freshness (Rust)*) — never copy a version from this file:
 
 ```toml
 [workspace]
-resolver        = "3"              # default pairing for edition 2024 virtual workspaces
+resolver        = "<RESOLVER>"     # the resolver paired with the chosen edition; set explicitly in virtual workspaces
 members         = ["crates/*", "xtask"]
 default-members = ["crates/app"]   # OPTIONAL — only reth uses it (`Cargo.toml:155`).
                                    # Use when one bin is the canonical build target.
 
 [workspace.package]
-edition      = "2024"
+edition      = "<LATEST_EDITION>"  # latest stable Rust edition
 rust-version = "<PROJECT_MSRV>"    # minimum supported compiler; independent of the current toolchain pin
 license      = "Apache-2.0"
 repository   = "https://github.com/acme/acme"
@@ -76,33 +76,33 @@ authors      = ["Acme Engineering"]
 [workspace.dependencies]
 # Shared deps; crates use `tokio = { workspace = true }`.
 # Pin features at the workspace level so members opt into a consistent surface.
-tokio       = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "fs", "net"] }
-tokio-util  = { version = "0.7", features = ["rt"] }      # for TaskTracker, CancellationToken
-axum        = { version = "0.8", default-features = false, features = ["macros", "json", "tokio", "http1", "http2"] }
-tower       = { version = "0.5", features = ["util", "retry", "timeout", "limit", "load-shed"] }
-tower-http  = { version = "0.7", features = ["trace", "cors", "compression-gzip", "timeout", "limit", "sensitive-headers"] }
-hyper       = { version = "1", features = ["server", "http1", "http2"] }
-serde       = { version = "1", features = ["derive"] }
-serde_json  = "1"
-serde_with  = "3"
-thiserror   = "2"                  # uv/ruff/quickwit confirmed thiserror 2.0
-anyhow      = "1"
-tracing     = "0.1"
-tracing-subscriber  = { version = "0.3", features = ["env-filter", "json", "fmt"] }
-tracing-opentelemetry = "0.33"
-opentelemetry       = "0.32"
-opentelemetry-otlp  = { version = "0.32", features = ["grpc-tonic", "http-json", "tls-aws-lc"] }  # tls-aws-lc: 0.32 rejects https:// tonic endpoints without a TLS feature
-opentelemetry_sdk   = { version = "0.32", features = ["rt-tokio"] }
-clap        = { version = "4", features = ["derive", "env"] }
-clap_complete_command = "0.6"      # uv + ruff use this for shell completions
-figment     = { version = "0.10", features = ["toml", "env", "yaml"] }
-sqlx        = { version = "0.9", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "macros", "migrate"] }
-reqwest     = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }  # 0.13 renamed rustls-tls → rustls
-rustls      = "0.23"
-secrecy     = "0.10"
-zeroize     = { version = "1", features = ["derive"] }
-subtle      = "2"
-validator   = { version = "0.21", features = ["derive"] }
+tokio       = { version = "<latest>", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "fs", "net"] }
+tokio-util  = { version = "<latest>", features = ["rt"] }      # for TaskTracker, CancellationToken
+axum        = { version = "<latest>", default-features = false, features = ["macros", "json", "tokio", "http1", "http2"] }
+tower       = { version = "<latest>", features = ["util", "retry", "timeout", "limit", "load-shed"] }
+tower-http  = { version = "<latest>", features = ["trace", "cors", "compression-gzip", "timeout", "limit", "sensitive-headers"] }
+hyper       = { version = "<latest>", features = ["server", "http1", "http2"] }
+serde       = { version = "<latest>", features = ["derive"] }
+serde_json  = "<latest>"
+serde_with  = "<latest>"
+thiserror   = "<latest>"           # uv/ruff/quickwit use thiserror
+anyhow      = "<latest>"
+tracing     = "<latest>"
+tracing-subscriber  = { version = "<latest>", features = ["env-filter", "json", "fmt"] }
+tracing-opentelemetry = "<latest>"
+opentelemetry       = "<latest>"
+opentelemetry-otlp  = { version = "<latest>", features = ["grpc-tonic", "http-json", "tls-aws-lc"] }  # tls-aws-lc: https:// tonic endpoints are rejected without a TLS feature
+opentelemetry_sdk   = { version = "<latest>", features = ["rt-tokio"] }
+clap        = { version = "<latest>", features = ["derive", "env"] }
+clap_complete_command = "<latest>"      # uv + ruff use this for shell completions
+figment     = { version = "<latest>", features = ["toml", "env", "yaml"] }
+sqlx        = { version = "<latest>", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "macros", "migrate"] }
+reqwest     = { version = "<latest>", default-features = false, features = ["rustls", "json", "stream"] }  # older releases named this feature rustls-tls
+rustls      = "<latest>"
+secrecy     = "<latest>"
+zeroize     = { version = "<latest>", features = ["derive"] }
+subtle      = "<latest>"
+validator   = { version = "<latest>", features = ["derive"] }
 
 # === Lock 4 — workspace lints (canonical place for deny-warnings policy) ===
 # Rule of thumb: list only what deviates from rustc/clippy defaults.
@@ -196,7 +196,7 @@ Two equally valid approaches, depending on project type.
 # .github/workflows/ci.yml
 - uses: dtolnay/rust-toolchain@master
   with:
-    toolchain: "1.98.0"   # current CI toolchain snapshot; refresh deliberately
+    toolchain: stable     # tracks the latest stable compiler
 - uses: dtolnay/rust-toolchain@master
   with:
     toolchain: "<PROJECT_MSRV>"   # separate MSRV verification job
@@ -206,7 +206,7 @@ Two equally valid approaches, depending on project type.
 
 ```toml
 [toolchain]
-channel    = "1.98.0"           # current reproducible dev/CI toolchain; independent of PROJECT_MSRV
+channel    = "<LATEST_STABLE>"  # latest stable at setup (`rustup check`); bump on each stable release; independent of PROJECT_MSRV
 components = ["clippy", "rustfmt", "rust-src", "rust-analyzer"]
 profile    = "minimal"
 targets    = ["x86_64-unknown-linux-gnu"]
@@ -242,7 +242,7 @@ The PMA-Rust convention is **`just` as the task runner, cargo aliases only for `
 
 | File | Purpose | Verified pattern |
 |---|---|---|
-| `rustfmt.toml` | formatting policy | cargo: `style_edition = "2024"` (1 line). reth/r-a add `imports_granularity = "Crate"`, `use_small_heuristics = "Max"` |
+| `rustfmt.toml` | formatting policy | cargo: `style_edition` matching the workspace edition (1 line). reth/r-a add `imports_granularity = "Crate"`, `use_small_heuristics = "Max"` |
 | `clippy.toml` | thresholds + disallowed methods/types | enforces project-specific anti-patterns |
 | `deny.toml` | supply chain policy | see `references/delivery.md` |
 | `.config/nextest.toml` | test profiles (`default`, `ci`, `slow`) | reth: retries=2, slow-timeout 30s |
@@ -293,9 +293,9 @@ edition.workspace = true
 
 [dependencies]
 # "Avoid adding more dependencies to this crate" — comment in rust-analyzer's real file.
-xshell = "0.2"
-xflags = "0.3"                     # 0.4 has only pre-releases on crates.io; r-a pins 0.3.2
-anyhow = "1"
+xshell = "<latest>"
+xflags = "<latest>"                # latest stable, not a pre-release
+anyhow = "<latest>"
 ```
 
 `xtask/src/main.rs` skeleton — only tasks that genuinely need Rust:
@@ -404,7 +404,7 @@ debug     = false
 
 # === [profile.dev] — fast inner loop ===
 # Defaults inherited: opt-level=0, incremental=true,
-# split-debuginfo="unpacked" (Linux/macOS default since Rust 1.84).
+# split-debuginfo="unpacked" (Linux/macOS default).
 [profile.dev]
 debug = "line-tables-only"            # 20-40% faster compile than full debug info
 
@@ -446,7 +446,7 @@ Standard pattern for distributing Rust binaries that run on any Linux without a 
 
 ### Why musl for production binaries
 
-- **No glibc version drift** — a glibc-linked binary built on Ubuntu 24.04 fails on Debian 11; a musl-static binary runs on both
+- **No glibc version drift** — a glibc-linked binary built on a newer distro fails on an older one; a musl-static binary runs on both
 - **Containers** — drops the need for a base image with libc; works in `FROM scratch` or `FROM gcr.io/distroless/static`
 - **Smaller attack surface** — no dynamic loader, no LD_PRELOAD shenanigans
 - **Cross-compile friendly** — pairs naturally with `cross` or `cargo-zigbuild` from any host
@@ -467,7 +467,7 @@ rustflags = ["-C", "target-feature=+crt-static"]
 rustflags = ["-C", "target-feature=+crt-static"]
 ```
 
-`+crt-static` is **default for musl** on Rust ≥ 1.79, but pin it explicitly so a future toolchain change cannot silently break the static guarantee.
+`+crt-static` is **default for musl** on current Rust, but pin it explicitly so a future toolchain change cannot silently break the static guarantee.
 
 ### Build commands
 

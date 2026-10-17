@@ -13,11 +13,13 @@ Keep this entry file lean. Load only the reference packs needed for the current 
 
 For PMA-managed SPA and internal-tool frontend projects using:
 
-- React 19 + TypeScript + Vite 8
+- React + TypeScript + Vite
 - TanStack Router for file-based type-safe routing
 - TanStack Query for server state
 - Zustand for UI-only client state
-- shadcn/ui (base-nova style) with `@base-ui/react` primitives and Tailwind CSS v4 — this is the **only** allowed UI ecosystem; Radix UI and other component libraries are forbidden (see `references/baseline.md` *UI Library Policy*)
+- shadcn/ui (base-nova style) with `@base-ui/react` primitives and Tailwind CSS — this is the **only** allowed UI ecosystem; Radix UI and other component libraries are forbidden (see `references/baseline.md` *UI Library Policy*)
+
+All of these track their latest stable releases; this skill names no versions (see `/pma references/workflow.md` *Dependency Freshness*).
 
 Single-app layout is the default. Reach for a Bun monorepo only when the repo really hosts multiple apps or shared packages — a single SPA bolted onto a Rust or Go service does not need workspaces.
 
@@ -44,7 +46,7 @@ Not for SSR-first sites, content sites, or non-PMA projects.
 - `references/baseline.md`
   Stack defaults, quality gates, workspace layout, conventions, and baseline scripts.
 - `references/routing-and-ui.md`
-  TanStack Router layout, provider composition, entry point, shadcn/ui, Tailwind v4, and theming.
+  TanStack Router layout, provider composition, entry point, shadcn/ui, Tailwind, and theming.
 - `references/runtime-and-data.md`
   Query client, HTTP layer, state boundaries, i18n, Vite config, and the frontend-side nsl invocation. Full nsl protocol lives in `/pma references/dev-environment.md`.
 - `references/review.md`

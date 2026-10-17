@@ -59,7 +59,7 @@ Apply operational checks to affected services, jobs, deployments, and resource-i
 - Check bounds on work, payload size, queues, fan-out, and resource lifetime. Trace deadline/cancellation propagation and retry budgets, including whether retries duplicate side effects or amplify an outage.
 - For rollout-sensitive changes, examine mixed versions, feature enable/disable behavior, rollback or forward recovery, and what happens to already-written data. State deployment assumptions.
 - Verify that operators or users can detect and diagnose the relevant failure using existing status, errors, logs, or metrics. Do not require every observability mechanism; confirm the chosen signal is actually wired up.
-- When dependency, build, CI, or release files change, inspect reproducibility, supported runtime versions, privileges, untrusted inputs, secret access, and artifact origin. An advisory needs a matching dependency version and affected use; distinguish a vulnerable dependency from a demonstrated application exploit.
+- When dependency, build, CI, or release files change, inspect reproducibility, supported runtime versions, privileges, untrusted inputs, secret access, and artifact origin. An advisory needs a matching dependency version and affected use; distinguish a vulnerable dependency from a demonstrated application exploit. A new dependency, toolchain, or base image added below its latest stable version, or a superseded technology chosen for new code, needs a recorded reason (user request or a concrete compatibility problem); without one, report it as a maintenance finding.
 
 ## Reviewability and Scope
 
@@ -77,5 +77,5 @@ Adapt these public practices to the repository. They are not a claim of organiza
 - Tests beyond coverage: [Microsoft ISE testing example](https://microsoft.github.io/code-with-engineering-playbook/automated-testing/unit-testing/authoring-example/).
 - Compatibility categories, adapted beyond .NET: [Microsoft library guidance](https://learn.microsoft.com/en-us/dotnet/standard/library-guidance/breaking-changes).
 - Safe operation and recovery, adapted to relevant services: [Kubernetes production readiness](https://github.com/kubernetes/community/blob/master/sig-architecture/production-readiness.md) and [KEP questionnaire](https://github.com/kubernetes/enhancements/blob/master/keps/NNNN-kep-template/README.md#production-readiness-review-questionnaire).
-- Technical security controls: [OWASP ASVS 5.0.0](https://github.com/OWASP/ASVS/tree/v5.0.0). If mapping a finding to ASVS, verify and include the versioned requirement ID; this baseline is not a complete ASVS assessment.
+- Technical security controls: [OWASP ASVS](https://github.com/OWASP/ASVS), latest release. If mapping a finding to ASVS, verify and include the versioned requirement ID from that release; this baseline is not a complete ASVS assessment.
 - Pipeline boundaries: [GitHub Actions secure use](https://docs.github.com/en/actions/reference/security/secure-use).

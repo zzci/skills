@@ -17,11 +17,11 @@
 
 This skill is for PMA-managed SPA and internal-tool web applications using:
 
-- React 19 + TypeScript + Vite 8
+- React + TypeScript + Vite
 - TanStack Router
 - TanStack Query
 - Zustand
-- shadcn/ui plus Tailwind CSS v4
+- shadcn/ui plus Tailwind CSS
 
 Use `/pma` for workflow control. Use this pack for implementation defaults.
 
@@ -29,25 +29,27 @@ Use `/pma` for workflow control. Use this pack for implementation defaults.
 
 ### Required
 
-| Category | Technology | Version | Notes |
-|---|---|---|---|
-| Framework | React | 19 | default app framework |
-| Language | TypeScript | 7.0+ | strict mode; compatibility rule below |
-| Build tool | Vite | 8 | `host: "0.0.0.0"`. `server.allowedHosts` decision depends on the nsl deployment — see *Vite Configuration* in `runtime-and-data.md`. |
-| Styling | Tailwind CSS | 4 | `@theme` plus CSS variables in oklch |
-| Server state | TanStack Query | 5 | owns request lifecycle |
-| Lint / format | ESLint + @antfu/eslint-config | 10 / 9+ | no Prettier; see notes below |
-| Test | Vitest | 4 | unit and integration tests |
+Every entry uses its latest stable release, verified at the registry (see *Dependency Freshness (Web)*).
+
+| Category | Technology | Notes |
+|---|---|---|
+| Framework | React | default app framework |
+| Language | TypeScript | strict mode; compatibility rule below |
+| Build tool | Vite | `host: "0.0.0.0"`. `server.allowedHosts` decision depends on the nsl deployment — see *Vite Configuration* in `runtime-and-data.md`. |
+| Styling | Tailwind CSS | CSS-first `@theme` plus CSS variables in oklch |
+| Server state | TanStack Query | owns request lifecycle |
+| Lint / format | ESLint + @antfu/eslint-config | no Prettier; see notes below |
+| Test | Vitest | unit and integration tests |
 
 #### @antfu/eslint-config notes
 
-- **v9+** pairs with `@eslint-react/eslint-plugin` v5. Do not retain an older incompatible major.
-- **v7+** enables `react/prefer-namespace-import` by default — use `import * as React from 'react'` instead of `import React from 'react'`, or explicitly disable the rule in eslint config.
+- Keep `@eslint-react/eslint-plugin` on the major the installed `@antfu/eslint-config` declares in its peer dependencies. Do not retain an older incompatible major.
+- It enables `react/prefer-namespace-import` by default — use `import * as React from 'react'` instead of `import React from 'react'`, or explicitly disable the rule in eslint config.
 - The config is flat-config native. Do not use legacy `.eslintrc` format.
 
-#### TypeScript 7 compatibility
+#### TypeScript compatibility
 
-TypeScript 7 is the default compiler baseline for React/Vite projects that only need the CLI and standard language service. It does not yet expose the legacy programmatic compiler API. Projects whose framework or tooling embeds TypeScript (for example Vue, MDX, Astro, Svelte, Angular, or a plugin that imports `typescript`) may pin TypeScript 6 with a recorded compatibility reason, or run TypeScript 7 beside `@typescript/typescript6`. Verify the current official migration guidance before choosing.
+Use the latest TypeScript major for the CLI and language service. If a framework or tool embeds TypeScript through its programmatic compiler API (for example Vue, MDX, Astro, Svelte, Angular, or a plugin that imports `typescript`) and that API is not available in the latest major, follow the official TypeScript migration guidance (side-by-side compatibility package or an older major) and record the compatibility reason.
 
 ### Default
 
@@ -84,7 +86,7 @@ The *UI library* row has no Alternative. Radix UI, MUI, Mantine, Chakra UI, Ant 
 
 ## UI Library Policy
 
-The only allowed UI stack is **shadcn/ui (base-nova style) + `@base-ui/react`** primitives, on top of Tailwind CSS v4. This is a hard constraint, not a default.
+The only allowed UI stack is **shadcn/ui (base-nova style) + `@base-ui/react`** primitives, on top of Tailwind CSS. This is a hard constraint, not a default.
 
 If this lock must be excepted, it requires an explicit user decision recorded in `docs/decisions/` (what, why, scope) — never a silent dependency add.
 
@@ -130,13 +132,13 @@ npx npm-check-updates                # cross-PM, supports --target latest/minor/
 npx npm-check-updates -u --target latest --filter '<pkg>'
 ```
 
-When pinning to a non-latest version (peer-dep conflict, breaking-change deferral, React 19 / Vite 8 compatibility), note the reason in `package.json` near the entry or in `docs/decisions/`:
+When pinning to a non-latest version (user request, peer-dep conflict, breaking-change deferral, framework compatibility), note the reason in `package.json` near the entry or in `docs/decisions/`:
 
 ```jsonc
 {
   "dependencies": {
-    // PINNED: <pkg>@2.x — 3.x drops Node 18; revisit after CI bump
-    "<pkg>": "^2.4.1"
+    // PINNED: <pkg>@<major> — <compatibility reason>; revisit when <condition>
+    "<pkg>": "<version>"
   }
 }
 ```
@@ -275,9 +277,6 @@ Each PMA-Web app should expose at least:
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
-  },
-  "devDependencies": {
-    "@nsio/nsl": "^0.1.7"
   }
 }
 ```

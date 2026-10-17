@@ -30,16 +30,18 @@ Goals:
 
 ### Required
 
+Every entry uses its latest stable release, verified at the registry (see *Dependency Freshness (Bun)*). This pack names no versions.
+
 | Category | Technology | Notes |
 |---|---|---|
-| Runtime | Bun 1.4+ | latest stable; brings `bun build --compile --asset` (embed directories), `bun test --parallel`, `bun audit`, `bun dedupe` |
-| Language | TypeScript 7.0+ | strict mode, `noUncheckedIndexedAccess`. TS 7 ships no programmatic compiler API before 7.1, so tooling that imports `typescript` (typescript-eslint and friends) runs on `@typescript/typescript6`; pin TypeScript 6 only with a recorded reason. Removed options and the tsconfig baseline: `runtime.md` *Formatting And TypeScript* |
+| Runtime | Bun | latest stable; relies on `bun build --compile --asset` (embed directories), `bun test --parallel`, `bun audit`, `bun dedupe` |
+| Language | TypeScript | strict mode, `noUncheckedIndexedAccess`. When tooling that imports `typescript` (typescript-eslint and friends) needs a programmatic compiler API the latest major lacks, use the official compatibility package; pin an older major only with a recorded reason. tsconfig baseline: `runtime.md` *Formatting And TypeScript* |
 | Package manager | bun | commit `bun.lock`; `bun install --frozen-lockfile` in CI |
-| Lint / format | ESLint 10 + `@antfu/eslint-config` 9+ | flat config only; no Prettier |
-| HTTP server | Hono 4.13+ via `OpenAPIHono` | from `@hono/zod-openapi` 1.x (peer `zod ^4`, `hono >=4.10`); **hard lock**, see *Routing Hard Lock* below |
-| OpenAPI contract | `@hono/zod-openapi` | `createRoute` + `app.openapi()` for every contract endpoint; plain Hono routes only where OpenAPI does not apply; OpenAPI 3.1 document at `/openapi.json` via `app.doc31()` |
-| API docs | `@scalar/hono-api-reference` 0.12+ | `Scalar({ url: '/openapi.json' })` mounted at `/docs`; the old `apiReference` export no longer exists |
-| Validation | Zod 4 | API-boundary validation; the dependency-freshness procedure below applies |
+| Lint / format | ESLint + `@antfu/eslint-config` | flat config only; no Prettier |
+| HTTP server | Hono via `OpenAPIHono` | from `@hono/zod-openapi` (check its `zod` / `hono` peer ranges); **hard lock**, see *Routing Hard Lock* below |
+| OpenAPI contract | `@hono/zod-openapi` | `createRoute` + `app.openapi()` for every contract endpoint; plain Hono routes only where OpenAPI does not apply; OpenAPI document at `/openapi.json` via the newest `app.doc*` method the library offers (`app.doc31()`) |
+| API docs | `@scalar/hono-api-reference` | `Scalar({ url: '/openapi.json' })` mounted at `/docs`; the old `apiReference` export no longer exists |
+| Validation | Zod | API-boundary validation; the dependency-freshness procedure below applies |
 | Errors | typed error classes | `AppError` hierarchy at transport boundaries |
 | Test | bun:test | built-in runner; coverage threshold enforced in `bunfig.toml` |
 
@@ -47,11 +49,11 @@ Goals:
 
 | Category | Technology | Notes |
 |---|---|---|
-| Data access | Drizzle ORM 0.45 + drizzle-kit 0.31 | schema-as-code; 1.0 is still on the `rc` tag — adopt only with a recorded reason |
+| Data access | Drizzle ORM + drizzle-kit | schema-as-code; latest stable (`latest` dist-tag), never an `rc` / `beta` tag without a recorded reason |
 | Database | SQLite | default for local-first internal services |
 | Driver | `bun:sqlite` via `drizzle-orm/bun-sqlite` | built into the runtime, zero dependencies, works unchanged inside a compiled binary; at-rest encryption is out of scope (encrypt the volume when required) |
 | Config | environment variables + Zod | validate at startup |
-| Logging | consola 3 + pino 10 | console plus structured file output |
+| Logging | consola + pino | console plus structured file output |
 | Hot reload | `bun --watch src/index.ts` | restarts on source change; backend runs as its own process |
 | Dev URL routing | `@nsio/nsl` | named `.localhost` routes for API (and sibling SPA when same repo). Protocol details: `/pma references/dev-environment.md`. |
 
@@ -60,9 +62,9 @@ Goals:
 | Category | Technology | When to adopt |
 |---|---|---|
 | Observability | OpenTelemetry via `@hono/otel` + `@opentelemetry/sdk-node` | production tracing and metrics |
-| Queue | BullMQ 6 | background jobs |
+| Queue | BullMQ | background jobs |
 | Cache | Redis via Bun's built-in `RedisClient` (`Bun.redis`) | shared cache |
-| CLI | Commander 15 | richer command surface |
+| CLI | Commander | richer command surface |
 | E2E test | Playwright | browser-level flows |
 | Process lock | PID lock file | prevent duplicate listeners |
 | Single binary | `bun build --compile --asset ./drizzle [--asset ./web/dist]` | embed migrations and SPA assets |
@@ -104,32 +106,13 @@ bun audit                           # known vulnerabilities; `bun audit fix --dr
 bun dedupe --check                  # duplicate versions in the lockfile
 ```
 
-### Verified snapshot (2026-09-03)
-
-Registry values at the time this pack was last reviewed. They are a sanity check, not a substitute for the commands above — re-verify before every bump.
-
-| Package | Latest stable | Note |
-|---|---|---|
-| `bun` | 1.4.0 | |
-| `typescript` | 7.0.2 | `@typescript/typescript6` for tooling that needs the JS compiler API |
-| `zod` | 4.5.4 | |
-| `hono` | 4.13.5 | |
-| `@hono/zod-openapi` | 1.6.2 | peer `zod ^4.0.0`, `hono >=4.10.0` |
-| `@scalar/hono-api-reference` | 0.12.0 | peer `hono ^4.12.5` |
-| `drizzle-orm` / `drizzle-kit` | 0.45.2 / 0.31.10 | `1.0.0-rc.x` on the `rc` tag |
-| `consola` / `pino` | 3.4.2 / 10.3.1 | |
-| `@nsio/nsl` | 0.1.7 | |
-| `eslint` / `@antfu/eslint-config` | 10.9.1 / 9.5.1 | antfu peer `eslint ^9.10 \|\| ^10` |
-| `@hono/otel` / `@opentelemetry/sdk-node` | 1.1.2 / 0.222.0 | optional |
-| `bullmq` / `commander` | 6.3.4 / 15.0.0 | optional |
-
-When pinning to a non-latest version, note the reason in `package.json` near the entry or in `docs/decisions/`:
+When pinning to a non-latest version (user request or a concrete compatibility problem), note the reason in `package.json` near the entry or in `docs/decisions/`:
 
 ```jsonc
 {
   "dependencies": {
-    // PINNED: <pkg>@3.x — 4.x requires Bun 1.5; revisit after runtime bump
-    "<pkg>": "^3.8.0"
+    // PINNED: <pkg>@<major> — <compatibility reason>; revisit when <condition>
+    "<pkg>": "<version>"
   }
 }
 ```
@@ -259,7 +242,7 @@ scripts/
 | Module structure | co-locate routes, schemas, service, and tests; keep transport thin |
 | Bootstrap split | `app.ts` builds the app, `index.ts` runs startup; add `dev.ts` only when dev wiring genuinely diverges from prod |
 | Routing | contract endpoints are declared with `createRoute` and mounted with `app.openapi()`; plain Hono routes only where OpenAPI does not apply; schemas live in `<domain>.schemas.ts` and use `z` from `@hono/zod-openapi` so `.openapi()` metadata is available; hard lock, see *Routing Hard Lock* |
-| TypeScript config | TS 7 rules: no `baseUrl`, `paths` relative to the tsconfig, explicit `"types": ["bun"]` |
+| TypeScript config | current TypeScript rules: no `baseUrl`, `paths` relative to the tsconfig, explicit `"types": ["bun"]` |
 | Dev URL routing | invoke the backend through `bunx nsl run` so the API binds to `<name>.localhost:3355/api`; never embed Vite into the backend process |
 | Errors | never throw raw strings |
 | Validation | Zod at boundaries |
@@ -296,15 +279,13 @@ For a *Single API* or the API project in the *API + Sibling SPA* layout:
     "test:coverage": "bun test --coverage",
     "check": "bun run lint && bun run typecheck && bun run test:coverage && bun run build",
     "db:generate": "drizzle-kit generate"
-  },
-  "devDependencies": {
-    "@nsio/nsl": "^0.1.7"
   }
 }
 ```
 
 Notes:
 
+- Install `@nsio/nsl` as a devDependency (`bun add -D @nsio/nsl`); it ships the `nsl` binary.
 - `<name>` matches the project's nsl host. In *API + Sibling SPA*, use the SPA's project name so the API mounts at `<name>.localhost:3355/api`. In *Single API*, drop `:/api` and `-s` and just expose the API at `<name>.localhost:3355`.
 - `Bun.serve()` reads `PORT` natively, which `nsl run` exports automatically — no extra flags.
 - `dev:bare` keeps a plain `bun --watch` invocation around for CI smoke tests, container builds, or environments where the nsl daemon cannot run.

@@ -1,6 +1,6 @@
 # PMA-Rust Runtime And Data
 
-This pack covers everything that runs at request time: errors, layered architecture, async DB access, configuration, the Axum 0.8 + tower stack, and graceful shutdown. Every code pattern below is verified against an axum example, a tokio doc, a linkerd2-proxy module, or a quickwit handler. See `references/evidence.md` for citations.
+This pack covers everything that runs at request time: errors, layered architecture, async DB access, configuration, the Axum + tower stack, and graceful shutdown. Every code pattern below is verified against an axum example, a tokio doc, a linkerd2-proxy module, or a quickwit handler. See `references/evidence.md` for citations.
 
 ## Table of Contents
 
@@ -8,8 +8,8 @@ This pack covers everything that runs at request time: errors, layered architect
 - [Architecture Patterns](#architecture-patterns)
 - [Database Strategy](#database-strategy)
 - [Configuration](#configuration)
-- [CLI Parsing (clap v4 derive)](#cli-parsing-clap-v4-derive)
-- [Axum 0.8 Runtime](#axum-08-runtime)
+- [CLI Parsing (clap derive)](#cli-parsing-clap-derive)
+- [Axum Runtime](#axum-runtime)
 - [Tokio Runtime](#tokio-runtime)
 - [Graceful Shutdown](#graceful-shutdown)
 - [Background Tasks](#background-tasks)
@@ -40,7 +40,7 @@ pub enum DomainError {
 pub type Result<T, E = DomainError> = std::result::Result<T, E>;
 ```
 
-Verified at `quickwit-storage/src/error.rs:43-66`, `uv-settings/src/lib.rs:654-682`, `ruff/crates/*/src/error.rs`. All use `thiserror = "2.0"`.
+Verified at `quickwit-storage/src/error.rs:43-66`, `uv-settings/src/lib.rs:654-682`, `ruff/crates/*/src/error.rs`. All use `thiserror`.
 
 Rules:
 
@@ -299,7 +299,7 @@ Rules:
 
 For services with very large config surfaces (>100 fields), look at quickwit's versioned-config pattern (`quickwit-config/src/node_config/serialize.rs:138-149`): a `VersionedNodeConfig` enum with `#[serde(tag = "version")]` letting old configs keep loading after schema changes.
 
-## CLI Parsing (clap v4 derive)
+## CLI Parsing (clap derive)
 
 Standard pattern, verified at `uv/crates/uv-cli/src/lib.rs:99-219` and `ruff/crates/ruff/src/args.rs:113-127`:
 
@@ -368,11 +368,11 @@ For very large CLIs (>200 subcommands), the **builder API** is acceptable (quick
 
 For binary entry points, install a custom panic hook that prints a GitHub issue template (ruff's pattern, `crates/ruff/src/lib.rs:143-161`).
 
-## Axum 0.8 Runtime
+## Axum Runtime
 
 ### Path syntax
 
-Axum 0.8 uses `{name}`, **not** `:name`. Verified at `axum/examples/key-value-store/src/main.rs:46` and `axum/examples/todos/src/main.rs:51`:
+Axum uses `{name}`, **not** the legacy `:name`. Verified at `axum/examples/key-value-store/src/main.rs:46` and `axum/examples/todos/src/main.rs:51`:
 
 ```rust
 .route("/{key}", get(kv_get))
@@ -546,7 +546,7 @@ Add `rlimit` to `Cargo.toml`:
 
 ```toml
 [target.'cfg(unix)'.dependencies]
-rlimit = "0.11"
+rlimit = "<latest>"   # resolve with `cargo add rlimit --target 'cfg(unix)'`
 ```
 
 For containers and systemd, see `references/delivery.md` "Disable Core Dumps" for the matching outer-layer config — this in-process call is the inner belt of a belt-and-suspenders defense.
@@ -593,7 +593,7 @@ pub async fn serve(state: AppState, http: HttpConfig) -> anyhow::Result<()> {
 
     let app = router(state).layer(
         // Pair TimeoutLayer with graceful_shutdown so requests don't hang forever.
-        // (tower-http 0.7 API; times out with 408 Request Timeout.)
+        // (Times out with 408 Request Timeout.)
         TimeoutLayer::new(Duration::from_secs(10)),
     );
 
@@ -613,9 +613,8 @@ pub async fn serve(state: AppState, http: HttpConfig) -> anyhow::Result<()> {
         tracing::error!("background task drain timed out — forcing exit");
     }
 
-    // Telemetry flush: pinned opentelemetry 0.32 has no global shutdown free
-    // function (the 0.1x-era one was removed in the 0.2x line). Shutdown goes
-    // through the retained `SdkTracerProvider` handle — the `TelemetryGuards`
+    // Telemetry flush: current opentelemetry has no global shutdown free
+    // function. Shutdown goes through the retained `SdkTracerProvider` handle — the `TelemetryGuards`
     // returned by `telemetry::init` (see delivery.md's `TelemetryGuards::otlp`
     // pattern) hold it and call `provider.shutdown()` when main drops them.
     Ok(())

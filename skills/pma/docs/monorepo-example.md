@@ -93,11 +93,13 @@ acme/
     "check": "bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {
-    "@nsio/nsl": "^0.1.7",
-    "typescript": "^7.0.2"
+    "@nsio/nsl": "<latest>",
+    "typescript": "<latest>"
   }
 }
 ```
+
+Add dev dependencies with `bun add -D @nsio/nsl typescript` so the registry resolves the latest stable version; `<latest>` is a placeholder, not a literal.
 
 There is **no** root `dev` script. Each app is launched independently (see below) and tied together by nsl.
 

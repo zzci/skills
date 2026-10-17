@@ -31,7 +31,7 @@ Rules:
 - commit generated SQL migrations together with `drizzle/meta/`
 - choose one driver story and document it clearly
 
-Version note: Drizzle ORM 0.45 with drizzle-kit 0.31 is the stable line. 1.0 is published on the `rc` tag with API changes; do not adopt it without a recorded reason in the proposal.
+Version note: use the latest stable Drizzle ORM and drizzle-kit from the `latest` dist-tag (`npm view drizzle-orm dist-tags`). Do not adopt a pre-release tag (`rc`, `beta`) without a recorded reason in the proposal.
 
 ## Driver Guidance
 

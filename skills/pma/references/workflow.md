@@ -21,7 +21,7 @@
 7. When the goal is unclear, stop and ask.
 8. Trace root causes instead of patching symptoms.
 9. Output only what changes the next decision.
-10. When introducing or upgrading a dependency, default to the latest stable version verified at the registry — see *Dependency Freshness* below.
+10. When choosing or upgrading a technology or dependency, default to the latest stack and the latest stable version verified at the registry — see *Dependency Freshness* below.
 
 ## Task Tiers
 
@@ -148,7 +148,14 @@ On close:
 
 ## Dependency Freshness
 
-When introducing or upgrading a dependency, default to the **latest stable version**. Snippets copied from tutorials, blog posts, prior PRs, or LLM recall routinely carry outdated versions; that drift compounds across security audits, ecosystem compatibility, and breaking-change exposure.
+When choosing a technology or introducing or upgrading a dependency, default to the **latest technology stack** and the **latest stable version**. Snippets copied from tutorials, blog posts, prior PRs, or LLM recall routinely carry outdated versions and superseded tools; that drift compounds across security audits, ecosystem compatibility, and breaking-change exposure.
+
+Stack skills (`pma-web`, `pma-bun`, `pma-go`, `pma-rust`) name technologies, not versions. Resolve every version, language edition, toolchain, and base image at the registry when the work happens. Version requirements in skill code samples are placeholders (`<latest>`), never values to copy.
+
+Use an older version or a legacy technology only when:
+
+- the user explicitly asks for it, or
+- a concrete compatibility problem requires it (runtime / MSRV / peer-dep conflict, an upstream that has not migrated, a deployment target that cannot run the latest release).
 
 ### Rule
 
@@ -157,7 +164,7 @@ Before adding any new dependency or accepting any version number that came from 
 1. **Verify the latest stable at the registry** (commands per stack — see the stack skill's baseline):
    - crates.io / npmjs.com / pkg.go.dev / PyPI are the sources of truth; the LLM is not.
 2. **Confirm current API and breaking changes via official docs.** Prefer the vendor's official documentation. If a documentation connector such as Context7 is installed and available, it may help locate the relevant official material; never assume a connector or exact tool name exists. Training-data recall lags real releases — treat it as a hint, not a fact.
-3. **Pin to non-latest only with a recorded reason.** MSRV constraint, peer-dep incompatibility, blocked upstream — write the justification inline next to the dependency entry (`// PINNED: <reason> until <condition>`) or in `docs/decisions/`.
+3. **Pin to non-latest only with a recorded reason.** User request, MSRV constraint, peer-dep incompatibility, blocked upstream — write the justification inline next to the dependency entry (`// PINNED: <reason> until <condition>`) or in `docs/decisions/`.
 4. **Separate routine version bumps from feature work.** A `chore(deps): bump X to Y` commit or PR is reviewable; bundling it into a feature diff hides regressions.
 
 ### When to escalate
@@ -168,7 +175,8 @@ If the latest stable version conflicts with the project's runtime / MSRV / peer-
 
 - Copy-pasting `"some-lib": "^1.2.3"` from a tutorial without checking whether 1.x is still maintained.
 - Reusing a version from another repo in the same org without re-verifying.
-- Accepting a version the LLM "knows" without registry confirmation.
+- Accepting a version the LLM "knows", or one written in a skill or doc, without registry confirmation.
+- Picking a superseded tool or legacy API style because an older example used it.
 - Bumping a dependency inside an unrelated feature commit.
 
 ## Session Checklist

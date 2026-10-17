@@ -25,7 +25,7 @@ Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 ## Quick Routing
 
 - New project setup or repo restructuring (single API / API + sibling SPA / monorepo) → `references/baseline.md`
-- dependency versions (registry verification, verified snapshot, pinning rules) → `references/baseline.md` *Dependency Freshness*
+- dependency versions (registry verification, pinning rules) → `references/baseline.md` *Dependency Freshness*
 - runtime (`app.ts` / `index.ts` / optional `dev.ts`, config, startup, graceful shutdown, logging, PID lock) → `references/runtime.md`
 - routing and API docs (hard lock: plain Hono routes + `@hono/zod-openapi` only; `createRoute`, `/openapi.json`, Scalar at `/docs`) → `references/runtime.md`
 - dev URL routing (nsl) → `references/runtime.md` (full protocol → `/pma references/dev-environment.md`; multi-app workspace setup → `/pma docs/monorepo-example.md`)
@@ -36,9 +36,9 @@ Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 ## Reference Packs
 
 - `references/baseline.md`
-  Scope, layout choice (single API vs monorepo vs API + sibling SPA), tech stack with verified versions, required quality gates, scripts, conventions, and implementation workflow.
+  Scope, layout choice (single API vs monorepo vs API + sibling SPA), tech stack, required quality gates, scripts, conventions, and implementation workflow.
 - `references/runtime.md`
-  TypeScript 7 defaults, config loading, bootstrap structure, OpenAPIHono routes and contract rules, middleware, logging, docs routes, and runtime lifecycle.
+  TypeScript defaults, config loading, bootstrap structure, OpenAPIHono routes and contract rules, middleware, logging, docs routes, and runtime lifecycle.
 - `references/data-and-testing.md`
   Drizzle with SQLite-first storage, migration strategy for source and compiled mode, repository boundaries, coverage configuration, and testing rules.
 - `references/delivery.md`

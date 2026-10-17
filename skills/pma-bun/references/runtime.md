@@ -20,15 +20,15 @@
 
 ## Formatting And TypeScript
 
-- Use `@antfu/eslint-config` (flat config) on ESLint 10.
+- Use `@antfu/eslint-config` (flat config) on the latest ESLint.
 - Ignore generated artifacts such as `drizzle/**` and `dist/**`.
 - Keep TypeScript in strict mode with `noUncheckedIndexedAccess`.
 - Prefer `verbatimModuleSyntax`, `exactOptionalPropertyTypes`, and `import type` discipline.
 - Keep path aliases aligned with `tsconfig.json`; do not invent aliases that CI does not resolve.
 
-### TypeScript 7 baseline
+### TypeScript baseline
 
-TypeScript 6 deprecated and TypeScript 7 removed several options. A project that still carries them fails `typecheck`:
+Current TypeScript removed several legacy options. A project that still carries them fails `typecheck`:
 
 - `baseUrl` is gone — write `paths` relative to the tsconfig (`"@/*": ["./src/*"]`)
 - `moduleResolution: node` / `node10` / `classic` are gone — use `bundler`
@@ -59,7 +59,7 @@ TypeScript 6 deprecated and TypeScript 7 removed several options. A project that
 }
 ```
 
-TypeScript 7 ships no programmatic compiler API before 7.1; typescript-eslint and similar tools run through `@typescript/typescript6`. Keep `typescript` at 7 for `tsc --noEmit` and let `@antfu/eslint-config` resolve the shim it needs. Pin TypeScript 6 only when a tool has no shim path, and record the reason.
+Keep `typescript` on the latest major for `tsc --noEmit`. When typescript-eslint or a similar tool needs a programmatic compiler API the latest major does not expose, let `@antfu/eslint-config` resolve the official compatibility package per the TypeScript migration guide. Pin an older major only when a tool has no compatibility path, and record the reason.
 
 ## Scripts
 
@@ -229,7 +229,7 @@ Rules:
 - Name reusable schemas with `.openapi("Name")` so clients get `components.schemas`, not inline duplicates. Set `operationId` on every route; generated clients key on it.
 - Import `z` from `@hono/zod-openapi` in schema files. `z` from `zod` has no `.openapi()` and produces unnamed, example-less schemas.
 - `/openapi.json` is generated at runtime from the same schemas that validate. Never hand-maintain a spec file.
-- Emit OpenAPI 3.1 (`app.doc31`). Use `app.doc` (3.0) only when a downstream consumer cannot read 3.1, and record it.
+- Emit the newest OpenAPI version `@hono/zod-openapi` supports (`app.doc31` in the examples). Use an older document version only when a downstream consumer cannot read the newer one, and record it.
 - `/openapi.json` and `/docs` are open in development and gated by config (`DOCS_ENABLED`) in production; they never sit behind the API's own auth in dev.
 - The contract test (`data-and-testing.md` *Testing*) snapshots `/openapi.json`; a route change that does not update the snapshot on purpose fails CI.
 - When a SPA consumes the API, generate its client types from `/openapi.json` (e.g. `openapi-typescript`) rather than hand-copying schemas.
@@ -287,7 +287,7 @@ app.doc31("/openapi.json", { openapi: "3.1.0", info: { title, version } });
 app.get("/docs", Scalar({ url: "/openapi.json", pageTitle: title }));
 ```
 
-- serve the OpenAPI 3.1 document at `/openapi.json` and the interactive UI at `/docs`
+- serve the OpenAPI document at `/openapi.json` and the interactive UI at `/docs`
 - `Scalar` is the current export of `@scalar/hono-api-reference`; the old `apiReference` export was removed
 - keep docs generation aligned with actual validation schemas — the snapshot test guards it
 - gate `/docs` in production with config; keep `/openapi.json` available wherever generated clients are built

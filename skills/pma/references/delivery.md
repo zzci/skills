@@ -125,7 +125,7 @@ Each PMA-managed repository should establish a baseline set of project-level con
 
 ### Stack-pinned toolchain files
 
-The runtime / language version must be declared in the project, not assumed:
+The runtime / language version must be declared in the project, not assumed. New projects start from the latest stable release verified at bootstrap (see `workflow.md` *Dependency Freshness*):
 
 - Rust: `rust-version` in `[workspace.package]`; optional `rust-toolchain.toml` for pinned channel (vector pattern).
 - Node / Bun: `engines.node` and `engines.bun` in `package.json`; `.nvmrc` / `.node-version` when contributors use nvm / fnm / asdf.

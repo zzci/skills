@@ -28,11 +28,13 @@ Goals:
 
 ### Required
 
+Every entry uses its latest stable release, verified at the registry (see *Dependency Freshness (Go)*). This pack names no versions.
+
 | Category | Technology | Notes |
 |---|---|---|
-| Language | Go 1.27+ | latest stable |
+| Language | Go | latest stable; declare it with the `go` / `toolchain` directives in `go.mod` |
 | Format | gofmt and goimports | enforced in CI |
-| Lint | golangci-lint v2 | includes revive, govet, errcheck, staticcheck |
+| Lint | golangci-lint | includes revive, govet, errcheck, staticcheck |
 | Security scan | gosec | static security checks; runs as a required gate |
 | Errors | `fmt.Errorf` with `%w` | use `errors.Is` and `errors.As` |
 | Logging | slog | structured logging |
@@ -96,12 +98,12 @@ go mod tidy
 # Cross-check via pkg.go.dev for breaking-change notes before upgrading a major
 ```
 
-When pinning to a non-latest version, note the reason in `go.mod` near the `require` block or in `docs/decisions/`:
+When pinning to a non-latest version (user request or a concrete compatibility problem), note the reason in `go.mod` near the `require` block or in `docs/decisions/`:
 
 ```go
 require (
-    // PINNED: <module>@v1 — v2 requires Go 1.28; revisit after toolchain bump
-    example.com/<module> v1.8.3
+    // PINNED: <module>@<major> — <compatibility reason>; revisit when <condition>
+    example.com/<module> <version>
 )
 ```
 

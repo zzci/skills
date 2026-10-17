@@ -17,7 +17,9 @@
 - every linter added beyond the starter's `enable` list needs a one-line justification in the PR that adds it
 - fail on real issues, not style noise; suppress false positives with scoped exclusion rules, not by disabling the linter
 
-### `.golangci.yml` starter (golangci-lint v2)
+### `.golangci.yml` starter
+
+Use the config schema of the latest golangci-lint release; `version` below is the config format field that release expects, not a tool version pin.
 
 ```yaml
 version: "2"

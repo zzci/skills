@@ -17,8 +17,8 @@
 When the repository ships a standalone binary:
 
 - build the frontend first when the SPA is embedded
-- embed directories with `--asset` (Bun 1.4+): `--asset ./drizzle` for migrations, `--asset ./web/dist` for the SPA; the runtime resolves them through `root.asset()` (`runtime.md` *ROOT_DIR And Compiled Mode*)
-- do not rewrite source modules at build time. The older stub-swap pattern (generated asset and migration modules restored in a `finally`) only exists for Bun < 1.4; remove it when upgrading
+- embed directories with `--asset`: `--asset ./drizzle` for migrations, `--asset ./web/dist` for the SPA; the runtime resolves them through `root.asset()` (`runtime.md` *ROOT_DIR And Compiled Mode*)
+- do not rewrite source modules at build time. Remove the legacy stub-swap pattern (generated asset and migration modules restored in a `finally`) wherever it remains
 - keep compile flags in `scripts/compile.ts`, not in shell history or CI YAML
 - write checksums or release metadata as part of the build output when distribution needs it
 - run the compiled-mode smoke test on the produced binary before publishing it
@@ -107,7 +107,7 @@ If the project needs security audit or DB bootstrap jobs beyond this, keep them 
 
 When containerizing:
 
-- use the official image pinned to the baseline minor (`oven/bun:1.4-slim` for source mode; a distroless or scratch-like base for a compiled binary)
+- use the official image pinned to the latest stable Bun release (`oven/bun:<version>-slim` for source mode, resolved at the registry; a distroless or scratch-like base for a compiled binary)
 - copy only necessary build inputs; `bun install --frozen-lockfile --production` for source mode
 - set non-root execution where possible
 - keep env injection external to the image; mount `DATA_DIR` as a volume

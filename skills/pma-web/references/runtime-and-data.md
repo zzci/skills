@@ -63,7 +63,7 @@ Rules:
 
 ## Vite Configuration
 
-Use Vite 8 defaults that match the repo layout:
+Use Vite defaults that match the repo layout:
 
 ```typescript
 import tailwindcss from "@tailwindcss/vite";
@@ -93,7 +93,7 @@ export default defineConfig({
 
 Recommended rules:
 
-- enable `resolve.tsconfigPaths: true` — built into Vite 8 (off by default, small perf cost); on older Vite versions use the `vite-tsconfig-paths` plugin instead
+- enable `resolve.tsconfigPaths: true` — built into Vite (off by default, small perf cost); use the `vite-tsconfig-paths` plugin only when a recorded compatibility reason keeps the project on a Vite release without it
 - import `tanstackRouter` (lowercase) from `@tanstack/router-plugin/vite` and place it **before** `react()` in the `plugins` array; the previously-exported `TanStackRouterVite` symbol still works but is deprecated
 - pass `target: "react"` and `routesDirectory: "src/app/routes"`; enable `autoCodeSplitting: true` unless you have a reason not to
 - keep server host on `0.0.0.0`

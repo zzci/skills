@@ -81,7 +81,7 @@ For evidence-based review after implementation and before merge, independently o
 For frontend projects using the PMA-Web stack:
 
 1. Use `/pma` for investigate -> proposal -> implement workflow.
-2. Default to a single React 19 + TypeScript + Vite 8 SPA; promote to a Bun monorepo only when multiple apps or shared packages exist.
+2. Default to a single React + TypeScript + Vite SPA; promote to a Bun monorepo only when multiple apps or shared packages exist.
 3. Standardize app structure around `src/app`, `src/features`, and `src/shared`.
 4. Use TanStack Router, TanStack Query, Zustand, Tailwind CSS v4, and shadcn/ui `base-nova` with `@base-ui/react`.
 5. Configure required quality gates: lint, typecheck, build, and test.
@@ -105,7 +105,7 @@ For Go service and CLI projects:
 
 1. Use `/pma` for investigate -> proposal -> implement workflow.
 2. Use `cmd/` + `internal/` project layout; avoid `/pkg`.
-3. Configure strict quality gates: goimports, golangci-lint v2, go vet, test, build, mod tidy.
+3. Configure strict quality gates: goimports, golangci-lint, go vet, test, build, mod tidy.
 4. Choose data access strategy: sqlc + pgx (Default) or GORM (Alternative).
 5. Set up layered config with koanf: defaults -> file -> env -> flags.
 6. Standardize on stdlib net/http + Chi (Default) or Gin (Alternative).
@@ -147,7 +147,7 @@ in [React Spectrum Skills Source](docs/sources/react-spectrum.md).
 |-------|-------------|
 | [pma](skills/pma/) | Project development lifecycle — complexity-tiered three-phase workflow + task tracking + docs + multi-agent |
 | [pma-cr](skills/pma-cr/) | Evidence-based code review — shared engineering baseline for design, correctness, tests, compatibility, and operation, plus TypeScript frontend/backend, Go, Rust, and Python packs for local diffs, PRs, and repository audits |
-| [pma-web](skills/pma-web/) | Frontend implementation guide — PMA-managed React 19 + TypeScript + Vite 8 SPA conventions, TanStack Router/Query, Tailwind CSS v4, shadcn/ui base-nova, and quality gates |
+| [pma-web](skills/pma-web/) | Frontend implementation guide — PMA-managed React + TypeScript + Vite SPA conventions, TanStack Router/Query, Tailwind CSS, shadcn/ui base-nova, and quality gates |
 | [pma-rust](skills/pma-rust/) | Rust implementation guide — PMA-managed workspace conventions, strict quality gates, SQLx/SeaORM/diesel-async data access, Axum/Tokio patterns, OpenTelemetry, and rustls-only security defaults |
 | [pma-go](skills/pma-go/) | Go implementation guide — PMA-managed service/CLI conventions, strict quality gates, sqlc + pgx/GORM, Chi/Gin HTTP patterns, koanf config, OpenTelemetry, and slog logging |
 | [pma-bun](skills/pma-bun/) | Bun implementation guide — PMA-managed backend service conventions, optional monorepo promotion, `src/modules` API layout, SQLite-first Drizzle patterns, OpenAPIHono/Bun.serve runtime split, compile-time embedded assets, and validated env config |

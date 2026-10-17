@@ -18,7 +18,7 @@ This pack covers everything between "code compiles" and "shipped to prod": secre
 ### Threat surface to review
 
 - **TLS** — rustls only. Reject any direct or transitive `openssl` / `native-tls` (enforced via `cargo deny bans` — reth's `deny.toml:35` is the exemplar).
-- **Crypto provider** — install the rustls `aws-lc-rs` provider early in `main`; canonical snippet and rationale in `baseline.md` Lock 2. Without this, rustls 0.23 panics on first TLS use. Build prerequisites for the `aws-lc-rs` C/asm core: see `toolchain-and-workspace.md` "Building the `aws-lc-rs` crypto provider".
+- **Crypto provider** — install the rustls `aws-lc-rs` provider early in `main`; canonical snippet and rationale in `baseline.md` Lock 2. Without this, rustls panics on first TLS use. Build prerequisites for the `aws-lc-rs` C/asm core: see `toolchain-and-workspace.md` "Building the `aws-lc-rs` crypto provider".
 - **Outbound HTTP / SSRF** — validate destination hostnames; block link-local / loopback unless allow-listed; reuse `reqwest::Client`, never per-request.
 - **Secret comparison** — use `subtle::ConstantTimeEq` for tokens, HMACs, password digests.
 - **Cache correctness under contention** — `moka` over hand-rolled `Arc<Mutex<HashMap>>`; `arc-swap` for hot-reload of immutable config.
@@ -64,7 +64,7 @@ Lives in `main` before any panic-able code runs. See the canonical template in `
 }
 ```
 
-`rlimit = "0.11"`. This call survives container restarts, systemd reload, and outer ulimit changes; the in-process policy is the inner defense.
+`rlimit` (latest stable). This call survives container restarts, systemd reload, and outer ulimit changes; the in-process policy is the inner defense.
 
 #### Layer 2 — systemd unit (bare-metal / VM)
 
@@ -443,7 +443,7 @@ The musl variants are why uv works in `FROM scratch` containers and on Alpine. S
 
 ```toml
 [dist]
-cargo-dist-version = "0.32.0"
+cargo-dist-version = "<latest>"    # latest cargo-dist release; `dist init` writes it
 ci                 = ["github"]
 installers         = ["shell", "powershell", "homebrew"]   # add npm if Node ecosystem
 targets            = [
@@ -511,10 +511,10 @@ RUN cargo build --profile dist --target x86_64-unknown-linux-musl --locked
 | **`FROM scratch`** | Smallest possible (just the binary). Static-musl only. | No shell, no CA bundle, no `/tmp`, no DNS resolver behavior changes — must bundle CA certs (`rustls-native-certs` won't work; ship `webpki-roots`) |
 | **`gcr.io/distroless/static:nonroot`** | Static-musl runtime, want CA certs + `/tmp` + a non-root user out of the box | No shell — cannot `exec` into the container for live debugging |
 | **`gcr.io/distroless/static:debug-nonroot`** | Same as above, but with a busybox shell for ops/`kubectl exec` | Slightly larger; **acceptable** for staging or services that need on-call debug access |
-| **`gcr.io/distroless/cc-debian12`** | Binary needs glibc (e.g. depends on `libsqlite3-sys`, OS-level dlopen) | Larger, but still locked-down; pair with `*-unknown-linux-gnu` build, not musl |
-| **`gcr.io/distroless/cc-debian12:debug`** | glibc + shell for debug | |
-| **`alpine:3.24`** | Need package manager at runtime (e.g. `apk add curl` for healthcheck), or org standardizes on Alpine | musl libc; slight allocator perf hit; full shell + apk |
-| **`debian:bookworm-slim`** | Org standard, glibc binary + shell + apt at runtime | Larger; still maintained; well understood by ops teams |
+| **`gcr.io/distroless/cc-debian<N>`** (latest Debian release) | Binary needs glibc (e.g. depends on `libsqlite3-sys`, OS-level dlopen) | Larger, but still locked-down; pair with `*-unknown-linux-gnu` build, not musl |
+| **`gcr.io/distroless/cc-debian<N>:debug`** | glibc + shell for debug | |
+| **`alpine`** (latest release) | Need package manager at runtime (e.g. `apk add curl` for healthcheck), or org standardizes on Alpine | musl libc; slight allocator perf hit; full shell + apk |
+| **`debian:stable-slim`** | Org standard, glibc binary + shell + apt at runtime | Larger; still maintained; well understood by ops teams |
 | **Canonical chiselled Ubuntu (`ubuntu/chiselled`)** | Compliance with corporate Ubuntu LTS support | Smaller than `debian:slim`, supported by Canonical; choose chisels per dependency |
 | **`cgr.dev/chainguard/static`** / **`cgr.dev/chainguard/glibc-dynamic`** | Want continuously-rebuilt-with-zero-CVE base; FedRAMP/SOC2 contexts | Pull rate limits; learn Wolfi |
 
@@ -541,7 +541,7 @@ ENTRYPOINT ["/usr/local/bin/acme"]
 **glibc service with shell (when binary needs libc / dlopen):**
 
 ```dockerfile
-FROM debian:bookworm-slim
+FROM debian:stable-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 1000 acme
@@ -555,7 +555,7 @@ ENTRYPOINT ["/usr/local/bin/acme"]
 Ship **two tags** per release:
 
 - `acme:v1.2.3` — minimal runtime (e.g. `distroless/static:nonroot`)
-- `acme:v1.2.3-debug` — same binary, debug-friendly base (`:debug-nonroot` or `bookworm-slim`)
+- `acme:v1.2.3-debug` — same binary, debug-friendly base (`:debug-nonroot` or `debian:stable-slim`)
 
 Ops teams pick `:debug` images for incident response; production deployments default to the minimal tag. This avoids forcing a single "right" base on every consumer.
 
@@ -617,7 +617,7 @@ Lock mapping: stages 1, 2, 4, 5, 6, 8 are Lock 8's mandatory quality gates; stag
 
 Caching — keep CI fast:
 
-- **`Swatinem/rust-cache@v2`** for `target/` and registry — verified universal at reth (every job)
+- **`Swatinem/rust-cache`** for `target/` and registry — verified universal at reth (every job)
 - separate caches per job kind (test cache != release cache != docs cache)
 - **`mozilla-actions/sccache-action`** + RUSTC_WRAPPER=sccache for very large workspaces (reth pattern)
 - **`rui314/setup-mold`** linker on Linux for faster builds (reth uses it on every job)
@@ -630,64 +630,64 @@ Matrix:
 
 ### CI workflow templates
 
-Compose these reusable steps:
+Compose these reusable steps. `@<sha>` stands for the full commit SHA of each action's latest release (per `/pma references/delivery.md`, actions are pinned to SHAs):
 
 ```yaml
 # .github/workflows/ci.yml — abridged
 jobs:
   fmt:
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@<sha>
       - uses: dtolnay/rust-toolchain@stable
         with: { components: rustfmt }
       - run: cargo fmt --all -- --check
 
   clippy:
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@<sha>
       - uses: dtolnay/rust-toolchain@stable
         with: { components: clippy }
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@<sha>
       # No `-- -D warnings` here — policy lives in [workspace.lints.rust]
       - run: cargo clippy --workspace --all-targets --all-features --locked
 
   test:
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@<sha>
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+      - uses: Swatinem/rust-cache@<sha>
+      - uses: taiki-e/install-action@<sha>
         with: { tool: cargo-nextest }
       - run: cargo nextest run --workspace --all-features --locked
       - run: cargo test --doc --workspace --all-features --locked
 
   msrv:
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@<sha>
       - uses: dtolnay/rust-toolchain@master
         with: { toolchain: "<PROJECT_MSRV>" }     # match workspace.package.rust-version
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@<sha>
         with: { tool: cargo-hack }
       - run: cargo hack check --rust-version --workspace --ignore-private --locked
 
   deny:
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@<sha>
+      - uses: EmbarkStudios/cargo-deny-action@<sha>
         with:
           command: check advisories bans licenses sources
 
   shear:
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@<sha>
       - uses: dtolnay/rust-toolchain@stable
-      - uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@<sha>
         with: { tool: cargo-shear }
       - run: cargo shear
 
   typos:
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@<sha>
       - uses: crate-ci/typos@master
 ```
 

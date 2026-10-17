@@ -1,6 +1,6 @@
 ---
 name: pma-go
-description: Go implementation and acceptance baseline for PMA-managed service and CLI projects. Covers project layout (cmd/internal), strict linting with golangci-lint v2, database access, HTTP patterns, layered config, structured logging, observability, and CI quality gates. Use when implementing, scaffolding, upgrading, or validating acceptance of a Go service or CLI; use pma-cr for code-review workflow.
+description: Go implementation and acceptance baseline for PMA-managed service and CLI projects. Covers project layout (cmd/internal), strict linting with golangci-lint, database access, HTTP patterns, layered config, structured logging, observability, and CI quality gates. Use when implementing, scaffolding, upgrading, or validating acceptance of a Go service or CLI; use pma-cr for code-review workflow.
 ---
 
 # Go Project Implementation Guide

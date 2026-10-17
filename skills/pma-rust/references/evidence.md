@@ -14,7 +14,7 @@ If a future change to this skill is not anchored in real code from a respected p
 - [`xtask` Patterns](#xtask-patterns)
 - [Toolchain & TLS](#toolchain--tls)
 - [Tokio API/Lint Policy](#tokio-apilint-policy)
-- [Axum 0.8 Patterns](#axum-08-patterns)
+- [Axum Patterns](#axum-patterns)
 - [Tower / Production Stacks](#tower--production-stacks)
 - [Database](#database)
 - [Configuration](#configuration)
@@ -134,7 +134,7 @@ grep -n "<pattern>" <file>
 | `loom` test invocation | `tokio/docs/contributing/pull-requests.md:87-94` |
 | `miri` via nextest | `tokio/.github/workflows/ci.yml:386-411` |
 
-## Axum 0.8 Patterns
+## Axum Patterns
 
 | Claim | Evidence |
 |---|---|

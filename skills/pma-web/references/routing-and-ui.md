@@ -6,7 +6,7 @@
 - [Provider Composition](#provider-composition)
 - [Entry Point](#entry-point)
 - [shadcn/ui](#shadcnui)
-- [Tailwind CSS v4](#tailwind-css-v4)
+- [Tailwind CSS](#tailwind-css)
 - [Theming](#theming)
 - [Fonts And Visual Tokens](#fonts-and-visual-tokens)
 
@@ -94,9 +94,9 @@ The UI lock (shadcn/ui base-nova + `@base-ui/react` as the only allowed ecosyste
 - keep `components.json` consistent with repository aliases and Tailwind paths
 - headless-library exceptions (virtualized grids, tables, charts) follow the rules in `baseline.md` *UI Library Policy*
 
-## Tailwind CSS v4
+## Tailwind CSS
 
-Tailwind v4 has no JS config; the theme lives entirely in CSS. Standard imports for a shadcn project (matches the official theming scaffold at <https://ui.shadcn.com/docs/theming>):
+Tailwind uses CSS-first configuration with no JS config; the theme lives entirely in CSS. Standard imports for a shadcn project (matches the official theming scaffold at <https://ui.shadcn.com/docs/theming>):
 
 ```css
 @import "tailwindcss";
@@ -104,7 +104,7 @@ Tailwind v4 has no JS config; the theme lives entirely in CSS. Standard imports 
 @import "shadcn/tailwind.css";
 ```
 
-`shadcn/tailwind.css` is the helper layer shadcn injects when initializing a Tailwind v4 project — keep it. The customisation you do happens in the `:root` / `.dark` / `@theme inline` blocks below it, not in that import.
+`shadcn/tailwind.css` is the helper layer shadcn injects when initializing a Tailwind project — keep it. The customisation you do happens in the `:root` / `.dark` / `@theme inline` blocks below it, not in that import.
 
 ### Color Token Layering
 
