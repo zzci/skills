@@ -1,6 +1,6 @@
 ---
 name: bkd
-description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity, including three-tier coordination with an event-driven L1, multiple cron-driven L2 workstreams, and L3 execution, multi-repo coordination across several git repos in one workspace directory (trigger phrases like "start BKD multi-repo coordination"), plus multi-subtask orchestration (trigger phrases like "use bkd to start coordination", "start BKD L1"), and the decision system that routes questions needing a human decision to BKD's decision inbox (trigger phrases like "enable the decision system", "启用决策系统"). Requires a reachable BKD server ($BKD_URL).
+description: Operate a BKD kanban board over its REST API. Use when the user wants to manage BKD projects, issue execution workflows, cron jobs, or execution capacity, including three-tier coordination with an event-driven L1, multiple cron-driven L2 workstreams, and L3 execution, multi-repo coordination across several git repos in one workspace directory (trigger phrases like "start BKD multi-repo coordination"), plus multi-subtask orchestration (trigger phrases like "use bkd to start coordination", "start BKD L1"), and the messages system that sends decisions and notifications to BKD's inbox (trigger phrases like "enable the messages system", "启用消息系统", "启用决策系统", "notify me when …", "通知我"). Requires a reachable BKD server ($BKD_URL).
 ---
 
 # BKD
@@ -82,18 +82,25 @@ is bound to its repo by the working directory stated in its prompt
 (`useWorktree:false`, every git call as `git -C <repo>`), so no issue ever
 commits across repos.
 
-### Decision System
+### Messages System
 
-When the user asks to enable the decision system — "启用决策系统", "enable the
-decision system", "use decision events" — in **any** BKD session, load
-`references/decisions.md`. From then on, anything that needs a human
-decision becomes a **decision event**: the agent's own issue (the raiser)
-creates one event per question under `$BKD_URL/decisions/events`, the user
-decides it in BKD's `/decisions` inbox, and BKD follows up the raiser so it
-can take the next step — while unaffected work keeps running. It works for a
-single issue as well as for any coordinator; three-tier L1 and MR masters use
-it by default. Servers up to 0.3.15 lack the module; the reference holds the
-probe and the conversation fallback.
+When the user asks to enable the messages system — "启用消息系统", "启用决策
+系统", "enable the messages system", "use decision events" — or asks to be
+told about something ("通知我", "notify me when …"), in **any** BKD session,
+load `references/messages.md`. The agent's own issue (the sender) then sends
+messages under `$BKD_URL/messages/items` to BKD's `/messages` inbox, which
+also fans out to the user's webhook / Telegram channels:
+
+- a **decision** for anything that needs a human choice — the user's answer
+  follows up the sender so it can take the next step, while unaffected work
+  keeps running;
+- a **notification** for a milestone, completion, or blocker (one-way), or a
+  free-form question (`expects: "reply"`, answered like a decision).
+
+It works for a single issue as well as for any coordinator; three-tier L1 and
+MR masters use it by default. Never use it for routine progress. Servers with
+only `/decisions` (contract v1) get decisions without notifications; the
+reference holds the probe and the conversation fallback.
 
 ### Single Issue Execution
 
@@ -168,12 +175,14 @@ Load only what the current task needs:
   current project with the repo given as the prompt's working directory, plus a
   PMA-format workspace ledger, cross-repo contract ordering, boundary checks,
   and per-repo commit rollback.
-- `references/decisions.md`
-  Use whenever the decision system is enabled — by the user in any BKD
-  session, or by default in three-tier and MR coordination — and a human
-  decision is needed: how it is enabled, the event flow and states, the `/decisions/events` API and its probe, the
-  event scan, how a decision is applied, acked, closed, or withdrawn, and the
-  conversation fallback on a server without the module.
+- `references/messages.md`
+  Use whenever the messages system is on — enabled by the user in any BKD
+  session, or by default in three-tier and MR coordination — and the agent
+  needs a human decision or has something the user should hear: enabling,
+  choosing decision vs. notification, the v2 `/messages` and v1 `/decisions`
+  probe and API, the wake signal, the message scan, how an answer is applied,
+  acked, closed, or withdrawn, the webhook payload, and the conversation
+  fallback.
 - `references/three-tier-coordination.md`
   Use for event-driven L1, cron-driven L2, and short-lived L3 autonomous coordination: the user-facing L1 is woken only by the user or L2 follow-ups, every campaign is partitioned across multiple bounded L2 coordinators, each L2 owns its own DAG and 15-min self cron, and L3 issues execute short-lived subtasks. Engine-agnostic — L1/L2/L3 may each run on different engines (Claude Code, Codex, etc.); models stay at the server defaults unless the user names one. Pick over `orchestration.md` when the campaign spans sessions/hours, needs capacity-aware DAG scheduling, and must run sleep-free.
 
@@ -190,9 +199,10 @@ Choose references by intent:
   phrases like "start BKD multi-repo coordination": load
   `references/multi-repo-coordination.md` (with `references/rest-api.md` for
   guarded transport).
-- The user asks to enable the decision system, an agent with it enabled needs
-  a human decision, or the user asks about open decisions / events: load
-  `references/decisions.md`.
+- The user asks to enable the messages / decision system or to be notified,
+  an agent with it on needs a human decision or has a milestone to report, or
+  the user asks about open decisions or messages: load
+  `references/messages.md`.
 - Multi-subtask dispatch or orchestration: load `references/rest-api.md` once
   for guarded transport, then `references/orchestration.md`.
 - Subtask quality assessment or code review: load `references/rest-api.md` once

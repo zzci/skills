@@ -181,9 +181,9 @@ Do this every time L1 starts, before anything else:
    ```
 5. If the scope of work is unclear, ask the user. **Never broaden scope on
    your own.**
-6. Probe `$BKD_URL/decisions` once (see `decisions.md` → Probing the
-   API) and record whether [decision events](#decision-events) are available;
-   on a server without the module, decisions stay in the conversation.
+6. Probe the messages system once (see `messages.md` → Probing) and record
+   which contract is available for [decision events](#decision-events); on a
+   server without the module, decisions stay in the conversation.
 
 ## Model Selection (user-directed only)
 
@@ -618,11 +618,11 @@ events, and anything blocked with the reason. Leave every issue in `review`; `do
 
 ## Decision Events
 
-Anything that needs a human decision becomes a **decision event**: one record
-per question in BKD's decisions module, raised and tracked by L1, decided by
-the user directly in the `/decisions` inbox. The flow and the API — record,
-notify, scan, ack, close, withdraw, and the fallback on a server without the
-module — are in `decisions.md`; load it before raising the first event.
+Anything that needs a human decision becomes a **decision event**: a decision
+message, one per question, sent and tracked by L1, answered by the user
+directly in BKD's `/messages` inbox. The flow and the API — send, wake, scan,
+ack, close, withdraw, and the fallback on a server without the module — are in
+`messages.md`; load it before raising the first one.
 
 - **L3** reports `blocked` to its L2. **L2** escalates `yellow`/`blocked` to L1
   with the question, options, impact, and recommendation, marks the affected
@@ -641,6 +641,10 @@ module — are in `decisions.md`; load it before raising the first event.
   idempotent bootstrap (cron included) before unblocking the subtasks.
 - Auto mode keeps in-scope questions out of events (Decision Protocol With
   L2); every hard stop is an event.
+- **Notifications** (contract v2 only): L1 may send one when the campaign
+  completes or a workstream merges (`level: success`), or when a blocker needs
+  the user's attention without a choice (`warning` / `error`). Never per-L3 or
+  per-round progress; L2s and L3s never send messages.
 
 ## L2 - Scheduling Issue (one per workstream, own worktree)
 

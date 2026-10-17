@@ -851,10 +851,13 @@ Additional built-in endpoint groups outside the orchestration core:
 - **Global review list** — `GET /issues/review` returns every `review` issue
   across projects (with `projectName`/`projectAlias`); handy for an aggregate
   "what is waiting on me" view without iterating projects
-- **Decisions** — decision events for human-in-the-loop coordination:
-  `GET /decisions` (capability probe), `GET/POST /decisions/events`, `GET/PATCH /decisions/events/{id}`,
-  `POST /decisions/events/{id}/{decision,notify,ack,withdraw,close}`; added
-  after 0.3.15 (404 on older servers). See `decisions.md`
+- **Messages** — decisions and notifications for the human
+  (contract v2): `GET /messages` (capability probe), `GET/POST /messages/items`,
+  `GET/PATCH /messages/items/{id}`,
+  `POST /messages/items/{id}/{decision,reply,notify,ack,withdraw,close,read}`,
+  `POST /messages/items/read`. The decision-only contract v1 stays under
+  `/decisions` (`GET /decisions`, `/decisions/events/...`); servers before
+  0.3.16 have neither. See `messages.md`
 - **Notes** — scratch notes: `GET/POST /notes`, `PATCH/DELETE /notes/{noteId}`
 - **Local sessions** — engine sessions recorded on the host, including ones
   started outside BKD: `GET /sessions`, `GET /sessions/{engine}/{sessionId}`,
