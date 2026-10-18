@@ -53,6 +53,7 @@ explicitly performed and verified.
 - [Pre-Flight (every session)](#pre-flight-every-session)
 - [Model Selection (user-directed only)](#model-selection-user-directed-only)
 - [L1 - Master Coordinator](#l1---master-coordinator-current-agent-session)
+- [Closing Merged Work](#closing-merged-work)
 - [Auto Mode (unattended L1)](#auto-mode-unattended-l1)
 - [Decision Events](#decision-events)
 - [L2 - Scheduling Issue](#l2---scheduling-issue-one-per-workstream-own-worktree)
@@ -325,10 +326,9 @@ matter; only BKD HTTP semantics do.
      `git merge --no-ff bkd/{L2_ID}`; resolve conflicts; rerun project checks.
   4. If unsalvageable, `git merge --abort`, report to the user, follow-up L2
      for a rebase/fix. Never leave main broken or half-merged.
-  5. Report the outcome. Issues move to `done` only on the user's say-so (it
-     triggers worktree auto-cleanup, cancels any still-running session, and
-     breaks any cron still targeting the issue). Before moving an L2 to
-     `done`, verify its self cron is deleted (`GET /cron/{id}/logs` returns 404).
+  5. Report the outcome, then [close the merged
+     workstream](#closing-merged-work): move that L2 and its merged L3s to
+     `done`. L1 itself always stays as it is.
 - **Event-driven progress only.** L1 creates no cron (auto mode adds exactly
   one watchdog; see [Auto Mode](#auto-mode-unattended-l1)). A user message wakes L1
   for an on-demand aggregate report. Every L2 progress, yellow/blocked, and
@@ -484,6 +484,44 @@ L2_START=$(curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/iss
 printf '%s\n' "$L2_START" | jq -e '.success == true' >/dev/null || exit 1
 ```
 
+## Closing Merged Work
+
+Once a workstream's branch is merged into main, its issues have nothing left to
+do. L1 moves them to `done` right away instead of leaving them in `review` for
+the user to sweep. This applies with and without auto mode; the merge itself
+was the gate.
+
+Preconditions, all for the same L2:
+
+- `bkd/{L2_ID}` is merged into `baseBranch`, the project checks passed on the
+  result, and the merge was not reverted;
+- the L2 has terminated: its self cron is deleted and verified gone
+  (`GET /cron/{id}/logs` returns 404), and nothing it owns is in
+  `todo`/`working`;
+- no open decision message has that L2 or one of its L3s as `ref`;
+- none of the issues to move has `sessionStatus` `running`/`pending` — `done`
+  cancels a live session.
+
+Then move the L2 and every L3 whose DAG state is `merged` to `done` in one bulk
+update, and re-read them to confirm:
+
+```bash
+MERGED_L3_IDS=({l3Id} ...)   # every L3 of this L2 in DAG state merged
+jq -n --args '{updates: [$ARGS.positional[] | {id: ., statusId: "done"}]}' \
+  "$L2_ID" "${MERGED_L3_IDS[@]}" > /tmp/bkd-done.json
+curl -sS --fail-with-body -X PATCH "$BKD_URL/projects/{projectId}/issues/bulk" \
+  -H 'Content-Type: application/json' --data-binary @/tmp/bkd-done.json | bkd_check
+```
+
+- L3s in DAG state `blocked` are not in main: leave them in `review` and list
+  them in the report.
+- **L1 never moves itself**, whatever state the campaign is in.
+- If a precondition fails, leave the issues in `review`, say why in the report,
+  and retry on a later wake once it holds.
+- Record which issues were closed beside the merge SHA in the campaign state.
+- A `done` L2 that later needs a continuation follows the normal `done` route:
+  PATCH it to `review`, then follow up.
+
 ## Auto Mode (unattended L1)
 
 Auto mode is **opt-in**: the user asks for it in words such as "auto mode",
@@ -614,7 +652,9 @@ every branch is merged or explicitly blocked: run the project's checks on the
 integration branch once, delete the watchdog cron by ID and verify it is gone
 (`GET /cron/{id}/logs` returns 404), then post the final summary — per-workstream merge SHAs,
 decisions taken with reasons, deferred out-of-scope items, open decision
-events, and anything blocked with the reason. Leave every issue in `review`; `done` stays human-only.
+events, and anything blocked with the reason. Merged workstreams are already
+in `done` ([Closing Merged Work](#closing-merged-work)); everything else stays
+in `review`, and L1 stays as it is.
 
 ## Decision Events
 
@@ -704,7 +744,7 @@ turn ends. **No `sleep`, ever. Never touch main.**
 4. Build/test after each merge. On failure → `git revert -m 1 HEAD --no-edit`,
    then follow-up the L3 with the error. Its `review` status is eligible: the
    follow-up moves it to `working` and wakes rework.
-5. On success, set the L3's DAG state to `merged`. Leave its BKD status in `review` — `done` is human-only and triggers worktree auto-cleanup.
+5. On success, set the L3's DAG state to `merged`. Leave its BKD status in `review` — L2 never moves an issue to `done`; L1 does that once `bkd/{L2_ID}` is merged into main (see [Closing Merged Work](#closing-merged-work)).
 6. After each batch, follow-up L1 with a progress rollup referencing `bkd/{L2_ID}`.
 
 **Termination** — when every L3 has DAG state `merged` or `blocked`, nothing is in `todo`/`working`, and no evaluation/merge is pending, enter the idle countdown (see [Idle Termination Countdown](#idle-termination-countdown)). On the 3rd consecutive idle wake:
@@ -873,7 +913,7 @@ printf '%s\n' "$SUB_START" | jq -e '.success == true' >/dev/null || exit 1
 Aligned with BKD's built-in flow:
 
 ```
-todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
+todo -> working -> (autoMoveToReview) review -> done   <- L1 only, after the main merge
                                               ^
                                               |
                           L2 red evaluation pulls back:
@@ -901,8 +941,10 @@ todo -> working -> (autoMoveToReview) review -> done   <- done is human-only
   follow-up as the deterministic wake for new instructions.
 - L3 subtasks land in `review` and stay there. While they sit in `review`, L1
   reviews `bkd/{L2_ID}` and merges it into main (git-level integration,
-  orthogonal to BKD status). Issues move to `done` only when the user says so —
-  `done` triggers worktree auto-cleanup, so it must happen after the main merge.
+  orthogonal to BKD status). Once a workstream is merged into main, L1 moves
+  its L2 and merged L3s to `done` ([Closing Merged Work](#closing-merged-work));
+  `done` triggers worktree auto-cleanup, so it never happens before that merge.
+  Everything else moves to `done` only when the user says so.
 
 ## Loop Engine
 
@@ -1132,7 +1174,10 @@ Compact checklist — the full rules live in the sections referenced.
 
 1. **Follow-up only** for inter-issue communication: `POST /projects/{pid}/issues/{iid}/follow-up`.
 2. **Capacity before every dispatch** — `/processes/capacity`.
-3. **`review` != `done`** — `done` is human-only and triggers worktree auto-cleanup.
+3. **`review` != `done`** — `done` triggers worktree auto-cleanup. L1 moves a
+   workstream's L2 and merged L3s to `done` only after `bkd/{L2_ID}` is merged
+   into main and verified; L1 itself and everything else move only on the
+   user's say-so (see [Closing Merged Work](#closing-merged-work)).
 4. **Soft delete** — project and issue deletions are soft-delete by default.
 5. **No `sleep`, ever** — L1 waits by ending its turn until a user/L2 event;
    each L2 waits by ending its turn until its own cron callback.

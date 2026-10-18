@@ -28,9 +28,11 @@ Keep this entry file small. Load only the references needed for the current turn
    `sessionStatus` is `failed`, POST a follow-up to flush the pending input.
 4. Check `/processes/capacity` before starting any execution.
 5. Move finished work to `review`, not `done`. Use `done` only after human
-   confirmation. The `done` transition cancels a running session and makes any
-   cron that targets the issue fail (auto-paused after 3 failures): delete
-   owned crons first.
+   confirmation — except that a three-tier L1 or MR master moves a workstream
+   or lane to `done` once its work is merged into the base branch, never
+   itself (see those references). The `done` transition cancels a running
+   session and makes any cron that targets the issue fail (auto-paused after 3
+   failures): delete owned crons first.
 6. Use follow-up for all inter-issue communication.
 7. Treat project and issue deletions as soft-delete unless the API says otherwise.
 8. Successful API calls normally use `{ success, data }` and application

@@ -277,6 +277,16 @@ and append decisions and rollbacks to `changelog.md`.
   checks, present the report and the recorded commits to the user and wait for
   explicit confirmation before dependent lanes go out. Record the commits in the
   Commit Log, then set the lane state `accepted`.
+- **Close accepted lanes.** Once a lane is `accepted` and its commits are on
+  the repo's base branch (in the review-branch variant: once the lane has
+  reported the merge SHA), move that lane issue to `done` straight away — the
+  acceptance was the gate. First check that the lane has no cron left (delete
+  it by ID and verify `GET /cron/{id}/logs` returns 404), no open decision
+  message has it as `ref`, and its `sessionStatus` is not `running`/`pending`;
+  if any check fails, leave it in `review` and retry on a later wake. Record
+  the move in the ledger. **The master never moves itself.** A `blocked` lane
+  stays in `review`. A `done` lane that later needs rework follows the normal
+  route: PATCH it to `review`, then follow up.
 - **Route failures instead of fixing them.** `failure`/`partial`/`blocked`, a
   failed check, or a boundary violation goes back to the owning lane as a rework
   follow-up (quoting the reported error), or to the user — as a
@@ -285,8 +295,9 @@ and append decisions and rollbacks to `changelog.md`.
 - **Terminate** when every lane is `accepted` or `blocked`: delete each lane's
   cron by captured ID if it registered one (assert success, verify the job is
   gone: `GET /cron/{id}/logs` returns 404), set the plan status to `completed`, complete or close each
-  lane task, append a changelog entry, and move the master to `review`. `done`
-  stays human-only.
+  lane task, append a changelog entry, and move the master to `review`.
+  Accepted lanes are already in `done`; blocked lanes stay in `review`; the
+  master itself stays as it is and moves to `done` only on the user's say-so.
 
 The master is woken by user messages, lane follow-ups, and decision-event
 notifications; outside
@@ -577,7 +588,9 @@ the gate. The master reads the reported `Status` and `Checks` lines and routes.
 10. **No cross-repo atomicity** — the Commit Log plus reverse-order revert is
     the rollback plan.
 11. **No `sleep`, `review` != `done`, capacity before every dispatch** — the
-    shared BKD rules in `SKILL.md` still apply.
+    shared BKD rules in `SKILL.md` still apply. The one exception to `done`
+    being human-only: the master closes each accepted lane whose commits are on
+    the base branch, never itself.
 12. **Human decisions are events** — the master raises one decision event per
     question, the user decides on the event, and only dependent lanes wait;
     lanes never touch events.
