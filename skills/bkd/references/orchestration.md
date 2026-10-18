@@ -191,6 +191,8 @@ Send a follow-up report over the BKD HTTP API (if your engine has the bkd
 skill, it documents these endpoints):
 
 POST __BKD_URL__/projects/{projectId}/issues/__ORCH_ID__/follow-up
+Before posting, GET the issue and read `statusId`; if it is `done`, PATCH it
+to `{"statusId":"review"}`, confirm the re-read shows `review`, then post.
 Body JSON shape:
 {"prompt": "Subtask {id} ({title}) complete\nStatus: success|failure|partial\nChanged files: file1, file2, ...\nKey decisions: {description}\nSelf-review: passed|{issues found and fixed}\nRemaining issues: {if any}"}
 

@@ -371,6 +371,8 @@ or revert that work inside your own repo and say so in the report.
 
 ## Report To The Master (same project, exact URL)
 POST __BKD_URL__/projects/__PROJECT_ID__/issues/__MASTER_ID__/follow-up
+Before posting, GET the issue and read `statusId`; if it is `done`, PATCH it
+to `{"statusId":"review"}`, confirm the re-read shows `review`, then post.
 Body JSON shape:
 {"prompt": "campaignId: __CAMPAIGN_ID__\nlane __LANE_ID__ repo __REPO_NAME__\nStatus: success|failure|partial|blocked\nBranch: {branch}\nCommits: {sha}..{sha} ({n} commits)\nChanged files: ...\nContract delivered: {what the sibling repos can now rely on}\nChecks: {command} -> passed | {failing output}\nCross-repo needs: {work that belongs to another repo, or none}\nRemaining issues: ..."}
 

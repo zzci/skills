@@ -454,6 +454,8 @@ the same reference. DAG states are L2-internal; BKD statusId stays in
 
 ## Reports and Escalations (to L1)
 POST __BKD_URL__/projects/{projectId}/issues/__L1_ID__/follow-up
+Before posting, GET the issue and read `statusId`; if it is `done`, PATCH it
+to `{"statusId":"review"}`, confirm the re-read shows `review`, then post.
 Progress rollups after each batch; yellow = needs user decision; blocked =
 retries exceeded; final "branch bkd/__L2_ID__ ready" on termination.
 A yellow/blocked escalation states: the question, the options with their
@@ -885,6 +887,8 @@ the detached command exits so it can collect and report the final result.
 
 ## Report Endpoint (use exactly this URL)
 POST __BKD_URL__/projects/{projectId}/issues/__L2_ID__/follow-up
+Before posting, GET the issue and read `statusId`; if it is `done`, PATCH it
+to `{"statusId":"review"}`, confirm the re-read shows `review`, then post.
 Report JSON shape:
 {"prompt": "campaignId: __CAMPAIGN_ID__\nSubtask __SUB_ID__ ({title}) complete\nStatus: success|failure|partial|blocked\nChanged files: ...\nKey decisions: ...\nChecks: {command run} -> passed | {failing output}\nRemaining issues: ..."}
 

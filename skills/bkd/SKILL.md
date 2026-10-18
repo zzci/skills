@@ -16,7 +16,13 @@ Keep this entry file small. Load only the references needed for the current turn
 2. Use `curl -sS --fail-with-body` and check its exit status before parsing.
    For mutations, also assert `.success == true`; never rely on `curl -s | jq`
    because HTTP errors and failure envelopes can otherwise pass silently.
-3. Route by `statusId`: `todo` -> POST the complete follow-up, then PATCH to
+3. **Read the target's `statusId` right before every follow-up** — never
+   from a remembered status — and never POST a follow-up to a `done` issue:
+   it only queues and wakes nothing. PATCH it to `review`, confirm the re-read
+   shows `review`, then post (`bkd_follow_up` in `references/rest-api.md`
+   does this). This binds every follow-up, including the report and wake
+   follow-ups that dispatched issues send.
+   Route by `statusId`: `todo` -> POST the complete follow-up, then PATCH to
    `working`; `done` -> PATCH to `review`, then POST the follow-up;
    `review`/`working` -> POST the follow-up directly. A follow-up auto-moves
    `review` to `working`. PATCHing an already-`working` issue does nothing.

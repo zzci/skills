@@ -38,6 +38,23 @@ bkd_check() {
     if .success == true then . else error(.error // "BKD request failed") end
   else . end'
 }
+
+# Follow up an issue. Reads its status first: a follow-up to a done issue only
+# queues and wakes nothing, so a done issue is moved to review (and re-read to
+# confirm) before the follow-up is sent. A todo issue is left to the caller:
+# queue the complete input, then PATCH it to working.
+bkd_follow_up() {  # bkd_follow_up PROJECT_ID ISSUE_ID BODY_FILE
+  local issue="$BKD_URL/projects/$1/issues/$2" status
+  status=$(curl -sS --fail-with-body "$issue" | bkd_check | jq -er '.data.statusId') || return 1
+  if [ "$status" = done ]; then
+    curl -sS --fail-with-body -X PATCH "$issue" -H 'Content-Type: application/json' \
+      -d '{"statusId":"review"}' | bkd_check >/dev/null || return 1
+    curl -sS --fail-with-body "$issue" | bkd_check \
+      | jq -e '.data.statusId == "review"' >/dev/null || return 1
+  fi
+  curl -sS --fail-with-body -X POST "$issue/follow-up" -H 'Content-Type: application/json' \
+    --data-binary @"$3" | bkd_check
+}
 ```
 
 Successful BKD API calls normally use one of these envelopes:
@@ -430,6 +447,12 @@ Behavior (by current `statusId`):
 - `review`: immediate — the issue is auto-moved to `working` and a turn starts.
   A bare follow-up to a `review` issue is therefore enough to begin rework; no
   separate `PATCH {statusId:"working"}` is needed.
+
+**Read the status before every follow-up (HARD RULE).** Read the target's
+`statusId` right before posting — never route from a status remembered from an
+earlier turn, because L1 and the MR master now close merged work as `done`
+on their own. If it is `done`, PATCH it to `review`, confirm the re-read shows
+`review`, then post. `bkd_follow_up` from [Setup](#setup) does exactly this.
 
 Operational routing for ordinary follow-ups:
 
