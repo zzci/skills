@@ -39,7 +39,7 @@ Keep this entry file small. Load only the references needed for the current turn
    itself (see those references). The `done` transition cancels a running
    session and makes any cron that targets the issue fail (auto-paused after 3
    failures): delete owned crons first.
-6. Use follow-up for all inter-issue communication.
+6. Use follow-up for all inter-issue communication, and mark every follow-up body with `bkd_with_sender` (or send it through `bkd_follow_up`) so it shows as coming from your issue, not the user. See `references/rest-api.md` → [Sending Request Bodies Safely](references/rest-api.md#sending-request-bodies-safely).
 7. Treat project and issue deletions as soft-delete unless the API says otherwise.
 8. Successful API calls normally use `{ success, data }` and application
    failures normally use `{ success, error }`, but some HTTP validation errors
@@ -129,7 +129,10 @@ ISSUE_ID=$(printf '%s\n' "$ISSUE" | jq -er '.data.id')
 cat > /tmp/bkd-prompt.txt <<'PROMPT'
 full implementation details
 PROMPT
-jq -n --rawfile prompt /tmp/bkd-prompt.txt '{prompt: $prompt}' > /tmp/bkd-body.json
+# sender: this issue, when running inside BKD (see bkd_with_sender in references/rest-api.md)
+jq -n --rawfile prompt /tmp/bkd-prompt.txt --arg p "${BKD_PROJECT_ID:-}" --arg i "${BKD_ISSUE_ID:-}" \
+  '{prompt: $prompt} + (if $i != "" then {sender: {kind: "agent", projectId: $p, issueId: $i}} else {} end)' \
+  > /tmp/bkd-body.json
 FOLLOWUP=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issues/$ISSUE_ID/follow-up" \
   -H 'Content-Type: application/json' \
   --data-binary @/tmp/bkd-body.json) || exit 1

@@ -52,8 +52,19 @@ bkd_follow_up() {  # bkd_follow_up PROJECT_ID ISSUE_ID BODY_FILE
     curl -sS --fail-with-body "$issue" | bkd_check \
       | jq -e '.data.statusId == "review"' >/dev/null || return 1
   fi
+  bkd_with_sender "$3" || return 1
   curl -sS --fail-with-body -X POST "$issue/follow-up" -H 'Content-Type: application/json' \
     --data-binary @"$3" | bkd_check
+}
+
+# Mark a follow-up body as sent by this issue's agent. BKD (0.3.29+) gives every
+# engine it runs BKD_PROJECT_ID / BKD_ISSUE_ID; the chat then shows the message as
+# coming from that issue instead of from the user. Outside a BKD issue the vars
+# are unset and the body is left as the user's message.
+bkd_with_sender() {  # bkd_with_sender BODY_FILE
+  [ -n "${BKD_ISSUE_ID:-}" ] && [ -n "${BKD_PROJECT_ID:-}" ] || return 0
+  jq --arg p "$BKD_PROJECT_ID" --arg i "$BKD_ISSUE_ID" \
+    '. + {sender: {kind: "agent", projectId: $p, issueId: $i}}' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
 }
 ```
 
@@ -94,6 +105,12 @@ RESPONSE=$(curl -sS --fail-with-body -X POST "$BKD_URL/projects/{projectId}/issu
   --data-binary @/tmp/bkd-body.json) || exit 1
 printf '%s\n' "$RESPONSE" | jq -e '.success == true' >/dev/null || exit 1
 ```
+
+**Follow-up bodies carry the sender.** Before POSTing any follow-up body you built
+yourself, run `bkd_with_sender /tmp/bkd-body.json` (see [Setup](#setup);
+`bkd_follow_up` does it for you). From inside a BKD issue it adds
+`sender: {kind: "agent", projectId, issueId}` naming your own issue, so the target's
+chat shows the message as yours, not the user's. Never set `sender` to another issue.
 
 Add more fields with extra `jq` args (`--rawfile` for file-sourced text, `--arg`
 for short strings, `--argjson` for booleans/objects):
