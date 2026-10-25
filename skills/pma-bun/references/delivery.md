@@ -67,7 +67,7 @@ Review these areas before merge:
 - XSS avoidance by rejecting raw HTML injection paths
 - secret redaction in logs
 - safe handling of local encryption keys, bootstrap tokens, or lock files when the project uses them
-- `/docs` gated in production; `/openapi.json` never leaks internal-only routes (exclude them)
+- `/openapi.json` and `/docs` gated by config when the API is not public
 
 Pre-commit checklist:
 
@@ -133,10 +133,10 @@ Only relevant in the *Monorepo* layout (see `baseline.md`).
 
 Before merge, verify:
 
-- every contract endpoint is declared through `createRoute`; plain Hono routes only where OpenAPI does not apply (*Routing Hard Lock*), never as a shortcut around the contract
-- the `/openapi.json` snapshot changed on purpose and the diff matches the handler change (status codes, envelope, named schemas, `operationId`)
-- error mapping is consistent (`defaultHook` for validation, `onError` for everything else)
-- auth boundaries are explicit; `/docs` gated in production
+- routes follow *Routing Hard Lock* (`describeRoute()` first, wrapped `validator()`)
+- the `/openapi.json` snapshot changed on purpose and the diff matches the handler change (status codes, envelope, tags, security)
+- all errors, validation included, render through `onError`
+- auth boundaries are explicit; protected routes declare `security`
 - migration impact is understood; migrations are added, never edited
 - embedded assets and migrations stay in sync with source behavior — the compiled-mode smoke test passed
 - added or bumped dependencies were verified at the registry; pins carry a reason

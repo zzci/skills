@@ -1,6 +1,6 @@
 ---
 name: pma-bun
-description: Bun implementation and acceptance baseline for PMA-managed backend services and internal tools. Covers project layout and monorepo promotion, required quality gates, SQLite-first data access with Drizzle, Hono HTTP serving with a mandatory @hono/zod-openapi contract plus Scalar docs, validated env config, nsl-based dev URL routing, and standalone binary compilation with embedded assets. Use when implementing, scaffolding, upgrading, or validating acceptance of a Bun/Hono backend; use pma-cr for code-review workflow.
+description: Bun implementation and acceptance baseline for PMA-managed backend services and internal tools. Covers project layout and monorepo promotion, required quality gates, SQLite-first data access with Drizzle, Hono HTTP serving with a mandatory hono-openapi contract, validated env config, nsl-based dev URL routing, and standalone binary compilation with embedded assets. Use when implementing, scaffolding, upgrading, or validating acceptance of a Bun/Hono backend; use pma-cr for code-review workflow.
 ---
 
 # Bun Project Implementation Guide
@@ -27,7 +27,7 @@ Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 - New project setup or repo restructuring (single API / API + sibling SPA / monorepo) → `references/baseline.md`
 - dependency versions (registry verification, pinning rules) → `references/baseline.md` *Dependency Freshness*
 - runtime (`app.ts` / `index.ts` / optional `dev.ts`, config, startup, graceful shutdown, logging, PID lock) → `references/runtime.md`
-- routing and API docs (hard lock: plain Hono routes + `@hono/zod-openapi` only; `createRoute`, `/openapi.json`, Scalar at `/docs`) → `references/runtime.md`
+- routing and API docs (hard lock: `hono-openapi`, `/openapi.json`, `/docs`) → `references/runtime.md`
 - dev URL routing (nsl) → `references/runtime.md` (full protocol → `/pma references/dev-environment.md`; multi-app workspace setup → `/pma docs/monorepo-example.md`)
 - data access (schema design, SQLite setup, migrations, repositories) → `references/data-and-testing.md`
 - testing (bun:test, coverage threshold, OpenAPI contract test, compiled-mode smoke test) → `references/data-and-testing.md`
@@ -38,7 +38,7 @@ Not for frontend-only SPAs, Node-specific runtime guides, or non-PMA workflows.
 - `references/baseline.md`
   Scope, layout choice (single API vs monorepo vs API + sibling SPA), tech stack, required quality gates, scripts, conventions, and implementation workflow.
 - `references/runtime.md`
-  TypeScript defaults, config loading, bootstrap structure, OpenAPIHono routes and contract rules, middleware, logging, docs routes, and runtime lifecycle.
+  TypeScript defaults, config loading, bootstrap structure, hono-openapi routes and contract rules, middleware, logging, docs routes, and runtime lifecycle.
 - `references/data-and-testing.md`
   Drizzle with SQLite-first storage, migration strategy for source and compiled mode, repository boundaries, coverage configuration, and testing rules.
 - `references/delivery.md`
@@ -51,7 +51,7 @@ Before merge:
 - [ ] `lint`, `typecheck`, `build` pass
 - [ ] `bun test --coverage` passes; the threshold lives in `bunfig.toml` (`coverageThreshold`, 0.8 or higher)
 - [ ] env config validated by Zod at startup; no `Bun.env` reads in business logic
-- [ ] contract endpoints are declared through `createRoute` + `app.openapi()`; plain Hono routes only where OpenAPI does not apply; no other routing or validation layer; `/openapi.json` is served, matches runtime validation, and Scalar loads at `/docs`
+- [ ] routes follow *Routing Hard Lock*; `/openapi.json` matches runtime validation and `/docs` opens it
 - [ ] no Vite in the backend process (no `@hono/vite-dev-server`, no Vite middleware in `dev.ts`)
 - [ ] nsl dev routing works (`bunx nsl run -n <name>:/api -s -- bun --watch src/index.ts`); production bootstrap does not depend on nsl
 - [ ] migrations committed; when a binary ships, it embeds `drizzle/` (and `web/dist` for a sibling SPA) via `--asset` and passes the compiled-mode smoke test

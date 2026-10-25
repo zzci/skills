@@ -105,9 +105,10 @@ Drivers: `postgres` with `drizzle-orm/postgres-js`, or Bun's built-in `Bun.sql` 
 Use:
 
 - unit tests close to modules with `*.test.ts`
-- route tests through `app.request()` against the `OpenAPIHono` app — no listening socket, no port
+- route tests through `app.request()` against the app (`createApp()`) — no listening socket, no port
 - integration tests under `tests/integration/` with a real SQLite file in a temp `DATA_DIR`
 - an OpenAPI contract test: `GET /openapi.json` and `expect(json).toMatchSnapshot()`; a route change must update the snapshot on purpose (`bun test -u`)
+- spec tests: every operation is tagged and every `security` scheme is defined
 - a compiled-mode smoke test when a binary ships: build, start the binary with a temp `DATA_DIR` and a free `PORT`, hit `/health` and `/openapi.json`, expect migrations applied
 - Playwright only when browser-level coverage is required
 - API package tests should run directly under Bun unless another runner is already justified

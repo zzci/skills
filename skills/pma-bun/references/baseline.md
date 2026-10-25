@@ -38,9 +38,9 @@ Every entry uses its latest stable release, verified at the registry (see *Depen
 | Language | TypeScript | strict mode, `noUncheckedIndexedAccess`. When tooling that imports `typescript` (typescript-eslint and friends) needs a programmatic compiler API the latest major lacks, use the official compatibility package; pin an older major only with a recorded reason. tsconfig baseline: `runtime.md` *Formatting And TypeScript* |
 | Package manager | bun | commit `bun.lock`; `bun install --frozen-lockfile` in CI |
 | Lint / format | ESLint + `@antfu/eslint-config` | flat config only; no Prettier |
-| HTTP server | Hono via `OpenAPIHono` | from `@hono/zod-openapi` (check its `zod` / `hono` peer ranges); **hard lock**, see *Routing Hard Lock* below |
-| OpenAPI contract | `@hono/zod-openapi` | `createRoute` + `app.openapi()` for every contract endpoint; plain Hono routes only where OpenAPI does not apply; OpenAPI document at `/openapi.json` via the newest `app.doc*` method the library offers (`app.doc31()`) |
-| API docs | `@scalar/hono-api-reference` | `Scalar({ url: '/openapi.json' })` mounted at `/docs`; the old `apiReference` export no longer exists |
+| HTTP server | Hono | plain `Hono` route factories, one per module; **hard lock**, see *Routing Hard Lock* |
+| OpenAPI contract | `hono-openapi` | `describeRoute()` + wrapped `validator()` per route, helpers in `src/shared/lib/openapi.ts`; spec at `/openapi.json` (3.1.0) via `openAPIRouteHandler()` |
+| API docs | Scalar web viewer | no bundled UI: `/docs` redirects to `https://client.scalar.com/?url=<spec URL>`; the spec sends CORS `*` |
 | Validation | Zod | API-boundary validation; the dependency-freshness procedure below applies |
 | Errors | typed error classes | `AppError` hierarchy at transport boundaries |
 | Test | bun:test | built-in runner; coverage threshold enforced in `bunfig.toml` |
@@ -80,14 +80,9 @@ Every entry uses its latest stable release, verified at the registry (see *Depen
 
 ### Routing Hard Lock
 
-Exactly two route styles are allowed on the API surface, both from the Hono ecosystem:
-
-1. `@hono/zod-openapi` routes — `createRoute` + `app.openapi()` — for every endpoint that has a request/response contract. This is the default.
-2. plain Hono routes — `app.get()`, `app.post()`, … — only where OpenAPI does not apply: `/health`, `/docs`, `/openapi.json`, static assets, SSE and WebSocket upgrades, inbound webhooks, internal ops endpoints. A plain route that reads a body validates it with Zod directly (`schema.safeParse`) and does not appear in `/openapi.json`.
-
-Both styles live on one `OpenAPIHono` instance (`OpenAPIHono` extends `Hono`); a module with no contract routes may export a plain `Hono` sub-app.
-
-Nothing else is allowed, even side by side: no `@hono/zod-validator` or `@hono/standard-validator`, no other OpenAPI generator, no Elysia or other framework for the API surface, no hand-maintained OpenAPI file. Deviating is a proposal-level decision with a recorded reason in `docs/decisions/`; it does not pass acceptance by default.
+- Every route is a plain Hono route with `describeRoute()` as its first middleware; a route without it is missing from `/openapi.json` and fails review. Only `/openapi.json`, `/docs`, static assets, and WebSocket upgrades are exempt.
+- Zod-validated input goes through the wrapped `validator()` from `src/shared/lib/openapi.ts`, read with `c.req.valid(target)`. Routes that hand-parse on purpose (constant-time login, signed webhooks, raw uploads) keep their parsing.
+- Not allowed: `@hono/zod-openapi` in new projects, `@hono/zod-validator`, direct `@hono/standard-validator` or unwrapped `hono-openapi` `validator` imports, other OpenAPI generators or frameworks, hand-written specs. Existing `@hono/zod-openapi` projects keep it until a proposal migrates them, never mixed. Any deviation needs a recorded reason in `docs/decisions/`.
 
 ## Dependency Freshness (Bun)
 
@@ -157,7 +152,7 @@ src/
     schema.ts
   modules/
     health/
-    docs/
+    docs/                 # mountDocs: /openapi.json + /docs redirect
     <domain>/
       <domain>.routes.ts
       <domain>.schemas.ts
@@ -241,7 +236,7 @@ scripts/
 | Project layout | `src/modules/` for domain modules, `src/shared/` for cross-cutting concerns |
 | Module structure | co-locate routes, schemas, service, and tests; keep transport thin |
 | Bootstrap split | `app.ts` builds the app, `index.ts` runs startup; add `dev.ts` only when dev wiring genuinely diverges from prod |
-| Routing | contract endpoints are declared with `createRoute` and mounted with `app.openapi()`; plain Hono routes only where OpenAPI does not apply; schemas live in `<domain>.schemas.ts` and use `z` from `@hono/zod-openapi` so `.openapi()` metadata is available; hard lock, see *Routing Hard Lock* |
+| Routing | `describeRoute()` + wrapped `validator()` from `src/shared/lib/openapi.ts`; see *Routing Hard Lock* |
 | TypeScript config | current TypeScript rules: no `baseUrl`, `paths` relative to the tsconfig, explicit `"types": ["bun"]` |
 | Dev URL routing | invoke the backend through `bunx nsl run` so the API binds to `<name>.localhost:3355/api`; never embed Vite into the backend process |
 | Errors | never throw raw strings |
@@ -313,6 +308,6 @@ Run each app's `dev` script from inside the app directory (or via `bun run --fil
 Within approved implementation work:
 
 1. Research and reuse existing libraries first; verify each version at the registry before adding it.
-2. Plan interfaces and failure modes before coding; write the route contract (`createRoute`) before the handler.
+2. Plan interfaces and failure modes before coding; write the route contract (`describeRoute` + `validator`) before the handler.
 3. Keep module boundaries explicit before adding new routes or services.
 4. Run review passes focused on correctness, security, and missing tests.

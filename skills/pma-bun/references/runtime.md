@@ -8,8 +8,7 @@
 - [Configuration](#configuration)
 - [ROOT_DIR And Compiled Mode](#root_dir-and-compiled-mode)
 - [Bootstrap Split](#bootstrap-split)
-- [HTTP Server With OpenAPIHono](#http-server-with-openapihono)
-- [OpenAPI Contract Rules](#openapi-contract-rules)
+- [HTTP Server With hono-openapi](#http-server-with-hono-openapi)
 - [Middleware Stack](#middleware-stack)
 - [Dev URL Routing (via nsl)](#dev-url-routing-via-nsl)
 - [Logging](#logging)
@@ -82,8 +81,8 @@ Keep script names predictable across repositories.
 
 - Use an `AppError` hierarchy with HTTP status mapping.
 - Convert internal errors to safe API responses in a single `app.onError` handler.
-- Validation failures use the same error envelope: set it once through the `OpenAPIHono` `defaultHook` instead of per-route hooks.
-- Publish the envelope as one shared `ErrorResponse` schema (`src/shared/errors.ts`) and reference it from every error status in `createRoute`.
+- One envelope: `{ success: true, data, meta? }` / `{ success: false, error: { code, message, details? } }`, documented through the helpers in `src/shared/lib/openapi.ts`.
+- Validation failures also go through `onError`: the wrapped `validator()` throws `ValidationError` (422).
 - Never leak stack traces or internal DB details to clients.
 
 ## Configuration
@@ -134,105 +133,181 @@ Rules:
 - keep mutable runtime state out of business modules unless the design explicitly requires it
 - separate dev-only bootstrap from production startup *only when there is real divergence*
 
-## HTTP Server With OpenAPIHono
+## HTTP Server With hono-openapi
 
-Recommended shape:
-
-- `app.ts` builds the `OpenAPIHono` app graph and mounts module sub-apps with `app.route()`
-- `index.ts` handles startup and shutdown
-- `modules/docs` serves `/openapi.json` and the Scalar UI at `/docs`
-- `modules/health` exposes a health endpoint
-- each domain module exports its own `OpenAPIHono` instance with `<domain>.routes.ts` + `<domain>.schemas.ts`; plain routes may sit on the same instance, and a module with no contract routes may export a plain `Hono`
+Shape: `app.ts` mounts module route factories (`usersRoutes()`) with `app.route()`; `modules/docs` exports `mountDocs()`; `src/shared/lib/openapi.ts` is the only OpenAPI import for route files.
 
 ```typescript
-// src/modules/users/users.schemas.ts
-import { z } from "@hono/zod-openapi"; // not from "zod": this z carries .openapi()
+// src/shared/lib/openapi.ts — the only place route files import OpenAPI pieces from
+import type { ValidationTargets } from "hono";
+import type { ZodType } from "zod";
+import { validator as baseValidator, describeRoute, resolver } from "hono-openapi";
+import { z } from "zod";
+import { ValidationError } from "@/shared/lib/errors";
 
-export const UserId = z.uuid().openapi({ example: "3f1c9d2e-8a4b-4c1d-9e2f-1a2b3c4d5e6f" });
+export { describeRoute, resolver };
 
-export const User = z
-  .object({
-    id: UserId,
-    name: z.string().min(1).openapi({ example: "Ada" }),
-  })
-  .openapi("User"); // named schemas land in components.schemas
+// One tag per module; add a line when a module is added.
+export const TAGS = { System: "System", Users: "Users" } as const;
+
+// Names match `components.securitySchemes` in modules/docs.
+export const SECURITY: Record<"session" | "serviceToken", Record<string, string[]>[]> = {
+  session: [{ sessionCookie: [] }],
+  serviceToken: [{ serviceToken: [] }],
+};
+
+// Wraps the library validator: a failure throws ValidationError, so `onError`
+// answers with the standard 422 envelope instead of the library's 400.
+export function validator<S extends ZodType, T extends keyof ValidationTargets>(target: T, schema: S) {
+  return baseValidator(target, schema, (result) => {
+    if (!result.success)
+      throw new ValidationError("Validation failed", result.error);
+  });
+}
+
+type ResponsesMap = Record<number, { description: string; content?: Record<string, { schema: ReturnType<typeof resolver> }> }>;
+
+const errorEnvelope = z.object({
+  success: z.literal(false),
+  error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }),
+});
+const json = (schema: ZodType) => ({ "application/json": { schema: resolver(schema) } });
+
+/** `200 { success: true, data }` */
+export function jsonOk(data: ZodType = z.unknown(), description = "Success"): ResponsesMap {
+  return { 200: { description, content: json(z.object({ success: z.literal(true), data })) } };
+}
+
+/** `200 { success: true, data: item[], meta }` */
+export function jsonPaged(item: ZodType, description = "Paged list"): ResponsesMap {
+  const meta = z.object({ total: z.number(), page: z.number(), limit: z.number() });
+  return { 200: { description, content: json(z.object({ success: z.literal(true), data: z.array(item), meta })) } };
+}
+
+/** The error envelope for each listed status. */
+export function errors(...codes: number[]): ResponsesMap {
+  return Object.fromEntries(codes.map(code => [code, { description: "Error", content: json(errorEnvelope) }]));
+}
+// Also: jsonCreated (201), noContent (204), raw(status, mediaType, description) for non-JSON bodies.
 ```
 
 ```typescript
 // src/modules/users/users.routes.ts
-import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
-import type { AppEnv } from "@/shared/env";
-import { ErrorResponse } from "@/shared/errors";
-import { User, UserId } from "./users.schemas";
+import type { AppEnv } from "@/shared/lib/types";
+import { Hono } from "hono";
+import { z } from "zod";
+import { NotFoundError } from "@/shared/lib/errors";
+import { describeRoute, errors, jsonOk, SECURITY, TAGS, validator } from "@/shared/lib/openapi";
 
-const getUser = createRoute({
-  method: "get",
-  path: "/users/{id}",
-  operationId: "getUser",
-  tags: ["users"],
-  request: { params: z.object({ id: UserId }) },
-  responses: {
-    200: { description: "User", content: { "application/json": { schema: User } } },
-    404: { description: "Not found", content: { "application/json": { schema: ErrorResponse } } },
-  },
-});
+const userSchema = z.object({ id: z.string(), name: z.string() });
 
-export const usersRoutes = new OpenAPIHono<AppEnv>().openapi(getUser, async (c) => {
-  const { id } = c.req.valid("param");
-  const user = await c.var.users.find(id);
-  if (!user) return c.json({ error: { code: "not_found", message: "user not found" } }, 404);
-  return c.json(user, 200);
-});
+export function usersRoutes() {
+  const router = new Hono<AppEnv>();
+
+  router.get(
+    "/users/:id",
+    describeRoute({
+      tags: [TAGS.Users],
+      summary: "Get user",
+      security: SECURITY.session,
+      responses: { ...jsonOk(userSchema, "User"), ...errors(401, 404, 422) },
+    }),
+    // auth middleware goes here, after describeRoute
+    validator("param", z.object({ id: z.string().min(3) })),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      if (id !== "ada")
+        throw new NotFoundError("User", id);
+      return c.json({ success: true, data: { id, name: "Ada" } });
+    },
+  );
+
+  return router;
+}
+```
+
+```typescript
+// src/modules/docs/docs.routes.ts
+import type { MiddlewareHandler } from "hono";
+import type { AppEnv, Config } from "@/shared/lib/types";
+import { Hono } from "hono";
+import { openAPIRouteHandler } from "hono-openapi";
+import { TAGS } from "@/shared/lib/openapi";
+
+// The app ships no docs UI; /docs hands the spec URL to an external viewer.
+export const DOCS_VIEWER = "https://client.scalar.com/?url=";
+
+export function mountDocs(api: Hono<AppEnv>, config: Config): void {
+  const base = `${config.BASE_PATH}/api`;
+  let handler: MiddlewareHandler | undefined;
+
+  api.get("/openapi.json", async (c, next) => {
+    // Built on first request, once every module has registered its routes.
+    handler ??= openAPIRouteHandler(api, {
+      documentation: {
+        openapi: "3.1.0",
+        info: { title: `${config.APP_NAME} API`, version: config.VERSION },
+        servers: [{ url: base }],
+        components: {
+          securitySchemes: {
+            sessionCookie: { type: "apiKey", in: "cookie", name: "session_id" },
+            serviceToken: { type: "http", scheme: "bearer" },
+          },
+        },
+        tags: Object.values(TAGS).map(name => ({ name })),
+      },
+      // validator() failures answer 422 (listed per route), not the library default 400
+      defaultValidationErrorResponse: false,
+    });
+    const res = await handler(c, next);
+    // The viewer fetches the spec from the browser on its own origin; no credentials.
+    res?.headers.set("Access-Control-Allow-Origin", "*");
+    return res;
+  });
+
+  api.get("/docs", (c) => {
+    const origin = new URL(config.APP_URL ?? c.req.url).origin;
+    return c.redirect(`${DOCS_VIEWER}${encodeURIComponent(`${origin}${base}/openapi.json`)}`);
+  });
+}
 ```
 
 ```typescript
 // src/app.ts
-import { OpenAPIHono } from "@hono/zod-openapi";
-import { Scalar } from "@scalar/hono-api-reference";
+import type { AppEnv, Config } from "@/shared/lib/types";
+import { Hono } from "hono";
+import { mountDocs } from "@/modules/docs/docs.routes";
+import { usersRoutes } from "@/modules/users/users.routes";
+import { AppError } from "@/shared/lib/errors";
 
-export function createApp(deps: Deps) {
-  const app = new OpenAPIHono<AppEnv>({
-    defaultHook: (result, c) => {
-      if (!result.success)
-        return c.json({ error: { code: "validation_failed", issues: result.error.issues } }, 422);
-    },
-  });
-
+export function createApp(config: Config) {
+  const api = new Hono<AppEnv>();
   // middleware stack (see below), then dependency injection via c.set(...)
-  app.route("/", healthRoutes).route("/", usersRoutes);
-
-  app.doc31("/openapi.json", {
-    openapi: "3.1.0",
-    info: { title: deps.config.appName, version: deps.config.version },
+  api.use("*", async (c, next) => {
+    c.set("config", config);
+    await next();
   });
-  if (deps.config.docsEnabled)
-    app.get("/docs", Scalar({ url: "/openapi.json", pageTitle: deps.config.appName }));
 
-  app.onError(errorHandler);
-  return app;
+  mountDocs(api, config); // before the modules, so module auth guards do not cover it
+  api.route("/", usersRoutes());
+
+  api.onError((err, c) => {
+    if (err instanceof AppError)
+      return c.json({ success: false, error: { code: err.code, message: err.message, details: err.details } }, err.status);
+    return c.json({ success: false, error: { code: "INTERNAL", message: "Internal server error" } }, 500);
+  });
+  return api;
 }
 ```
 
-Rules:
+Rules (beyond *Routing Hard Lock*):
 
-- keep route handlers thin
-- validate input with Zod through `createRoute`; never re-parse inside the handler
-- map domain errors centrally
-- return a consistent response envelope where the product expects it
-- use graceful shutdown for signals
-
-## OpenAPI Contract Rules
-
-- Routing is a hard lock (`baseline.md` *Routing Hard Lock*): `@hono/zod-openapi` routes for contract endpoints, plain Hono routes only where OpenAPI does not apply, nothing else — `@hono/zod-validator` and `@hono/standard-validator` are never added.
-- Every contract endpoint is one `createRoute` object mounted with `app.openapi()`. Plain routes (`app.get()`, …) cover `/health`, `/docs`, `/openapi.json`, static assets, SSE/WebSocket upgrades, inbound webhooks, and internal ops; they validate bodies with Zod `safeParse` directly and stay out of `/openapi.json`.
-- List every response status the handler can return, including error statuses, and point each error at the shared `ErrorResponse` schema.
-- Name reusable schemas with `.openapi("Name")` so clients get `components.schemas`, not inline duplicates. Set `operationId` on every route; generated clients key on it.
-- Import `z` from `@hono/zod-openapi` in schema files. `z` from `zod` has no `.openapi()` and produces unnamed, example-less schemas.
-- `/openapi.json` is generated at runtime from the same schemas that validate. Never hand-maintain a spec file.
-- Emit the newest OpenAPI version `@hono/zod-openapi` supports (`app.doc31` in the examples). Use an older document version only when a downstream consumer cannot read the newer one, and record it.
-- `/openapi.json` and `/docs` are open in development and gated by config (`DOCS_ENABLED`) in production; they never sit behind the API's own auth in dev.
-- The contract test (`data-and-testing.md` *Testing*) snapshots `/openapi.json`; a route change that does not update the snapshot on purpose fails CI.
-- When a SPA consumes the API, generate its client types from `/openapi.json` (e.g. `openapi-typescript`) rather than hand-copying schemas.
+- `describeRoute()` sets `tags` (one `TAGS` entry per module), `summary`, `security` on protected routes, and `responses` from the helpers with every realistic error status
+- a new auth scheme goes into both `SECURITY` and `components.securitySchemes`
+- `defaultValidationErrorResponse: false`, since validation answers 422, not the library's default 400
+- the spec is generated at runtime, never hand-written; the snapshot test (`data-and-testing.md`) guards changes
+- a consuming SPA generates its client types from `/openapi.json` (e.g. `openapi-typescript`)
+- keep handlers thin and map domain errors centrally
 
 ## Middleware Stack
 
@@ -280,17 +355,10 @@ bunx nsl run -n <name>:/api -s -- bun --watch src/index.ts
 
 ## API Documentation
 
-```typescript
-import { Scalar } from "@scalar/hono-api-reference";
-
-app.doc31("/openapi.json", { openapi: "3.1.0", info: { title, version } });
-app.get("/docs", Scalar({ url: "/openapi.json", pageTitle: title }));
-```
-
-- serve the OpenAPI document at `/openapi.json` and the interactive UI at `/docs`
-- `Scalar` is the current export of `@scalar/hono-api-reference`; the old `apiReference` export was removed
-- keep docs generation aligned with actual validation schemas — the snapshot test guards it
-- gate `/docs` in production with config; keep `/openapi.json` available wherever generated clients are built
+- `/docs` redirects to `https://client.scalar.com/?url=` plus the spec's absolute URL (from `APP_URL`, else the request); any `?url=` viewer works the same way
+- the viewer fetches the spec from the browser, so `/openapi.json` sends CORS `*` and needs no credentials
+- `mountDocs()` runs before module routers to stay outside their `use("*")` guards; the spec is built lazily on first request
+- when the API is not public, gate both routes with config
 
 ## PID Lock And Singleton Safety
 
