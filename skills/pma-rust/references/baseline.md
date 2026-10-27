@@ -16,7 +16,7 @@ This is the **acceptance baseline** every PMA-Rust project must meet. It is anch
 
 ## Hard Locks
 
-These rules are non-negotiable. Loosening one requires a dated decision record under `docs/decisions/`.
+These rules apply to every PMA-Rust project and cannot be overridden by a project-level `CLAUDE.md`. Loosening one follows *Known Trade-offs* below.
 
 ### Lock 1 — Mature crates first (pure Rust not required)
 
@@ -30,6 +30,8 @@ Rules for C-backed dependencies:
 - **TLS is the exception, not the rule** — OpenSSL / native-tls stay banned by Lock 2 for stack-consistency and static-linking reasons, not because they are C.
 
 ### Lock 2 — rustls only, `aws-lc-rs` provider explicit
+
+Canonical stack: `tokio-rustls`, `rustls-platform-verifier`, and PEM loading through `rustls-pki-types` (`CertificateDer::pem_file_iter`, `PrivateKeyDer::from_pem_file`); `rustls-pemfile` is unmaintained (RUSTSEC-2025-0134). Enforced by `bans.deny = [openssl, openssl-sys, native-tls, native-tls-sys]` in `deny.toml`.
 
 ```rust
 // In `main.rs`, before any TLS use (any code path that builds a
@@ -185,7 +187,6 @@ These are not Hard Locks, but they appear elsewhere in the skill as strong defau
 | Disable core dumps in **all** environments | Genuinely diagnosing memory corruption (suspected miscompilation, FFI bug) needs cores. | The mandate applies to **production**; dev clusters and the `:debug` image variant may keep cores enabled. Document in the runbook |
 | `cargo deny` license allow-list strict | False-positives on licenses like `Apache-2.0 OR MIT` (composite expressions), `MPL-2.0` (file-level copyleft, contentious in compliance reviews), `Unicode-3.0` (replaced `Unicode-DFS-2016`). | Use `version = 2` in `deny.toml` (better SPDX expression handling). Add specific licenses with a comment explaining the legal review outcome. Vector's `deny.toml` adds `MPL-2.0` only via per-crate exception |
 | SQLx with `query!` macros | Compile-time check requires either a live DB during build or a committed `.sqlx/` cache. New contributors hit "missing query" errors. | Document `cargo sqlx prepare` in CONTRIBUTING; commit `.sqlx/` to git; CI verifies cache freshness via `cargo sqlx prepare --check` |
-| `secrecy::Secret<T>` everywhere | `Secret<String>` does not zeroize on drop unless the inner type is `Zeroize`. False sense of security. | Combine: `Secret<SecretString>` where `SecretString` derives `Zeroize`. Or use `secrecy = { features = ["serde"] }` + custom `Zeroizing` newtype. Audit at every `expose_secret()` call |
 
 ## Meta-rule: how to add an exception cleanly
 
@@ -249,7 +250,7 @@ This is the discharge contract. PMA `/pma` will accept the project even with the
 | CLI | **`clap` derive** + **`clap_complete_command`** | quickwit uses builder API for very large CLIs |
 | Serialization | **`serde`** + `serde_with` | derive-based |
 | Validation | **`validator`** or **`garde`** | derive-based, post-deserialize |
-| Config layering | **`figment`** (TOML/YAML + env + CLI) | quickwit rolls a versioned variant for >100-field configs |
+| Config layering | **`figment`** (TOML + env + CLI) | quickwit rolls a versioned variant for >100-field configs |
 | HTTP client | **`reqwest`** with `default-features = false, features = ["rustls", "json"]` (older releases named the feature `rustls-tls`) | never `native-tls` |
 | Caching | **`moka`** | in-process, TTL + size bounds |
 | Concurrency | `parking_lot`, `dashmap`, `arc-swap` | only when stdlib primitives don't fit |
@@ -328,7 +329,7 @@ For MSRV-related downgrades, also note in `[workspace.package].rust-version` rat
 |---|---|
 | Error types | per-crate `thiserror` enums; `#[from]` only when conversion is genuinely lossless; `anyhow`/`eyre` only at bin entry / `xtask/` / integration tests |
 | Shared state | `Arc<T>` with immutable inner; `arc-swap` for hot reload; **never** `Arc<Mutex<…>>` across `.await` |
-| Secrets | wrap in `secrecy::Secret<T>`; redact in `Debug`; compare with `subtle::ConstantTimeEq`; never log |
+| Secrets | wrap in `secrecy::SecretString` / `SecretBox<T>`; redact in `Debug`; compare with `subtle::ConstantTimeEq`; never log |
 | CLI | `clap` derive with `#[command(version, about)]`; subcommands as enum variants; `ArgAction::Count` for verbose/quiet (uv pattern, `uv-cli/src/lib.rs:156-219`) |
 | Shutdown | `tokio::signal` for SIGINT/SIGTERM; `axum::serve(...).with_graceful_shutdown(...)` paired with `TimeoutLayer`; `CancellationToken` (or `tokio_util::task::TaskTracker`) for fan-out |
 | Async traits | use native `async fn` in trait; avoid `async-trait` macro for new code unless object-safety is required |

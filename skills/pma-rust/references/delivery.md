@@ -22,7 +22,7 @@ This pack covers everything between "code compiles" and "shipped to prod": secre
 - **Outbound HTTP / SSRF** — validate destination hostnames; block link-local / loopback unless allow-listed; reuse `reqwest::Client`, never per-request.
 - **Secret comparison** — use `subtle::ConstantTimeEq` for tokens, HMACs, password digests.
 - **Cache correctness under contention** — `moka` over hand-rolled `Arc<Mutex<HashMap>>`; `arc-swap` for hot-reload of immutable config.
-- **Secret redaction** — wrap in `secrecy::Secret<T>`; never `Debug`/`Display`-format; redact request headers via `SetSensitiveRequestHeadersLayer` (see `runtime-and-data.md`).
+- **Secret redaction** — wrap in `secrecy::SecretString` / `SecretBox<T>`; never `Debug`/`Display`-format; redact request headers via `SetSensitiveRequestHeadersLayer` (see `runtime-and-data.md`).
 - **Auth boundaries** — single auth middleware; handlers receive a typed `CurrentUser` extension, never raw tokens.
 - **Input validation** — `validator`/`garde` at the request boundary; never trust deserialized values without bounds.
 - **Path traversal / TOCTOU** — canonicalize paths, reject `..` segments; consider `cap-std` for sandboxed file IO.
@@ -30,11 +30,11 @@ This pack covers everything between "code compiles" and "shipped to prod": secre
 ### Secret handling
 
 ```rust
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 
 #[derive(Clone, serde::Deserialize)]
 pub struct DbConfig {
-    pub url: Secret<String>,        // not Debug-printable, zeroized on drop
+    pub url: SecretString,          // redacted in Debug, zeroized on drop (secrecy `serde` feature)
 }
 
 let url = cfg.db.url.expose_secret();   // only here, at the moment of use
@@ -48,7 +48,7 @@ Rules:
 
 ### Disable Core Dumps
 
-Production Rust services **must not** produce `core` files. A core is an unredacted memory snapshot — every `secrecy::Secret` value, every JWT in flight, every cached query containing PII goes to disk in cleartext, often into a volume that backups, log shippers, or sidecars can read. Cores also fill disks fast and slow restart on crash loops.
+Production Rust services **must not** produce `core` files. A core is an unredacted memory snapshot — every `secrecy` secret, every JWT in flight, every cached query containing PII goes to disk in cleartext, often into a volume that backups, log shippers, or sidecars can read. Cores also fill disks fast and slow restart on crash loops.
 
 Suppress at **all four layers** so a single config drift cannot defeat the policy.
 
@@ -395,6 +395,7 @@ deny = [
     { name = "native-tls-sys",reason = "use rustls (Lock 2)" },
     # === Discouraged ===
     { name = "dotenv",        reason = "unmaintained — use dotenvy" },
+    { name = "rustls-pemfile",reason = "unmaintained — use rustls-pki-types PemObject" },
     { name = "ring",          version = "<0.17", reason = "0.16 has known soundness issues" },
 ]
 

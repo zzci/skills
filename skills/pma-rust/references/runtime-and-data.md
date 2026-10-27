@@ -255,7 +255,7 @@ When compile-time schema typing is paramount and the team is already on Diesel. 
 Layered with `figment` (or roll your own per-project, like quickwit's `VersionedNodeConfig`):
 
 ```text
-defaults (in code)  →  config file (TOML/YAML)  →  environment variables  →  CLI flags
+defaults (in code)  →  config file (TOML)  →  environment variables  →  CLI flags
 ```
 
 ```rust
@@ -292,7 +292,7 @@ cfg.validate()?;     // post-merge validation at the boundary
 
 Rules:
 
-- secrets wrap in `secrecy::Secret<T>` so they never leak into `Debug`/logs
+- secrets wrap in `secrecy::SecretString` / `SecretBox<T>` so they never leak into `Debug`/logs
 - run validation **after merge** with `validator` or `garde`
 - document every env var (e.g. `ACME_DB__URL`) and CLI flag in the README
 - never read environment variables ad-hoc inside library code; load once at startup, pass `Arc<Config>` down
@@ -487,7 +487,7 @@ Use this pattern for nearly every handler test. Spin up a real `axum::serve` onl
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
     // === 1. Suppress core dumps BEFORE anything else can crash ===
-    // Cores leak secrets (the entire process heap, including secrecy::Secret values) and
+    // Cores leak secrets (the entire process heap, including secrecy secret values) and
     // can fill volume mounts. We disable them in-process so the policy holds even if the
     // outer ulimit/systemd config drifts. See references/delivery.md "Disable Core Dumps".
     #[cfg(unix)]

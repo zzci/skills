@@ -331,7 +331,6 @@ grep -n "<pattern>" <file>
 | `panic = "abort"` breaks `catch_unwind` | Rust Reference — Panic / Unwinding: <https://doc.rust-lang.org/reference/runtime.html#the-panic_handler-attribute> (catch_unwind requires `panic = "unwind"`) |
 | `+crt-static` musl + glibc NSS incompatibility | musl wiki + `cross` documentation — NSS plugins require dynamic glibc; musl-static cannot dlopen glibc NSS modules |
 | `cargo sqlx prepare` and `.sqlx/` cache | <https://github.com/launchbadge/sqlx/blob/main/sqlx-cli/README.md#enable-building-in-offline-mode-with-query> |
-| `secrecy::Secret<T>` does not auto-zeroize | `secrecy` README explicitly says zeroization happens "if the wrapped type implements Zeroize"; bare `Secret<String>` does not zeroize the heap allocation |
 | ADR template / decision-record convention | Michael Nygard's "Documenting Architecture Decisions" + RFC tradition; widely used (e.g., adr-tools, MADR) |
 
 ## How to extend this skill

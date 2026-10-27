@@ -7,30 +7,24 @@ description: Production-grade Rust implementation and acceptance baseline for PM
 
 Use this skill together with `/pma`. `/pma` controls workflow, approval, and task tracking; this guide defines the **product-grade acceptance baseline** for every PMA-Rust project.
 
-Every claim in the reference packs is **anchored to file:line evidence** from the standard-bearer projects below. If a recommendation is missing evidence, it is marked as such. Version numbers inside `references/evidence.md` record what upstream used at the cited commit; they are evidence, not targets. This skill names no versions: every crate, toolchain, edition, and base image starts from its latest stable release verified at the registry (see `/pma references/workflow.md` *Dependency Freshness*).
+This skill names no versions: every crate, toolchain, edition, and base image starts from its latest stable release verified at the registry (see `/pma references/workflow.md` *Dependency Freshness*). Versions inside `references/evidence.md` are evidence, not targets.
 
-## Hard Locks (non-negotiable)
+## Hard Locks
 
-These rules apply to **every** PMA-Rust project. They cannot be overridden by project-level `CLAUDE.md`, only by an explicit, time-boxed exception in `docs/decisions/` with a sunset date.
+Defined in `references/baseline.md` *Hard Locks*; loosening one follows its *Known Trade-offs* section. `/pma` refuses implementation approval when they are not enforced.
 
-| # | Rule | Enforcement |
-|---|---|---|
-| 1 | **Mature crates first — pure Rust is not required.** Pick dependencies by maturity, maintenance, performance, and build portability, not language purity. C/asm-backed crates (`aws-lc-rs`, `rusqlite` with `bundled`, `zstd`, …) are fine without extra paperwork. Prefer crates that vendor and build their C source (`bundled` / `vendored` features) over linking system libraries, and every release target (including musl/cross) must still build. OpenSSL / native-tls remain banned by Lock 2. See `baseline.md` Lock 1. | dependency review + release-target CI build |
-| 2 | **rustls only** for TLS, **`aws-lc-rs` crypto provider** (the rustls default). `tokio-rustls` / `rustls-pemfile` / `rustls-platform-verifier` are the canonical stack; install the provider in `main()`. | `bans.deny = [openssl, openssl-sys, native-tls, native-tls-sys]` |
-| 3 | **`#![forbid(unsafe_code)]`** at every crate root (lib.rs / main.rs). Only data-crate or FFI-crate may relax to `deny`, with `// SAFETY:` comments on every `unsafe` block. | clippy + workspace lints |
-| 4 | **Deny warnings is workspace-manifest policy.** Set `[workspace.lints.rust] warnings = { level = "deny", priority = -2 }` (the rustc `warnings` lint-group; covers all current and future warn-by-default lints). Members inherit via `[lints] workspace = true`. CI runs `cargo clippy` with no `-- -D warnings` suffix — policy lives in `Cargo.toml`, versioned with code, inherited everywhere. | `[workspace.lints.rust]` |
-| 5 | **MSRV declared** in `[workspace.package].rust-version`. CI verifies via `cargo hack check --rust-version` or `cargo msrv verify`. | CI gate |
-| 6 | **No `unwrap` / `expect` / `panic!` in runtime paths.** Allowed only in `#[cfg(test)]`, `xtask/`, `build.rs`. Enforced via clippy `unwrap_used = "deny"` / `panic = "deny"` in runtime crates. | workspace lints |
-| 7 | **Latest stable edition.** New crates and refactors adopt the latest stable Rust edition unless an upstream dependency blocks. | `[workspace.package].edition` |
-| 8 | **Quality gates green** before merge: fmt + clippy + nextest + doctest + cargo-deny + cargo-shear + typos + MSRV check (`cargo hack check --rust-version` or `cargo msrv verify`, per Lock 5). Clippy invoked plainly — deny policy is in `[workspace.lints]`, not on the CLI. See `references/delivery.md`. | CI gate |
-
-Loosening any hard lock requires an explicit, dated decision record (Why? What's the sunset?). PMA `/pma` enforces this by refusing implementation approval when these gates are not configured.
-
-**Locks are defaults, not handcuffs.** `references/baseline.md` "Known Trade-offs (When the Locks Backfire)" lists the real-world scenarios where each lock harms the project (FIPS compliance, ML/HPC C bindings, CLI stdout, glibc NSS, etc.) and the discharge mechanism (`docs/decisions/<adr>.md` with sunset). Read that section before applying a lock dogmatically — and before relaxing one.
+1. Mature crates first; pure Rust is not required, but every release target must build
+2. rustls only, with the `aws-lc-rs` provider installed in `main()`
+3. `#![forbid(unsafe_code)]` at every crate root
+4. Deny warnings in `[workspace.lints]`, not on the CLI
+5. MSRV declared and verified in CI
+6. No `unwrap` / `expect` / `panic!` in runtime paths
+7. Latest stable edition
+8. Quality gates green before merge (`references/delivery.md`)
 
 ## Standard-Bearer Anchors
 
-Every recommendation in the reference packs is grounded in 10 clone-verified standard-bearer projects (cargo, rust-analyzer, reth, vector, tokio, axum, linkerd2-proxy, uv, ruff, quickwit). The evidence anchors for every lock — what each project is mirrored for, plus exact file:line citations — live in `references/evidence.md`.
+Every recommendation is anchored to file:line evidence from 10 clone-verified projects (cargo, rust-analyzer, reth, vector, tokio, axum, linkerd2-proxy, uv, ruff, quickwit); citations live in `references/evidence.md`.
 
 ## Loading Order
 
@@ -64,7 +58,7 @@ Before `/pma` accepts a Rust crate or service for production:
 - [ ] Tracing initialized with JSON formatter in prod; OTLP optional
 - [ ] `/livez` (liveness) + `/readyz` (readiness) endpoints exist for services
 - [ ] Graceful shutdown wired via `axum::serve(...).with_graceful_shutdown(...)` + `CancellationToken` (or equivalent)
-- [ ] Secrets wrapped in `secrecy::Secret<T>`; never `Debug`-formatted
+- [ ] Secrets wrapped in `secrecy::SecretString` / `SecretBox<T>`; never `Debug`-formatted
 - [ ] Config layered: defaults → file → env → CLI; validated post-merge
 - [ ] Errors typed per crate (`thiserror`); `anyhow`/`eyre` only in bin entry points
 - [ ] Release pipeline reproducible: tag → CI → signed binaries (cargo-dist or custom)

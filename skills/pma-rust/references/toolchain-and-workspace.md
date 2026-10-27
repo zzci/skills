@@ -95,11 +95,11 @@ opentelemetry-otlp  = { version = "<latest>", features = ["grpc-tonic", "http-js
 opentelemetry_sdk   = { version = "<latest>", features = ["rt-tokio"] }
 clap        = { version = "<latest>", features = ["derive", "env"] }
 clap_complete_command = "<latest>"      # uv + ruff use this for shell completions
-figment     = { version = "<latest>", features = ["toml", "env", "yaml"] }
+figment     = { version = "<latest>", features = ["toml", "env"] }  # no "yaml": it pulls the deprecated serde_yaml
 sqlx        = { version = "<latest>", default-features = false, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "macros", "migrate"] }
 reqwest     = { version = "<latest>", default-features = false, features = ["rustls", "json", "stream"] }  # older releases named this feature rustls-tls
 rustls      = "<latest>"
-secrecy     = "<latest>"
+secrecy     = { version = "<latest>", features = ["serde"] }
 zeroize     = { version = "<latest>", features = ["derive"] }
 subtle      = "<latest>"
 validator   = { version = "<latest>", features = ["derive"] }
