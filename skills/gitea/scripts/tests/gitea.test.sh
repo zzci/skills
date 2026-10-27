@@ -11,6 +11,9 @@ fail() {
   exit 1
 }
 
+# Start from a clean slate: GITEA_* exported by the caller would leak into alias lookup.
+while IFS= read -r name; do unset "$name"; done < <(compgen -A variable GITEA_)
+
 # shellcheck source=/dev/null
 source "$SCRIPT"
 

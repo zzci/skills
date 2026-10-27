@@ -115,7 +115,7 @@ gitea() {
   shift 2
   tmp=$(mktemp)
   if http=$(curl -sS -o "$tmp" -w '%{http_code}' \
-    -H "Authorization: token $GITEA_TOKEN" \
+    -H @<(printf 'Authorization: token %s\n' "$GITEA_TOKEN") \
     -H 'Content-Type: application/json' \
     -X "$method" "$@" "${GITEA_URL%/}/api/v1${path}"); then
     rc=0

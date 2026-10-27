@@ -153,7 +153,7 @@ Accepted equivalents:
 | HTTP Basic with PAT as password | `-u "<username>:<PAT>"` | Works but unusual; reserve for tools that only speak Basic. |
 | `?token=<PAT>` query param | `?token=abc...` | **Avoid.** Tokens leak into access logs and shell history. |
 
-Never echo `$GITEA_TOKEN` to stdout. Mask in any logging.
+Never echo `$GITEA_TOKEN` to stdout. Mask in any logging. A token passed as a curl argument is visible in `ps` to other users on the host; the `gitea` helper sends it as `-H @<(printf ...)` instead.
 
 ## Probing the instance
 
