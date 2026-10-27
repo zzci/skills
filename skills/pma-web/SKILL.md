@@ -17,7 +17,7 @@ For PMA-managed SPA and internal-tool frontend projects using:
 - TanStack Router for file-based type-safe routing
 - TanStack Query for server state
 - Zustand for UI-only client state
-- shadcn/ui (base-nova style) with `@base-ui/react` primitives and Tailwind CSS — this is the **only** allowed UI ecosystem; Radix UI and other component libraries are forbidden (see `references/baseline.md` *UI Library Policy*)
+- shadcn/ui (base-nova) with `@base-ui/react` and Tailwind CSS — the only allowed UI ecosystem (`references/baseline.md` *UI Library Policy*)
 
 All of these track their latest stable releases; this skill names no versions (see `/pma references/workflow.md` *Dependency Freshness*).
 

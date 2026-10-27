@@ -82,7 +82,7 @@ Use the latest TypeScript major for the CLI and language service. If a framework
 | react-i18next | LinguiJS | smaller bundle, compile-time approach |
 | `@nsio/nsl` | vite proxy / `@hono/vite-dev-server` | only when the dev environment cannot run nsl at all (rare; nsl is a single binary shipped via npm) |
 
-The *UI library* row has no Alternative. Radix UI, MUI, Mantine, Chakra UI, Ant Design, Headless UI, Ariakit, NextUI, Park UI, etc. are **not** acceptable substitutes — see *UI Library Policy*.
+The *UI* row has no Alternative; see *UI Library Policy*.
 
 ## UI Library Policy
 
