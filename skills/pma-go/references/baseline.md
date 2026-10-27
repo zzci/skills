@@ -60,7 +60,6 @@ Every entry uses its latest stable release, verified at the registry (see *Depen
 | Observability | OpenTelemetry | production tracing and metrics |
 | High-perf logging | zerolog | only when measured overhead matters |
 | RPC | connect-go plus buf | service-to-service RPC |
-| DI | google/wire | large dependency graph |
 | Release | GoReleaser | multi-platform release automation |
 | Vulnerability scan | govulncheck | known-CVE checks against the Go vuln DB in CI |
 
@@ -150,7 +149,7 @@ db/
 |---|---|
 | Context | pass `context.Context` first; never store it in structs |
 | Interfaces | define them on the consumer side and keep them small |
-| Constructors | `NewXxx(deps)` returning concrete types |
+| Constructors | `NewXxx(deps)` returning concrete types; wire them by hand in `main`, no DI framework |
 | Config | inject config structs; do not read env in business logic |
 | Secrets | never log secrets |
 | Imports | stdlib, external, internal groups via goimports |
