@@ -9,7 +9,9 @@ Cross-cutting dev-runtime conventions used by every stack skill (`/pma-web`, `/p
 
 ## Dev URL Routing (nsl)
 
-`@nsio/nsl` is a local reverse proxy that maps named `.localhost` URLs to dynamically allocated ports. Each app process — frontend or backend, in any language — runs independently and registers itself with nsl; nsl unifies them under one host and one port (default `:3355`), so the browser sees a single origin and routes like `/api` resolve to the right backend without any in-process middleware bridge.
+`@dotns/nsl` is a local reverse proxy that maps named `.localhost` URLs to dynamically allocated ports. Each app process — frontend or backend, in any language — runs independently and registers itself with nsl; nsl unifies them under one host and one port (default `:3355`), so the browser sees a single origin and routes like `/api` resolve to the right backend without any in-process middleware bridge.
+
+Upstream docs (CLI flags, config, behavior details): https://github.com/dotns/nsl. Check there before relying on any nsl behavior not described in this file.
 
 This **replaces** the previous patterns:
 
@@ -29,10 +31,19 @@ This **replaces** the previous patterns:
 Install once per project (typically as a devDependency of the SPA package; add globally only if no JS package owns the dev workflow):
 
 ```bash
-bun add -D @nsio/nsl
+bun add -D @dotns/nsl
 ```
 
 After install, invoke through `bunx nsl ...` (or wrap in package.json scripts). No global install required.
+
+Projects with no JS package (pure Go / Rust / Python) install it globally instead and call `nsl ...` directly:
+
+```bash
+npm i -g @dotns/nsl
+# or: curl -fsSL https://raw.githubusercontent.com/dotns/nsl/main/install.sh | sh
+```
+
+Never run `bunx nsl` without `@dotns/nsl` installed locally: the unscoped `nsl` package on npm is an unrelated project, and `bunx` would fetch and run it.
 
 ### Mental model
 
@@ -66,6 +77,8 @@ bunx nsl route myapp:/api 8787 --strip
 ```
 
 Use this when the backend has its own launcher (Docker, systemd, IDE run config) and nsl only needs to know where it lives.
+
+`nsl route` does not start the daemon. Run `bunx nsl start` once before registering static routes; `nsl run` (pattern A) starts it automatically.
 
 ### URL layout
 
@@ -109,9 +122,17 @@ bunx nsl get myapp    # the URL for one app (script-friendly)
 bunx nsl status       # daemon state, ports, config
 ```
 
-If the daemon is not running, start it once: `bunx nsl start`.
+`nsl run` starts the daemon if it is not running; only `nsl route` needs an explicit `bunx nsl start` first.
 
 ### Fallback
+
+To bypass nsl for a single invocation without changing scripts, set `NSL=0` or `NSL=skip`. `nsl run` then executes the child command directly: no daemon, no route, no framework flag injection, no `NSL_PORT` substitution, and `PORT` is set to the `-p` value (else `[app].port` from nsl config), or `0` (random port) when neither is set. Pin the port with `-p` if anything depends on it:
+
+```bash
+NSL=skip bunx nsl run -n myapp:/api -p 8787 -s -- bun --watch src/index.ts
+```
+
+Commands that rely on `NSL_PORT` or on injected Vite flags do not work under `NSL=skip`; use `dev:bare` for those.
 
 When the dev environment cannot run the nsl daemon at all (CI containers, sandboxed CI runners, restricted developer machines), use the stack skill's `dev:bare` script (plain `bunx --bun vite` or plain `bun --watch src/index.ts`) and accept that:
 

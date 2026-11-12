@@ -96,7 +96,7 @@ Recommended rules:
 - enable `resolve.tsconfigPaths: true` — built into Vite (off by default, small perf cost); use the `vite-tsconfig-paths` plugin only when a recorded compatibility reason keeps the project on a Vite release without it
 - import `tanstackRouter` (lowercase) from `@tanstack/router-plugin/vite` and place it **before** `react()` in the `plugins` array; the previously-exported `TanStackRouterVite` symbol still works but is deprecated
 - pass `target: "react"` and `routesDirectory: "src/app/routes"`; enable `autoCodeSplitting: true` unless you have a reason not to
-- keep server host on `0.0.0.0`
+- keep server host on `0.0.0.0` for `dev:bare`; under `nsl run` the injected `--host 127.0.0.1` overrides it, which is intended (nsl reaches Vite over loopback)
 - do **not** add `@hono/vite-dev-server`, `server.proxy`, or backend-aware plugins to Vite config — backend integration happens at the nsl layer, not inside Vite
 
 ### Choosing `server.allowedHosts`
@@ -131,7 +131,7 @@ The full nsl protocol — install, mental model, registration patterns, `--strip
 bunx nsl run vite
 ```
 
-`nsl run` exports the allocated port as `PORT`; Vite reads `PORT` natively, so no `--port` flag is needed. This registers `<name>.localhost` → frontend.
+Vite does not read `PORT`; when the command contains `vite`, `nsl run` appends `--port <port> --strictPort --host 127.0.0.1` itself (unless the command already sets `--port` / `--host`), so no flags are needed in the script. This registers `<name>.localhost` → frontend.
 
 ### Frontend HTTP client implications
 

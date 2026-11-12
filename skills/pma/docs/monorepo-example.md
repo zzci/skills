@@ -1,6 +1,6 @@
 # Monorepo Example: Bun Workspaces + nsl
 
-A concrete walkthrough of when to reach for a Bun monorepo, how to lay it out, and how the apps inside it tie together at dev time via `@nsio/nsl`. Pair this with the *Monorepo* sections in `/pma-bun` and `/pma-web`, and the protocol reference in [`references/dev-environment.md`](../references/dev-environment.md).
+A concrete walkthrough of when to reach for a Bun monorepo, how to lay it out, and how the apps inside it tie together at dev time via `@dotns/nsl`. Pair this with the *Monorepo* sections in `/pma-bun` and `/pma-web`, and the protocol reference in [`references/dev-environment.md`](../references/dev-environment.md).
 
 ## Table of Contents
 
@@ -93,13 +93,13 @@ acme/
     "check": "bun run lint && bun run typecheck && bun run test && bun run build"
   },
   "devDependencies": {
-    "@nsio/nsl": "<latest>",
+    "@dotns/nsl": "<latest>",
     "typescript": "<latest>"
   }
 }
 ```
 
-Add dev dependencies with `bun add -D @nsio/nsl typescript` so the registry resolves the latest stable version; `<latest>` is a placeholder, not a literal.
+Add dev dependencies with `bun add -D @dotns/nsl typescript` so the registry resolves the latest stable version; `<latest>` is a placeholder, not a literal.
 
 There is **no** root `dev` script. Each app is launched independently (see below) and tied together by nsl.
 
@@ -113,7 +113,7 @@ Each app's `package.json` carries its own `dev` script that registers with nsl. 
 {
   "name": "@acme/api",
   "scripts": {
-    "dev": "bunx nsl run -n acme:/api -s -- bun --watch src/index.ts",
+    "dev": "bunx nsl run -n acme:/api -p 8787 -s -- bun --watch src/index.ts",
     "dev:bare": "bun --watch src/index.ts"
   }
 }
@@ -162,10 +162,10 @@ After running each app's `dev`:
 http://acme.localhost:3355           -> apps/web
 http://acme.localhost:3355/api       -> apps/api          (/api stripped before forwarding)
 http://acme-admin.localhost:3355     -> apps/admin
-http://acme-admin.localhost:3355/api -> apps/api          (admin reuses the same API host? see below)
+http://acme-admin.localhost:3355/api -> apps/api          (second route, see below)
 ```
 
-If the admin should hit the same API as the main app, point the admin's HTTP client at `http://acme.localhost:3355/api` directly. If the admin needs its own API surface mounted under `acme-admin`, register a second route for the same API process:
+The admin keeps `/api` as a relative base URL so it stays same-origin; do not point it at `http://acme.localhost:3355/api` (cross-origin, breaks cookies and CORS parity with production). Register a second route to the same API process. `nsl run` normally allocates the app port from a dynamic pool (`20000..29999`), so the API's `dev` script pins it with `-p 8787` to give the static route a stable target:
 
 ```bash
 bunx nsl route acme-admin:/api 8787 --strip

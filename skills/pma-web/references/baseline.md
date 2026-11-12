@@ -62,7 +62,7 @@ Use the latest TypeScript major for the CLI and language service. If a framework
 | Theming | ThemeProvider pattern | light, dark, system |
 | Icons | lucide-react | consistent icon set |
 | HTTP client | `src/shared/lib/http.ts` | typed fetch wrapper with `/api` base URL |
-| Dev URL routing | `@nsio/nsl` | install as devDependency; named `.localhost` routes for frontend and backend; replaces vite proxy / hono dev server |
+| Dev URL routing | `@dotns/nsl` | install as devDependency; named `.localhost` routes for frontend and backend; replaces vite proxy / hono dev server |
 
 ### Optional
 
@@ -80,7 +80,7 @@ Use the latest TypeScript major for the CLI and language service. If a framework
 | bun (single project) | bun workspaces | promote when the repo really hosts multiple apps or shared packages |
 | bun workspaces | pnpm workspaces | use consistently across docs and CI |
 | react-i18next | LinguiJS | smaller bundle, compile-time approach |
-| `@nsio/nsl` | vite proxy / `@hono/vite-dev-server` | only when the dev environment cannot run nsl at all (rare; nsl is a single binary shipped via npm) |
+| `@dotns/nsl` | vite proxy / `@hono/vite-dev-server` | only when the dev environment cannot run nsl at all (rare; nsl is a single binary shipped via npm) |
 
 The *UI* row has no Alternative; see *UI Library Policy*.
 
@@ -283,6 +283,6 @@ Each PMA-Web app should expose at least:
 
 Notes:
 
-- Install `@nsio/nsl` as a devDependency (`bun add -D @nsio/nsl`); it ships the `nsl` binary, no global install needed.
-- `bunx nsl run vite` allocates a port, exports it as `PORT` (which Vite reads natively), and registers `<name>.localhost` → frontend. The full nsl protocol lives in `/pma references/dev-environment.md`.
+- Install `@dotns/nsl` as a devDependency (`bun add -D @dotns/nsl`); it ships the `nsl` binary, no global install needed.
+- `bunx nsl run vite` allocates a port, appends `--port <port> --strictPort --host 127.0.0.1` to the Vite command (Vite does not read `PORT`), and registers `<name>.localhost` → frontend. The full nsl protocol lives in `/pma references/dev-environment.md`.
 - `dev:bare` keeps a plain Vite invocation around for CI smoke tests, container builds, or any environment where the nsl daemon cannot run.
