@@ -55,7 +55,7 @@ Every entry uses its latest stable release, verified at the registry (see *Depen
 | Config | environment variables + Zod | validate at startup |
 | Logging | consola + pino | console plus structured file output |
 | Hot reload | `bun --watch src/index.ts` | restarts on source change; backend runs as its own process |
-| Dev URL routing | `@nsio/nsl` | named `.localhost` routes for API (and sibling SPA when same repo). Protocol details: `/pma references/dev-environment.md`. |
+| Dev URL routing | `@dotns/nsl` | named `.localhost` routes for API (and sibling SPA when same repo). Protocol details: `/pma references/dev-environment.md`. |
 
 ### Optional
 
@@ -280,7 +280,7 @@ For a *Single API* or the API project in the *API + Sibling SPA* layout:
 
 Notes:
 
-- Install `@nsio/nsl` as a devDependency (`bun add -D @nsio/nsl`); it ships the `nsl` binary.
+- Install `@dotns/nsl` as a devDependency (`bun add -D @dotns/nsl`); it ships the `nsl` binary.
 - `<name>` matches the project's nsl host. In *API + Sibling SPA*, use the SPA's project name so the API mounts at `<name>.localhost:3355/api`. In *Single API*, drop `:/api` and `-s` and just expose the API at `<name>.localhost:3355`.
 - `Bun.serve()` reads `PORT` natively, which `nsl run` exports automatically — no extra flags.
 - `dev:bare` keeps a plain `bun --watch` invocation around for CI smoke tests, container builds, or environments where the nsl daemon cannot run.
